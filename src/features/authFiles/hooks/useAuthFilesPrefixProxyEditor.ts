@@ -32,6 +32,7 @@ export type PrefixProxyEditorFieldValue = string | boolean;
 
 export type PrefixProxyEditorState = {
   fileName: string;
+  fileInfoText: string;
   isCodexFile: boolean;
   loading: boolean;
   saving: boolean;
@@ -61,7 +62,7 @@ export type UseAuthFilesPrefixProxyEditorResult = {
   prefixProxyEditor: PrefixProxyEditorState | null;
   prefixProxyUpdatedText: string;
   prefixProxyDirty: boolean;
-  openPrefixProxyEditor: (file: Pick<AuthFileItem, 'name' | 'type' | 'provider'>) => Promise<void>;
+  openPrefixProxyEditor: (file: AuthFileItem) => Promise<void>;
   closePrefixProxyEditor: () => void;
   handlePrefixProxyChange: (
     field: PrefixProxyEditorField,
@@ -196,7 +197,7 @@ export function useAuthFilesPrefixProxyEditor(
     setPrefixProxyEditor(null);
   };
 
-  const openPrefixProxyEditor = async (file: Pick<AuthFileItem, 'name' | 'type' | 'provider'>) => {
+  const openPrefixProxyEditor = async (file: AuthFileItem) => {
     const name = file.name;
     const normalizedType = String(file.type ?? '')
       .trim()
@@ -214,6 +215,7 @@ export function useAuthFilesPrefixProxyEditor(
 
     setPrefixProxyEditor({
       fileName: name,
+      fileInfoText: JSON.stringify(file, null, 2),
       isCodexFile,
       loading: true,
       saving: false,

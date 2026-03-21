@@ -39,7 +39,6 @@ import {
 } from '@/features/authFiles/constants';
 import { sortAuthFilesByMode } from '@/features/authFiles/sorting';
 import { AuthFileCard } from '@/features/authFiles/components/AuthFileCard';
-import { AuthFileDetailModal } from '@/features/authFiles/components/AuthFileDetailModal';
 import { AuthFileModelsModal } from '@/features/authFiles/components/AuthFileModelsModal';
 import { AuthFilesPrefixProxyEditorModal } from '@/features/authFiles/components/AuthFilesPrefixProxyEditorModal';
 import { OAuthExcludedCard } from '@/features/authFiles/components/OAuthExcludedCard';
@@ -67,7 +66,6 @@ import {
 } from '@/features/authFiles/uiState';
 import { useAuthStore, useNotificationStore, useThemeStore } from '@/stores';
 import { authFilesApi, type CodexCleanupEvent } from '@/services/api/authFiles';
-import type { AuthFileItem } from '@/types';
 import styles from './AuthFilesPage.module.scss';
 
 const easePower3Out = (progress: number) => 1 - (1 - progress) ** 4;
@@ -112,8 +110,6 @@ export function AuthFilesPage() {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(9);
   const [pageSizeInput, setPageSizeInput] = useState('9');
-  const [detailModalOpen, setDetailModalOpen] = useState(false);
-  const [selectedFile, setSelectedFile] = useState<AuthFileItem | null>(null);
   const [viewMode, setViewMode] = useState<'diagram' | 'list'>('list');
   const [sortMode, setSortMode] = useState<AuthFilesSortMode>('default');
   const [batchActionBarVisible, setBatchActionBarVisible] = useState(false);
@@ -435,11 +431,6 @@ export function AuthFilesPage() {
     selectedNames.length === 0 ||
     batchStatusUpdating ||
     selectedHasStatusUpdating;
-
-  const showDetails = (file: AuthFileItem) => {
-    setSelectedFile(file);
-    setDetailModalOpen(true);
-  };
 
   const copyTextWithNotification = useCallback(
     async (text: string) => {
@@ -777,7 +768,6 @@ export function AuthFilesPage() {
                 keyStats={keyStats}
                 statusBarCache={statusBarCache}
                 onShowModels={showModels}
-                onShowDetails={showDetails}
                 onDownload={handleDownload}
                 onOpenPrefixProxyEditor={openPrefixProxyEditor}
                 onDelete={handleDelete}
@@ -843,13 +833,6 @@ export function AuthFilesPage() {
         onDeleteAlias={handleDeleteAlias}
       />
 
-      <AuthFileDetailModal
-        open={detailModalOpen}
-        file={selectedFile}
-        onClose={() => setDetailModalOpen(false)}
-        onCopyText={copyTextWithNotification}
-      />
-
       <AuthFileModelsModal
         open={modelsModalOpen}
         fileName={modelsFileName}
@@ -868,6 +851,7 @@ export function AuthFilesPage() {
         updatedText={prefixProxyUpdatedText}
         dirty={prefixProxyDirty}
         onClose={closePrefixProxyEditor}
+        onCopyText={copyTextWithNotification}
         onSave={handlePrefixProxySave}
         onChange={handlePrefixProxyChange}
       />

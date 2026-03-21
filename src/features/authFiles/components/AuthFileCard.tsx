@@ -3,13 +3,7 @@ import { Button } from '@/components/ui/Button';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { SelectionCheckbox } from '@/components/ui/SelectionCheckbox';
 import { ToggleSwitch } from '@/components/ui/ToggleSwitch';
-import {
-  IconBot,
-  IconCode,
-  IconDownload,
-  IconInfo,
-  IconTrash2,
-} from '@/components/ui/icons';
+import { IconBot, IconDownload, IconSettings, IconTrash2 } from '@/components/ui/icons';
 import { ProviderStatusBar } from '@/components/providers/ProviderStatusBar';
 import type { AuthFileItem } from '@/types';
 import { EMPTY_STATUS_BAR, normalizeAuthIndex, type KeyStats } from '@/utils/usage';
@@ -43,7 +37,6 @@ export type AuthFileCardProps = {
   keyStats: KeyStats;
   statusBarCache: Map<string, AuthFileStatusBarData>;
   onShowModels: (file: AuthFileItem) => void;
-  onShowDetails: (file: AuthFileItem) => void;
   onDownload: (name: string) => void;
   onOpenPrefixProxyEditor: (file: AuthFileItem) => void;
   onDelete: (name: string) => void;
@@ -64,7 +57,6 @@ export function AuthFileCard(props: AuthFileCardProps) {
     keyStats,
     statusBarCache,
     onShowModels,
-    onShowDetails,
     onDownload,
     onOpenPrefixProxyEditor,
     onDelete,
@@ -87,9 +79,9 @@ export function AuthFileCard(props: AuthFileCardProps) {
       ? styles.antigravityCard
       : quotaType === 'claude'
         ? styles.claudeCard
-      : quotaType === 'codex'
-        ? styles.codexCard
-        : quotaType === 'gemini-cli'
+        : quotaType === 'codex'
+          ? styles.codexCard
+          : quotaType === 'gemini-cli'
             ? styles.geminiCliCard
             : quotaType === 'kimi'
               ? styles.kimiCard
@@ -147,7 +139,8 @@ export function AuthFileCard(props: AuthFileCardProps) {
             </span>
             {priorityValue !== undefined && (
               <span className={styles.priorityBadge}>
-                {t('auth_files.priority_display')}: <span className={styles.priorityValue}>{priorityValue}</span>
+                {t('auth_files.priority_display')}:{' '}
+                <span className={styles.priorityValue}>{priorityValue}</span>
               </span>
             )}
           </div>
@@ -202,16 +195,6 @@ export function AuthFileCard(props: AuthFileCardProps) {
                 <Button
                   variant="secondary"
                   size="sm"
-                  onClick={() => onShowDetails(file)}
-                  className={styles.iconButton}
-                  title={t('common.info', { defaultValue: '关于' })}
-                  disabled={disableControls}
-                >
-                  <IconInfo className={styles.actionIcon} size={16} />
-                </Button>
-                <Button
-                  variant="secondary"
-                  size="sm"
                   onClick={() => onDownload(file.name)}
                   className={styles.iconButton}
                   title={t('auth_files.download_button')}
@@ -227,7 +210,7 @@ export function AuthFileCard(props: AuthFileCardProps) {
                   title={t('auth_files.prefix_proxy_button')}
                   disabled={disableControls}
                 >
-                  <IconCode className={styles.actionIcon} size={16} />
+                  <IconSettings className={styles.actionIcon} size={16} />
                 </Button>
                 <Button
                   variant="danger"
