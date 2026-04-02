@@ -1025,8 +1025,9 @@
   border-radius: $radius-lg;
   border: 1px solid color-mix(in srgb, var(--border-color) 70%, transparent);
   background: color-mix(in srgb, var(--bg-primary) 84%, transparent);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+  --glass-blur: 12px;
+  backdrop-filter: var(--glass-backdrop-filter);
+  -webkit-backdrop-filter: var(--glass-backdrop-filter);
   box-shadow: var(--shadow-lg);
 }
 
