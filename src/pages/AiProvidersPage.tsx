@@ -119,8 +119,12 @@ export function AiProvidersPage() {
     if (hasMounted.current) return;
     hasMounted.current = true;
     loadConfigs();
+  }, [loadConfigs]);
+
+  useEffect(() => {
+    if (!isCurrentLayer) return;
     void loadKeyStats().catch(() => {});
-  }, [loadConfigs, loadKeyStats]);
+  }, [isCurrentLayer, loadKeyStats]);
 
   useEffect(() => {
     if (config?.geminiApiKeys) setGeminiKeys(config.geminiApiKeys);
@@ -136,7 +140,7 @@ export function AiProvidersPage() {
     config?.openaiCompatibility,
   ]);
 
-  useHeaderRefresh(refreshKeyStats);
+  useHeaderRefresh(refreshKeyStats, isCurrentLayer);
 
   const openEditor = useCallback(
     (path: string) => {
