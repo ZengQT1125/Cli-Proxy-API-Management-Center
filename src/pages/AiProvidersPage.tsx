@@ -15,6 +15,7 @@ import {
   withDisableAllModelsRule,
   withoutDisableAllModelsRule,
 } from '@/components/providers/utils';
+import { usePageTransitionLayer } from '@/components/common/PageTransitionLayer';
 import { useHeaderRefresh } from '@/hooks/useHeaderRefresh';
 import { ampcodeApi, providersApi } from '@/services/api';
 import { useAuthStore, useConfigStore, useNotificationStore, useThemeStore } from '@/stores';
@@ -59,7 +60,12 @@ export function AiProvidersPage() {
   const disableControls = connectionStatus !== 'connected';
   const isSwitching = Boolean(configSwitchingKey);
 
-  const { keyStats, statusBarBySource, loadKeyStats, refreshKeyStats } = useProviderStats();
+  const pageTransitionLayer = usePageTransitionLayer();
+  const isCurrentLayer = pageTransitionLayer ? pageTransitionLayer.status === 'current' : true;
+
+  const { keyStats, statusBarBySource, loadKeyStats, refreshKeyStats } = useProviderStats({
+    enabled: isCurrentLayer,
+  });
 
   const getErrorMessage = (err: unknown) => {
     if (err instanceof Error) return err.message;

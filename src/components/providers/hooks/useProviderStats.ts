@@ -35,7 +35,12 @@ function processKeyStatsResponse(response: MonitorKeyStatsResponse) {
   };
 }
 
-export const useProviderStats = () => {
+export type UseProviderStatsOptions = {
+  enabled?: boolean;
+};
+
+export const useProviderStats = (options: UseProviderStatsOptions = {}) => {
+  const enabled = options.enabled ?? true;
   const [keyStats, setKeyStats] = useState<KeyStats>(EMPTY_KEY_STATS);
   const [statusBarBySource, setStatusBarBySource] = useState<Map<string, StatusBarData>>(
     () => new Map()
@@ -78,7 +83,7 @@ export const useProviderStats = () => {
 
   useInterval(() => {
     void refreshKeyStats().catch(() => {});
-  }, 240_000);
+  }, enabled ? 240_000 : null);
 
   return { keyStats, statusBarBySource, loadKeyStats, refreshKeyStats, isLoading };
 };
