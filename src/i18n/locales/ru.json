@@ -1355,6 +1355,7 @@
   "language": {
     "switch": "Язык",
     "chinese": "中文",
+    "chinese_tw": "繁體中文（台灣）",
     "english": "English",
     "russian": "Русский"
   },
