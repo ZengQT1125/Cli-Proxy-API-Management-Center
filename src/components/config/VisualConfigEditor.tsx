@@ -358,6 +358,13 @@ export function VisualConfigEditor({ values, validationErrors, disabled = false,
               />
               <div id={routingStrategyHintId} className="hint">{t('config_management.visual.sections.network.routing_strategy_hint')}</div>
             </div>
+            <Input
+              label={t('config_management.visual.sections.network.session_affinity_ttl')}
+              placeholder="1h"
+              value={values.routingSessionAffinityTTL}
+              onChange={(e) => onChange({ routingSessionAffinityTTL: e.target.value })}
+              disabled={disabled}
+            />
           </SectionGrid>
 
           <ToggleRow
@@ -366,6 +373,12 @@ export function VisualConfigEditor({ values, validationErrors, disabled = false,
             checked={values.forceModelPrefix}
             disabled={disabled}
             onChange={(forceModelPrefix) => onChange({ forceModelPrefix })}
+          />
+          <ToggleRow
+            title={t('config_management.visual.sections.network.session_affinity')}
+            checked={values.routingSessionAffinity}
+            disabled={disabled}
+            onChange={(routingSessionAffinity) => onChange({ routingSessionAffinity })}
           />
           <ToggleRow
             title={t('config_management.visual.sections.network.ws_auth')}
