@@ -57,6 +57,10 @@ export const TYPE_COLORS: Record<string, TypeColorSet> = {
     light: { bg: '#e0f7fa', text: '#006064' },
     dark: { bg: '#004d40', text: '#80deea' }
   },
+  xai: {
+    light: { bg: '#eceff3', text: '#15181d' },
+    dark: { bg: '#e5e7eb', text: '#111827' }
+  },
   iflow: {
     light: { bg: '#f3e5f5', text: '#7b1fa2' },
     dark: { bg: '#4a148c', text: '#ce93d8' }
