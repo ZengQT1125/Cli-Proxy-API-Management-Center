@@ -19,6 +19,7 @@ import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
+import { IconSearch } from '@/components/ui/icons';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Modal } from '@/components/ui/Modal';
 import { ToggleSwitch } from '@/components/ui/ToggleSwitch';
@@ -689,15 +690,17 @@ export function AuthFilesPage() {
           {renderFilterTags()}
 
           <div className={styles.filterControls}>
-            <div className={styles.filterItem}>
+            <div className={`${styles.filterItem} ${styles.filterSearchItem}`}>
               <label>{t('auth_files.search_label')}</label>
               <Input
+                className={styles.searchInput}
                 value={search}
                 onChange={(e) => {
                   setSearch(e.target.value);
                   setPage(1);
                 }}
                 placeholder={t('auth_files.search_placeholder')}
+                rightElement={<IconSearch className={styles.searchIcon} size={18} />}
               />
             </div>
             <div className={styles.filterItem}>
