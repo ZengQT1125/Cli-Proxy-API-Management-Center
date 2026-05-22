@@ -594,7 +594,14 @@ export const PayloadRulesEditor = memo(function PayloadRulesEditor({
 
               return (
                 <div key={param.id} className={styles.payloadRuleParamGroup}>
-                  <div className={styles.payloadRuleParamRow}>
+                  <div
+                    className={[
+                      styles.payloadRuleParamRow,
+                      rawJsonValues ? styles.payloadRuleParamRowRaw : '',
+                    ]
+                      .filter(Boolean)
+                      .join(' ')}
+                  >
                     <input
                       className="input"
                       placeholder={t('config_management.visual.payload_rules.json_path')}

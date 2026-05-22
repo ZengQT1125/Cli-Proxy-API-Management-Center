@@ -16,6 +16,10 @@
   align-items: center;
 }
 
+.payloadRuleParamRowRaw {
+  grid-template-columns: 1fr 1fr auto;
+}
+
 .payloadRuleParamGroup {
   display: flex;
   flex-direction: column;
@@ -53,6 +57,7 @@
   .payloadRuleModelRow,
   .payloadRuleModelRowProtocolFirst,
   .payloadRuleParamRow,
+  .payloadRuleParamRowRaw,
   .payloadFilterModelRow {
     grid-template-columns: minmax(0, 1fr);
   }
