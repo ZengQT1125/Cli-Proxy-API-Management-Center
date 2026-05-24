@@ -58,6 +58,7 @@ import { useAuthFilesOauth } from '@/features/authFiles/hooks/useAuthFilesOauth'
 import { useAuthFilesPrefixProxyEditor } from '@/features/authFiles/hooks/useAuthFilesPrefixProxyEditor';
 import { useAuthFilesStats } from '@/features/authFiles/hooks/useAuthFilesStats';
 import { useAuthFilesStatusBarCache } from '@/features/authFiles/hooks/useAuthFilesStatusBarCache';
+import { convertChatGptSessionToCpaFile } from '@/features/authFiles/chatgptSession';
 import {
   isAuthFilesSortMode,
   readAuthFilesUiState,
@@ -72,6 +73,7 @@ const easePower3Out = (progress: number) => 1 - (1 - progress) ** 4;
 const easePower2In = (progress: number) => progress ** 3;
 const BATCH_BAR_BASE_TRANSFORM = 'translateX(-50%)';
 const BATCH_BAR_HIDDEN_TRANSFORM = 'translateX(-50%) translateY(56px)';
+const CHATGPT_SESSION_URL = 'https://chat.openai.com/api/auth/session';
 const AUTH_FILE_FILTER_ICONS: Record<string, string | { light: string; dark: string }> = {
   antigravity: iconAntigravity,
   aistudio: iconGemini,
@@ -143,6 +145,7 @@ export function AuthFilesPage() {
     fileInputRef,
     loadFiles,
     handleUploadClick,
+    uploadAuthFiles,
     handleFileChange,
     handleDelete,
     handleDeleteAll,
@@ -200,6 +203,8 @@ export function AuthFilesPage() {
   });
 
   const disableControls = connectionStatus !== 'connected';
+  const [chatGptSessionModalOpen, setChatGptSessionModalOpen] = useState(false);
+  const [chatGptSessionText, setChatGptSessionText] = useState('');
   const [codexCleaning, setCodexCleaning] = useState(false);
   const [cleanupModalOpen, setCleanupModalOpen] = useState(false);
   const [cleanupTotal, setCleanupTotal] = useState(0);
@@ -300,6 +305,36 @@ export function AuthFilesPage() {
   const handleHeaderRefresh = useCallback(async () => {
     await Promise.all([loadFiles(), refreshKeyStats(), loadExcluded(), loadModelAlias()]);
   }, [loadFiles, refreshKeyStats, loadExcluded, loadModelAlias]);
+
+  const handleChatGptSessionOpen = useCallback(() => {
+    setChatGptSessionModalOpen(true);
+  }, []);
+
+  const handleChatGptSessionClose = useCallback(() => {
+    if (uploading) return;
+    setChatGptSessionModalOpen(false);
+  }, [uploading]);
+
+  const handleChatGptSessionUpload = useCallback(async () => {
+    let cpaFile;
+    try {
+      cpaFile = convertChatGptSessionToCpaFile(chatGptSessionText);
+    } catch (err: unknown) {
+      const message =
+        err instanceof Error ? err.message : t('auth_files.chatgpt_session_convert_failed');
+      showNotification(`${t('auth_files.chatgpt_session_convert_failed')}: ${message}`, 'error');
+      return;
+    }
+
+    const file = new File([cpaFile.content], cpaFile.fileName, { type: 'application/json' });
+    const uploaded = await uploadAuthFiles([file], {
+      successMessage: t('auth_files.chatgpt_session_upload_success'),
+    });
+    if (!uploaded) return;
+
+    setChatGptSessionText('');
+    setChatGptSessionModalOpen(false);
+  }, [chatGptSessionText, showNotification, t, uploadAuthFiles]);
 
   const handleCodexCleanup = useCallback(async () => {
     setCodexCleaning(true);
@@ -657,6 +692,14 @@ export function AuthFilesPage() {
         title={titleNode}
         extra={
           <div className={styles.headerActions}>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={handleChatGptSessionOpen}
+              disabled={disableControls || uploading}
+            >
+              {t('auth_files.chatgpt_session_button')}
+            </Button>
             {files.some((f) => f.type === 'codex' && !f.disabled) && (
               <Button
                 variant="secondary"
@@ -906,6 +949,61 @@ export function AuthFilesPage() {
         onSave={handlePrefixProxySave}
         onChange={handlePrefixProxyChange}
       />
+
+      <Modal
+        open={chatGptSessionModalOpen}
+        title={t('auth_files.chatgpt_session_title')}
+        onClose={handleChatGptSessionClose}
+        closeDisabled={uploading}
+        width={620}
+        footer={
+          <>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={handleChatGptSessionClose}
+              disabled={uploading}
+            >
+              {t('common.cancel')}
+            </Button>
+            <Button
+              size="sm"
+              onClick={handleChatGptSessionUpload}
+              disabled={disableControls || !chatGptSessionText.trim()}
+              loading={uploading}
+            >
+              {t('auth_files.chatgpt_session_upload_button')}
+            </Button>
+          </>
+        }
+      >
+        <div className={styles.formGroup}>
+          <label htmlFor="chatgpt-session-input">
+            {t('auth_files.chatgpt_session_input_label')}
+          </label>
+          <textarea
+            id="chatgpt-session-input"
+            className={styles.textarea}
+            rows={14}
+            value={chatGptSessionText}
+            onChange={(event) => setChatGptSessionText(event.currentTarget.value)}
+            placeholder={t('auth_files.chatgpt_session_placeholder')}
+            spellCheck={false}
+          />
+          <div className={styles.fieldHint}>
+            {t('auth_files.chatgpt_session_hint_prefix')}
+            <a
+              className={styles.fieldHintLink}
+              href={CHATGPT_SESSION_URL}
+              target="_blank"
+              rel="noreferrer"
+            >
+              {CHATGPT_SESSION_URL}
+            </a>
+            {t('auth_files.chatgpt_session_hint_suffix')}
+          </div>
+        </div>
+      </Modal>
 
       <Modal
         open={cleanupModalOpen}

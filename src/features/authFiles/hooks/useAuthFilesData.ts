@@ -22,6 +22,10 @@ type DeleteAllOptions = {
   onResetDisabledOnly: () => void;
 };
 
+type UploadAuthFilesOptions = {
+  successMessage?: string;
+};
+
 export type UseAuthFilesDataResult = {
   files: AuthFileItem[];
   selectedFiles: Set<string>;
@@ -36,6 +40,7 @@ export type UseAuthFilesDataResult = {
   fileInputRef: RefObject<HTMLInputElement | null>;
   loadFiles: () => Promise<void>;
   handleUploadClick: () => void;
+  uploadAuthFiles: (filesToUpload: File[], options?: UploadAuthFilesOptions) => Promise<boolean>;
   handleFileChange: (event: ChangeEvent<HTMLInputElement>) => Promise<void>;
   handleDelete: (name: string) => void;
   handleDeleteAll: (options: DeleteAllOptions) => void;
@@ -128,12 +133,10 @@ export function useAuthFilesData(options: UseAuthFilesDataOptions): UseAuthFiles
     fileInputRef.current?.click();
   }, []);
 
-  const handleFileChange = useCallback(
-    async (event: ChangeEvent<HTMLInputElement>) => {
-      const fileList = event.target.files;
-      if (!fileList || fileList.length === 0) return;
+  const uploadAuthFiles = useCallback(
+    async (filesToUpload: File[], uploadOptions: UploadAuthFilesOptions = {}) => {
+      if (filesToUpload.length === 0) return false;
 
-      const filesToUpload = Array.from(fileList);
       const validFiles: File[] = [];
       const invalidFiles: string[] = [];
       const oversizedFiles: string[] = [];
@@ -161,43 +164,56 @@ export function useAuthFilesData(options: UseAuthFilesDataOptions): UseAuthFiles
       }
 
       if (validFiles.length === 0) {
-        event.target.value = '';
-        return;
+        return false;
       }
 
       setUploading(true);
       let successCount = 0;
       const failed: { name: string; message: string }[] = [];
 
-      for (const file of validFiles) {
-        try {
-          await authFilesApi.upload(file);
-          successCount++;
-        } catch (err: unknown) {
-          const errorMessage = err instanceof Error ? err.message : 'Unknown error';
-          failed.push({ name: file.name, message: errorMessage });
+      try {
+        for (const file of validFiles) {
+          try {
+            await authFilesApi.upload(file);
+            successCount++;
+          } catch (err: unknown) {
+            const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+            failed.push({ name: file.name, message: errorMessage });
+          }
         }
-      }
 
-      if (successCount > 0) {
-        const suffix = validFiles.length > 1 ? ` (${successCount}/${validFiles.length})` : '';
-        showNotification(
-          `${t('auth_files.upload_success')}${suffix}`,
-          failed.length ? 'warning' : 'success'
-        );
-        await loadFiles();
-        await refreshKeyStats();
-      }
+        if (successCount > 0) {
+          const suffix = validFiles.length > 1 ? ` (${successCount}/${validFiles.length})` : '';
+          showNotification(
+            `${uploadOptions.successMessage ?? t('auth_files.upload_success')}${suffix}`,
+            failed.length ? 'warning' : 'success'
+          );
+          await loadFiles();
+          await refreshKeyStats();
+        }
 
-      if (failed.length > 0) {
-        const details = failed.map((item) => `${item.name}: ${item.message}`).join('; ');
-        showNotification(`${t('notification.upload_failed')}: ${details}`, 'error');
-      }
+        if (failed.length > 0) {
+          const details = failed.map((item) => `${item.name}: ${item.message}`).join('; ');
+          showNotification(`${t('notification.upload_failed')}: ${details}`, 'error');
+        }
 
-      setUploading(false);
-      event.target.value = '';
+        return successCount > 0 && failed.length === 0;
+      } finally {
+        setUploading(false);
+      }
     },
     [loadFiles, refreshKeyStats, showNotification, t]
+  );
+
+  const handleFileChange = useCallback(
+    async (event: ChangeEvent<HTMLInputElement>) => {
+      const fileList = event.target.files;
+      if (!fileList || fileList.length === 0) return;
+
+      await uploadAuthFiles(Array.from(fileList));
+      event.target.value = '';
+    },
+    [uploadAuthFiles]
   );
 
   const handleDelete = useCallback(
@@ -612,6 +628,7 @@ export function useAuthFilesData(options: UseAuthFilesDataOptions): UseAuthFiles
     fileInputRef,
     loadFiles,
     handleUploadClick,
+    uploadAuthFiles,
     handleFileChange,
     handleDelete,
     handleDeleteAll,
