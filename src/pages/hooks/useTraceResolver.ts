@@ -5,6 +5,7 @@ import { monitorApi, type MonitorRequestDetailItem } from '@/services/api/monito
 import type { AuthFileItem, Config } from '@/types';
 import type { CredentialInfo, SourceInfo } from '@/types/sourceInfo';
 import { buildSourceInfoMap, resolveSourceDisplay } from '@/utils/sourceResolver';
+import { parseTimestampMs } from '@/utils/timestamp';
 import { normalizeAuthIndex } from '@/utils/usage';
 import type { ParsedLogLine } from './logTypes';
 
@@ -129,7 +130,7 @@ export function useTraceResolver(options: UseTraceResolverOptions): UseTraceReso
       if (detailsResponse !== null) {
         const items = detailsResponse?.items ?? [];
         const details: TraceDetail[] = items.map((item) => {
-          const ts = item.timestamp ? Date.parse(item.timestamp) : 0;
+          const ts = item.timestamp ? parseTimestampMs(item.timestamp) : 0;
           return { ...item, __timestampMs: Number.isNaN(ts) ? 0 : ts };
         });
         setTraceUsageDetails(details);
@@ -186,7 +187,7 @@ export function useTraceResolver(options: UseTraceResolverOptions): UseTraceReso
     if (!logPath) return [];
 
     const logTimestampMs = traceLogLine.timestamp
-      ? Date.parse(traceLogLine.timestamp)
+      ? parseTimestampMs(traceLogLine.timestamp)
       : Number.NaN;
 
     // Step 1: filter by path match
