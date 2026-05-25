@@ -27,12 +27,16 @@ function formatNumber(num: number): string {
 
 export function KpiCards({ timeRange, apiFilter }: KpiCardsProps) {
   const { t } = useTranslation();
-  const [loading, setLoading] = useState(true);
-  const [kpiData, setKpiData] = useState<MonitorKpiData | null>(null);
+  const requestKey = `${timeRange}\0${apiFilter}`;
+  const [kpiResult, setKpiResult] = useState<{
+    requestKey: string;
+    data: MonitorKpiData | null;
+  } | null>(null);
+  const loading = kpiResult?.requestKey !== requestKey;
+  const kpiData = kpiResult?.data ?? null;
 
   useEffect(() => {
     let cancelled = false;
-    setLoading(true);
 
     const params = {
       ...buildMonitorTimeRangeParams(timeRange),
@@ -41,19 +45,17 @@ export function KpiCards({ timeRange, apiFilter }: KpiCardsProps) {
 
     monitorApi.getKpi(params).then((data) => {
       if (!cancelled) {
-        setKpiData(data);
-        setLoading(false);
+        setKpiResult({ requestKey, data });
       }
     }).catch((err) => {
       console.error('KPI data load failed:', err);
       if (!cancelled) {
-        setKpiData(null);
-        setLoading(false);
+        setKpiResult({ requestKey, data: null });
       }
     });
 
     return () => { cancelled = true; };
-  }, [timeRange, apiFilter]);
+  }, [timeRange, apiFilter, requestKey]);
 
   const timeRangeLabel = (() => {
     if (timeRange === 'yesterday') return t('monitor.yesterday');

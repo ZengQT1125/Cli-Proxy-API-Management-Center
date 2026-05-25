@@ -88,8 +88,6 @@ export function ServiceHealthCard() {
 
   useEffect(() => {
     let cancelled = false;
-    setLoading(true);
-    setError(false);
     monitorApi
       .getServiceHealth()
       .then((res) => {

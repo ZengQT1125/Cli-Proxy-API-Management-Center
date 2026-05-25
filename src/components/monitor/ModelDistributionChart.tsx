@@ -28,15 +28,21 @@ const COLORS = [
 
 type ViewMode = 'request' | 'token';
 
+const EMPTY_DISTRIBUTION_ITEMS: MonitorModelDistributionItem[] = [];
+
 export function ModelDistributionChart({ timeRange, apiFilter, isDark }: ModelDistributionChartProps) {
   const { t } = useTranslation();
   const [viewMode, setViewMode] = useState<ViewMode>('request');
-  const [loading, setLoading] = useState(true);
-  const [distributionItems, setDistributionItems] = useState<MonitorModelDistributionItem[]>([]);
+  const requestKey = `${timeRange}\0${apiFilter}\0${viewMode}`;
+  const [distributionState, setDistributionState] = useState<{
+    requestKey: string;
+    items: MonitorModelDistributionItem[];
+  } | null>(null);
+  const loading = distributionState?.requestKey !== requestKey;
+  const distributionItems = distributionState?.items ?? EMPTY_DISTRIBUTION_ITEMS;
 
   useEffect(() => {
     let cancelled = false;
-    setLoading(true);
 
     const params = {
       sort: viewMode === 'request' ? 'requests' as const : 'tokens' as const,
@@ -47,19 +53,17 @@ export function ModelDistributionChart({ timeRange, apiFilter, isDark }: ModelDi
 
     monitorApi.getModelDistribution(params).then((data) => {
       if (!cancelled) {
-        setDistributionItems(data.items || []);
-        setLoading(false);
+        setDistributionState({ requestKey, items: data.items || [] });
       }
     }).catch((err) => {
       console.error('Model distribution load failed:', err);
       if (!cancelled) {
-        setDistributionItems([]);
-        setLoading(false);
+        setDistributionState({ requestKey, items: [] });
       }
     });
 
     return () => { cancelled = true; };
-  }, [timeRange, apiFilter, viewMode]);
+  }, [timeRange, apiFilter, viewMode, requestKey]);
 
   const timeRangeLabel = (() => {
     if (timeRange === 'yesterday') return t('monitor.yesterday');

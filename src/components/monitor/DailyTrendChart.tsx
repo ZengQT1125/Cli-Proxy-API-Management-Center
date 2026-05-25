@@ -12,14 +12,20 @@ interface DailyTrendChartProps {
   isDark: boolean;
 }
 
+const EMPTY_DAILY_ITEMS: MonitorDailyTrendItem[] = [];
+
 export function DailyTrendChart({ timeRange, apiFilter, isDark }: DailyTrendChartProps) {
   const { t } = useTranslation();
-  const [loading, setLoading] = useState(true);
-  const [dailyItems, setDailyItems] = useState<MonitorDailyTrendItem[]>([]);
+  const requestKey = `${timeRange}\0${apiFilter}`;
+  const [dailyState, setDailyState] = useState<{
+    requestKey: string;
+    items: MonitorDailyTrendItem[];
+  } | null>(null);
+  const loading = dailyState?.requestKey !== requestKey;
+  const dailyItems = dailyState?.items ?? EMPTY_DAILY_ITEMS;
 
   useEffect(() => {
     let cancelled = false;
-    setLoading(true);
 
     const params = {
       ...buildMonitorTimeRangeParams(timeRange),
@@ -28,19 +34,17 @@ export function DailyTrendChart({ timeRange, apiFilter, isDark }: DailyTrendChar
 
     monitorApi.getDailyTrend(params).then((data) => {
       if (!cancelled) {
-        setDailyItems(data.items || []);
-        setLoading(false);
+        setDailyState({ requestKey, items: data.items || [] });
       }
     }).catch((err) => {
       console.error('Daily trend load failed:', err);
       if (!cancelled) {
-        setDailyItems([]);
-        setLoading(false);
+        setDailyState({ requestKey, items: [] });
       }
     });
 
     return () => { cancelled = true; };
-  }, [timeRange, apiFilter]);
+  }, [timeRange, apiFilter, requestKey]);
 
   // 图表数据
   const chartData = useMemo(() => {

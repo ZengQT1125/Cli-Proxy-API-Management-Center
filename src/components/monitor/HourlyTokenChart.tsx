@@ -26,12 +26,16 @@ const EMPTY_DATA: MonitorHourlyTokensData = {
 export function HourlyTokenChart({ timeRange, apiFilter, isDark }: HourlyTokenChartProps) {
   const { t } = useTranslation();
   const [hourRange, setHourRange] = useState<HourRange>(12);
-  const [loading, setLoading] = useState(true);
-  const [hourlyData, setHourlyData] = useState<MonitorHourlyTokensData>(EMPTY_DATA);
+  const requestKey = `${timeRange}\0${apiFilter}\0${hourRange}`;
+  const [hourlyState, setHourlyState] = useState<{
+    requestKey: string;
+    data: MonitorHourlyTokensData;
+  } | null>(null);
+  const loading = hourlyState?.requestKey !== requestKey;
+  const hourlyData = hourlyState?.data ?? EMPTY_DATA;
 
   useEffect(() => {
     let cancelled = false;
-    setLoading(true);
 
     const params = {
       hours: hourRange,
@@ -41,19 +45,17 @@ export function HourlyTokenChart({ timeRange, apiFilter, isDark }: HourlyTokenCh
 
     monitorApi.getHourlyTokens(params).then((data) => {
       if (!cancelled) {
-        setHourlyData(data);
-        setLoading(false);
+        setHourlyState({ requestKey, data });
       }
     }).catch((err) => {
       console.error('Hourly tokens load failed:', err);
       if (!cancelled) {
-        setHourlyData(EMPTY_DATA);
-        setLoading(false);
+        setHourlyState({ requestKey, data: EMPTY_DATA });
       }
     });
 
     return () => { cancelled = true; };
-  }, [timeRange, apiFilter, hourRange]);
+  }, [timeRange, apiFilter, hourRange, requestKey]);
 
   // 获取时间范围标签
   const hourRangeLabel = useMemo(() => {
