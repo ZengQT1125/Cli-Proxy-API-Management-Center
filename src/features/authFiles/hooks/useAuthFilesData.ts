@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type ChangeEvent, type RefObject } from 'react';
 import { useTranslation } from 'react-i18next';
 import { authFilesApi } from '@/services/api';
-import { apiClient } from '@/services/api/client';
 import { useNotificationStore } from '@/stores';
 import type { AuthFileItem } from '@/types';
 import { formatFileSize } from '@/utils/format';
@@ -35,6 +34,7 @@ export type UseAuthFilesDataResult = {
   uploading: boolean;
   deleting: string | null;
   deletingAll: boolean;
+  downloadingAll: boolean;
   statusUpdating: Record<string, boolean>;
   batchStatusUpdating: boolean;
   fileInputRef: RefObject<HTMLInputElement | null>;
@@ -45,6 +45,7 @@ export type UseAuthFilesDataResult = {
   handleDelete: (name: string) => void;
   handleDeleteAll: (options: DeleteAllOptions) => void;
   handleDownload: (name: string) => Promise<void>;
+  handleDownloadAll: () => Promise<void>;
   handleStatusToggle: (item: AuthFileItem, enabled: boolean) => Promise<void>;
   toggleSelect: (name: string) => void;
   selectAllVisible: (visibleFiles: AuthFileItem[]) => void;
@@ -68,6 +69,7 @@ export function useAuthFilesData(options: UseAuthFilesDataOptions): UseAuthFiles
   const [uploading, setUploading] = useState(false);
   const [deleting, setDeleting] = useState<string | null>(null);
   const [deletingAll, setDeletingAll] = useState(false);
+  const [downloadingAll, setDownloadingAll] = useState(false);
   const [statusUpdating, setStatusUpdating] = useState<Record<string, boolean>>({});
   const [batchStatusUpdating, setBatchStatusUpdating] = useState(false);
   const [selectedFiles, setSelectedFiles] = useState<Set<string>>(new Set());
@@ -406,12 +408,8 @@ export function useAuthFilesData(options: UseAuthFilesDataOptions): UseAuthFiles
   const handleDownload = useCallback(
     async (name: string) => {
       try {
-        const response = await apiClient.getRaw(
-          `/auth-files/download?name=${encodeURIComponent(name)}`,
-          { responseType: 'blob' }
-        );
-        const blob = new Blob([response.data]);
-        downloadBlob({ filename: name, blob });
+        const { blob, filename } = await authFilesApi.downloadFile(name);
+        downloadBlob({ filename, blob });
         showNotification(t('auth_files.download_success'), 'success');
       } catch (err: unknown) {
         const errorMessage = err instanceof Error ? err.message : '';
@@ -420,6 +418,20 @@ export function useAuthFilesData(options: UseAuthFilesDataOptions): UseAuthFiles
     },
     [showNotification, t]
   );
+
+  const handleDownloadAll = useCallback(async () => {
+    setDownloadingAll(true);
+    try {
+      const { blob, filename } = await authFilesApi.downloadAll();
+      downloadBlob({ filename, blob });
+      showNotification(t('auth_files.download_all_success'), 'success');
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : '';
+      showNotification(`${t('notification.download_failed')}: ${errorMessage}`, 'error');
+    } finally {
+      setDownloadingAll(false);
+    }
+  }, [showNotification, t]);
 
   const handleStatusToggle = useCallback(
     async (item: AuthFileItem, enabled: boolean) => {
@@ -623,6 +635,7 @@ export function useAuthFilesData(options: UseAuthFilesDataOptions): UseAuthFiles
     uploading,
     deleting,
     deletingAll,
+    downloadingAll,
     statusUpdating,
     batchStatusUpdating,
     fileInputRef,
@@ -633,6 +646,7 @@ export function useAuthFilesData(options: UseAuthFilesDataOptions): UseAuthFiles
     handleDelete,
     handleDeleteAll,
     handleDownload,
+    handleDownloadAll,
     handleStatusToggle,
     toggleSelect,
     selectAllVisible,

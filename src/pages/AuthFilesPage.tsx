@@ -138,6 +138,7 @@ export function AuthFilesPage() {
     uploading,
     deleting,
     deletingAll,
+    downloadingAll,
     statusUpdating,
     batchStatusUpdating,
     fileInputRef,
@@ -147,6 +148,7 @@ export function AuthFilesPage() {
     handleDelete,
     handleDeleteAll,
     handleDownload,
+    handleDownloadAll,
     handleStatusToggle,
     toggleSelect,
     selectAllVisible,
@@ -670,6 +672,15 @@ export function AuthFilesPage() {
             )}
             <Button variant="secondary" size="sm" onClick={handleHeaderRefresh} disabled={loading}>
               {t('common.refresh')}
+            </Button>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => void handleDownloadAll()}
+              disabled={disableControls || loading || files.length === 0 || downloadingAll}
+              loading={downloadingAll}
+            >
+              {t('auth_files.download_all_button')}
             </Button>
             <Button
               size="sm"

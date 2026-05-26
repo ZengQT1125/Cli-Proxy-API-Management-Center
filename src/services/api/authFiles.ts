@@ -8,6 +8,7 @@ import type { OAuthModelAliasEntry } from '@/types';
 
 type StatusError = { status?: number };
 type AuthFileStatusResponse = { status: string; disabled: boolean };
+type DownloadedAuthFile = { blob: Blob; filename: string };
 
 export type CodexCleanupEvent =
   | { type: 'start'; total: number }
@@ -134,6 +135,33 @@ const normalizeOauthModelAlias = (payload: unknown): Record<string, OAuthModelAl
 
 const OAUTH_MODEL_ALIAS_ENDPOINT = '/oauth-model-alias';
 
+const readDownloadFilename = (contentDisposition: string | undefined, fallback: string): string => {
+  const trimmed = String(contentDisposition ?? '').trim();
+  if (!trimmed) return fallback;
+
+  const utf8Match = trimmed.match(/filename\*\s*=\s*UTF-8''([^;]+)/i);
+  if (utf8Match?.[1]) {
+    try {
+      return decodeURIComponent(utf8Match[1].trim());
+    } catch {
+      return utf8Match[1].trim();
+    }
+  }
+
+  const plainMatch = trimmed.match(/filename\s*=\s*"([^"]+)"|filename\s*=\s*([^;]+)/i);
+  const candidate = plainMatch?.[1] ?? plainMatch?.[2];
+  if (!candidate) return fallback;
+  return candidate.trim();
+};
+
+const downloadAuthFileBlob = async (url: string, fallback: string): Promise<DownloadedAuthFile> => {
+  const response = await apiClient.getRaw(url, { responseType: 'blob' });
+  return {
+    blob: response.data as Blob,
+    filename: readDownloadFilename(response.headers['content-disposition'], fallback),
+  };
+};
+
 export const authFilesApi = {
   list: () => apiClient.get<AuthFilesResponse>('/auth-files'),
 
@@ -150,11 +178,13 @@ export const authFilesApi = {
 
   deleteAll: () => apiClient.delete('/auth-files', { params: { all: true } }),
 
+  downloadFile: (name: string) =>
+    downloadAuthFileBlob(`/auth-files/download?name=${encodeURIComponent(name)}`, name),
+
+  downloadAll: () => downloadAuthFileBlob('/auth-files/download?all=true', 'auth-files.zip'),
+
   downloadText: async (name: string): Promise<string> => {
-    const response = await apiClient.getRaw(`/auth-files/download?name=${encodeURIComponent(name)}`, {
-      responseType: 'blob'
-    });
-    const blob = response.data as Blob;
+    const { blob } = await authFilesApi.downloadFile(name);
     return blob.text();
   },
 
