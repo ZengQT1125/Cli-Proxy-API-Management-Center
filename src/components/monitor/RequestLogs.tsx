@@ -9,7 +9,9 @@ import { UnsupportedDisableModal } from './UnsupportedDisableModal';
 import {
   REQUEST_LOG_FILTER_KEYS,
   REQUEST_LOG_TABLE_COLUMN_KEYS,
+  REQUEST_LOG_TABLE_COLUMN_WIDTHS,
   REQUEST_LOG_TABLE_HEADER_KEYS,
+  REQUEST_LOG_TABLE_MIN_WIDTH,
   type RequestLogFilterKey,
   type RequestLogTableColumnKey,
 } from './requestLogColumns';
@@ -499,7 +501,15 @@ export function RequestLogs({
           ) : logEntries.length === 0 ? (
             <div className={styles.emptyState}>{t('monitor.no_data')}</div>
           ) : (
-            <table className={`${styles.table} ${styles.virtualTable}`}>
+            <table
+              className={`${styles.table} ${styles.virtualTable}`}
+              style={{ minWidth: REQUEST_LOG_TABLE_MIN_WIDTH }}
+            >
+              <colgroup>
+                {REQUEST_LOG_TABLE_COLUMN_KEYS.map((column) => (
+                  <col key={column} style={{ width: REQUEST_LOG_TABLE_COLUMN_WIDTHS[column] }} />
+                ))}
+              </colgroup>
               <thead>
                 <tr>
                   {REQUEST_LOG_TABLE_COLUMN_KEYS.map((column) => (
