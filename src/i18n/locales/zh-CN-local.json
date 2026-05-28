@@ -137,6 +137,8 @@
       "header_recent": "最近请求状态",
       "header_rate": "成功率",
       "header_count": "请求数",
+      "header_timing": "首字/耗时(秒)",
+      "header_toks": "Tok/s",
       "header_input": "输入",
       "header_output": "输出",
       "header_total": "总 Token",

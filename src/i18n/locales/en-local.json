@@ -137,6 +137,8 @@
       "header_recent": "Recent Status",
       "header_rate": "Success Rate",
       "header_count": "Requests",
+      "header_timing": "TTFT/Latency(s)",
+      "header_toks": "Tok/s",
       "header_input": "Input",
       "header_output": "Output",
       "header_total": "Total Tokens",

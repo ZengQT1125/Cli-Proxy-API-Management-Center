@@ -47,6 +47,8 @@ interface LogEntry {
   cachedTokens: number;
   requestCount: number;
   successRate: number;
+  latencyMs: number;
+  ttftMs: number;
   recentRequests: { failed: boolean; timestamp: number }[];
   authIndex: string;
 }
@@ -122,6 +124,8 @@ export function RequestLogs({
         cachedTokens: item.cached_tokens || 0,
         requestCount: item.request_count || 0,
         successRate: item.success_rate || 0,
+        latencyMs: item.latency_ms || 0,
+        ttftMs: item.ttft_ms || 0,
         recentRequests: (item.recent_requests || []).map((req) => ({
           failed: !!req.failed,
           timestamp: req.timestamp ? new Date(req.timestamp).getTime() : 0,
@@ -297,6 +301,29 @@ export function RequestLogs({
         );
       case 'count':
         return <td>{formatNumber(entry.requestCount)}</td>;
+      case 'timing': {
+        const ttft = entry.ttftMs > 0 ? (entry.ttftMs / 1000).toFixed(2) : '-';
+        const latency = entry.latencyMs > 0 ? (entry.latencyMs / 1000).toFixed(2) : '-';
+        const titleParts: string[] = [];
+        if (entry.ttftMs > 0) titleParts.push(`TTFT: ${formatNumber(entry.ttftMs)}ms`);
+        if (entry.latencyMs > 0) titleParts.push(`Latency: ${formatNumber(entry.latencyMs)}ms`);
+        return (
+          <td className={styles.tokenCell} title={titleParts.join(' / ') || '-'}>
+            {ttft === '-' && latency === '-' ? '-' : (
+              <>
+                <span style={{ color: 'var(--text-secondary)' }}>{ttft}</span>
+                {' / '}
+                {latency}
+              </>
+            )}
+          </td>
+        );
+      }
+      case 'toks': {
+        if (entry.latencyMs <= 0 || entry.outputTokens <= 0) return <td className={styles.tokenCell}>-</td>;
+        const toks = (entry.outputTokens / (entry.latencyMs / 1000)).toFixed(1);
+        return <td className={styles.tokenCell}>{toks}</td>;
+      }
       case 'input':
         return (
           <td className={styles.tokenCell} title={formatNumber(entry.inputTokens)}>

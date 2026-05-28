@@ -48,6 +48,8 @@ export interface MonitorRequestLogItem {
   reasoning_tokens: number;
   cached_tokens: number;
   total_tokens: number;
+  latency_ms: number;
+  ttft_ms: number;
   request_count: number;
   success_rate: number;
   recent_requests: MonitorRecentRequest[];
