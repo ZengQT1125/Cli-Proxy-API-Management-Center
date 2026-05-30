@@ -26,12 +26,10 @@ const OAUTH_PROVIDER_PRESETS = [
   'antigravity',
   'claude',
   'codex',
-  'qwen',
   'kimi',
-  'iflow',
 ];
 
-const OAUTH_PROVIDER_EXCLUDES = new Set(['all', 'unknown', 'empty']);
+const OAUTH_PROVIDER_EXCLUDES = new Set(['all', 'unknown', 'empty', 'qwen', 'iflow']);
 
 const normalizeProviderKey = (value: string) => value.trim().toLowerCase();
 
