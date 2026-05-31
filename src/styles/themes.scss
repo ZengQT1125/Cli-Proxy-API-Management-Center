@@ -30,24 +30,24 @@
   --primary-active: #0a7f74;
   --primary-contrast: #ffffff;
 
-  --success-color: #0f7a55;
-  --warning-color: #bb6d14;
-  --error-color: #bf3d3d;
-  --quota-medium-color: #bb6d14;
+  --success-color: #10b981;
+  --warning-color: #f59e0b;
+  --error-color: #ef4444;
+  --quota-medium-color: #e0aa14;
   --danger-color: var(--error-color);
   --info-color: var(--primary-color);
 
-  --warning-bg: #fff8e8;
-  --warning-border: #f3be62;
-  --warning-text: #bb6d14;
+  --warning-bg: rgba(245, 158, 11, 0.12);
+  --warning-border: rgba(245, 158, 11, 0.35);
+  --warning-text: var(--warning-color);
 
-  --success-badge-bg: #eaf8f0;
-  --success-badge-text: #0f7a55;
-  --success-badge-border: #a3e2c9;
+  --success-badge-bg: #d1fae5;
+  --success-badge-text: #065f46;
+  --success-badge-border: #6ee7b7;
 
-  --failure-badge-bg: #fff0ee;
-  --failure-badge-text: #bf3d3d;
-  --failure-badge-border: #ffc4be;
+  --failure-badge-bg: #fee2e2;
+  --failure-badge-text: #991b1b;
+  --failure-badge-border: #fca5a5;
 
   --count-badge-bg: rgba(6, 79, 87, 0.12);
   --count-badge-text: var(--primary-color);
