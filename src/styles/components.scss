@@ -119,11 +119,14 @@ textarea {
 }
 
 .card {
-  background-color: var(--bg-primary);
-  border: 1px solid var(--border-color);
+  background-color: var(--glass-bg, var(--bg-primary));
+  border: 1px solid var(--glass-border, var(--border-color));
+  backdrop-filter: var(--glass-backdrop-filter, none);
+  -webkit-backdrop-filter: var(--glass-backdrop-filter, none);
   border-radius: $radius-lg;
   box-shadow: var(--shadow);
   padding: $spacing-lg;
+  transition: transform $transition-fast, box-shadow $transition-fast, border-color $transition-fast;
 }
 
 .card-header {

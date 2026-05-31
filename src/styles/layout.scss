@@ -11,36 +11,7 @@
   height: 100vh;
   overflow: hidden;
   color: var(--text-primary);
-
-  // Background gradient from render.js
-  background-attachment: fixed;
-  background-image:
-    radial-gradient(circle at var(--mouse-x, 50%) var(--mouse-y, 20%), rgba(239, 112, 72, 0.14), transparent 22rem),
-    radial-gradient(circle at calc(100% - var(--mouse-x, 50%)) 8%, rgba(6, 79, 87, 0.16), transparent 30rem),
-    linear-gradient(180deg, #f8fbfc 0%, var(--bg-secondary) 44%, #dfeaf0 100%);
-
-  position: relative;
-  z-index: 1;
-
-  &::before {
-    content: "";
-    position: absolute;
-    inset: 0;
-    pointer-events: none;
-    z-index: -1;
-    background-image:
-      linear-gradient(115deg, rgba(6, 79, 87, 0.06), transparent 34%),
-      radial-gradient(circle at var(--mouse-x, 50%) var(--mouse-y, 20%), rgba(255, 255, 255, 0.72), transparent 17rem);
-    opacity: 0.85;
-    transition: opacity 0.25s ease;
-  }
-
-  :global([data-theme='dark']) &::before {
-    opacity: 0.05;
-    background-image:
-      linear-gradient(115deg, rgba(255, 255, 255, 0.02), transparent 34%),
-      radial-gradient(circle at var(--mouse-x, 50%) var(--mouse-y, 20%), rgba(0, 0, 0, 0.5), transparent 17rem);
-  }
+  background-color: var(--bg-secondary);
 
   @media (max-width: $breakpoint-mobile) {
     height: auto;
@@ -616,6 +587,36 @@
   overflow-y: auto;
   scrollbar-gutter: stable;
   height: 100%;
+
+  // Background gradient and mouse responsive pointer glow from render.js
+  background-attachment: fixed;
+  background-image:
+    radial-gradient(circle at var(--mouse-x, 50%) var(--mouse-y, 20%), rgba(239, 112, 72, 0.14), transparent 22rem),
+    radial-gradient(circle at calc(100% - var(--mouse-x, 50%)) 8%, rgba(6, 79, 87, 0.16), transparent 30rem),
+    linear-gradient(180deg, #f8fbfc 0%, var(--bg-secondary) 44%, #dfeaf0 100%);
+
+  position: relative;
+  z-index: 1;
+
+  &::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    z-index: -1;
+    background-image:
+      linear-gradient(115deg, rgba(6, 79, 87, 0.06), transparent 34%),
+      radial-gradient(circle at var(--mouse-x, 50%) var(--mouse-y, 20%), rgba(255, 255, 255, 0.72), transparent 17rem);
+    opacity: 0.85;
+    transition: opacity 0.25s ease;
+  }
+
+  :global([data-theme='dark']) &::before {
+    opacity: 0.05;
+    background-image:
+      linear-gradient(115deg, rgba(255, 255, 255, 0.02), transparent 34%),
+      radial-gradient(circle at var(--mouse-x, 50%) var(--mouse-y, 20%), rgba(0, 0, 0, 0.5), transparent 17rem);
+  }
 
   &.content-logs {
     overflow: hidden;
