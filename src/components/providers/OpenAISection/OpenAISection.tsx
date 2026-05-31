@@ -1,4 +1,4 @@
-import { Fragment } from 'react';
+import { Fragment, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
@@ -45,6 +45,7 @@ export function OpenAISection({
 }: OpenAISectionProps) {
   const { t } = useTranslation();
   const actionsDisabled = disableControls || loading || isSwitching;
+  const [expandedCards, setExpandedCards] = useState<Record<string, boolean>>({});
 
   return (
     <>
@@ -113,39 +114,62 @@ export function OpenAISection({
                     ))}
                   </div>
                 )}
-                {apiKeyEntries.length > 0 && (
-                  <div className={styles.apiKeyEntriesSection}>
-                    <div className={styles.apiKeyEntriesLabel}>
-                      {t('ai_providers.openai_keys_count')}: {apiKeyEntries.length}
-                    </div>
-                    <div className={styles.apiKeyEntryList}>
-                      {apiKeyEntries.map((entry, entryIndex) => {
-                        const entryStats = getStatsBySource(entry.apiKey, keyStats);
-                        return (
-                          <div key={entryIndex} className={styles.apiKeyEntryCard}>
-                            <span className={styles.apiKeyEntryIndex}>{entryIndex + 1}</span>
-                            <span className={styles.apiKeyEntryKey}>{maskApiKey(entry.apiKey)}</span>
-                            {entry.proxyUrl && (
-                              <span className={styles.apiKeyEntryProxy}>{entry.proxyUrl}</span>
-                            )}
-                            <div className={styles.apiKeyEntryStats}>
-                              <span
-                                className={`${styles.apiKeyEntryStat} ${styles.apiKeyEntryStatSuccess}`}
-                              >
-                                <IconCheck size={12} /> {entryStats.success}
-                              </span>
-                              <span
-                                className={`${styles.apiKeyEntryStat} ${styles.apiKeyEntryStatFailure}`}
-                              >
-                                <IconX size={12} /> {entryStats.failure}
-                              </span>
+                {apiKeyEntries.length > 0 && (() => {
+                  const isExpanded = expandedCards[item.name] || false;
+                  const keysLimit = 3;
+                  const hasMoreKeys = apiKeyEntries.length > keysLimit;
+                  const visibleKeys = isExpanded ? apiKeyEntries : apiKeyEntries.slice(0, keysLimit);
+                  return (
+                    <div className={styles.apiKeyEntriesSection}>
+                      <div className={styles.apiKeyEntriesLabelRow}>
+                        <div className={styles.apiKeyEntriesLabel}>
+                          {t('ai_providers.openai_keys_count')}: {apiKeyEntries.length}
+                        </div>
+                        {hasMoreKeys && (
+                          <button
+                            type="button"
+                            className={styles.toggleKeysBtn}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setExpandedCards((prev) => ({
+                                ...prev,
+                                [item.name]: !isExpanded,
+                              }));
+                            }}
+                          >
+                            {isExpanded ? t('common.collapse', '收起') : t('common.expand_all', '展开全部')}
+                          </button>
+                        )}
+                      </div>
+                      <div className={styles.apiKeyEntryList}>
+                        {visibleKeys.map((entry, entryIndex) => {
+                          const entryStats = getStatsBySource(entry.apiKey, keyStats);
+                          return (
+                            <div key={entryIndex} className={styles.apiKeyEntryCard}>
+                              <span className={styles.apiKeyEntryIndex}>{entryIndex + 1}</span>
+                              <span className={styles.apiKeyEntryKey}>{maskApiKey(entry.apiKey)}</span>
+                              {entry.proxyUrl && (
+                                <span className={styles.apiKeyEntryProxy}>{entry.proxyUrl}</span>
+                              )}
+                              <div className={styles.apiKeyEntryStats}>
+                                <span
+                                  className={`${styles.apiKeyEntryStat} ${styles.apiKeyEntryStatSuccess}`}
+                                >
+                                  <IconCheck size={12} /> {entryStats.success}
+                                </span>
+                                <span
+                                  className={`${styles.apiKeyEntryStat} ${styles.apiKeyEntryStatFailure}`}
+                                >
+                                  <IconX size={12} /> {entryStats.failure}
+                                </span>
+                              </div>
                             </div>
-                          </div>
-                        );
-                      })}
+                          );
+                        })}
+                      </div>
                     </div>
-                  </div>
-                )}
+                  );
+                })()}
                 <div className={styles.fieldRow} style={{ marginTop: '8px' }}>
                   <span className={styles.fieldLabel}>{t('ai_providers.openai_models_count')}:</span>
                   <span className={styles.fieldValue}>{item.models?.length || 0}</span>
