@@ -5,55 +5,55 @@
 // 浅色主题（默认）
 :root {
   --bg-primary: #ffffff;
-  --bg-secondary: #f4f7fb;
-  --bg-tertiary: #e8eef6;
+  --bg-secondary: #e3edf2;
+  --bg-tertiary: #eef4f7;
   --bg-hover: var(--bg-tertiary);
-  --bg-quinary: #f8fbff;
-  --bg-error-light: rgba(180, 35, 24, 0.08);
+  --bg-quinary: #eaf2f5;
+  --bg-error-light: rgba(191, 61, 61, 0.08);
   --floating-surface: #ffffff;
-  --floating-border: #d7e0ed;
-  --floating-shadow: 0 16px 42px rgba(15, 23, 42, 0.08);
+  --floating-border: #d1dfe7;
+  --floating-shadow: 0 16px 42px rgba(8, 36, 44, 0.08);
 
-  --text-primary: #0f172a;
-  --text-secondary: #62708a;
-  --text-tertiary: #8c9ba5;
-  --text-quaternary: #d7e0ed;
+  --text-primary: #102027;
+  --text-secondary: #425663;
+  --text-tertiary: #718492;
+  --text-quaternary: #aebfca;
   --text-muted: var(--text-tertiary);
 
-  --border-color: #d7e0ed;
+  --border-color: #d1dfe7;
   --border-secondary: var(--border-color);
-  --border-primary: #adc0d7;
-  --border-hover: #adc0d7;
+  --border-primary: #aebfca;
+  --border-hover: #aebfca;
 
-  --primary-color: #1f73b7;
-  --primary-hover: #155f99;
-  --primary-active: #0e4a7a;
+  --primary-color: #064f57;
+  --primary-hover: #0b786b;
+  --primary-active: #0a7f74;
   --primary-contrast: #ffffff;
 
-  --success-color: #178a55;
-  --warning-color: #8a570f;
-  --error-color: #b42318;
-  --quota-medium-color: #e0aa14;
+  --success-color: #0f7a55;
+  --warning-color: #bb6d14;
+  --error-color: #bf3d3d;
+  --quota-medium-color: #bb6d14;
   --danger-color: var(--error-color);
   --info-color: var(--primary-color);
 
   --warning-bg: #fff8e8;
   --warning-border: #f3be62;
-  --warning-text: #8a570f;
+  --warning-text: #bb6d14;
 
   --success-badge-bg: #eaf8f0;
-  --success-badge-text: #178a55;
+  --success-badge-text: #0f7a55;
   --success-badge-border: #a3e2c9;
 
   --failure-badge-bg: #fff0ee;
-  --failure-badge-text: #b42318;
+  --failure-badge-text: #bf3d3d;
   --failure-badge-border: #ffc4be;
 
-  --count-badge-bg: rgba(31, 115, 183, 0.12);
+  --count-badge-bg: rgba(6, 79, 87, 0.12);
   --count-badge-text: var(--primary-color);
 
-  --shadow: 0 1px 3px 0 rgb(15 23 42 / 0.06);
-  --shadow-lg: 0 10px 15px -3px rgb(15 23 42 / 0.08);
+  --shadow: 0 1px 3px 0 rgb(8 36 44 / 0.06);
+  --shadow-lg: 0 10px 15px -3px rgb(8 36 44 / 0.08);
 
   --radius-md: 8px;
   --accent-tertiary: var(--bg-tertiary);
