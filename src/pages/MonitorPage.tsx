@@ -105,6 +105,12 @@ export function MonitorPage() {
           modelsMap[provider.name] = modelSet;
           typeMap[provider.name] = 'OpenAI';
         }
+        const prefix = provider.prefix?.trim();
+        if (prefix) {
+          map[prefix] = providerName;
+          modelsMap[prefix] = modelSet;
+          typeMap[prefix] = 'OpenAI';
+        }
       });
 
       // 处理 Gemini 提供商
@@ -114,6 +120,11 @@ export function MonitorPage() {
           const providerName = config.prefix?.trim() || 'Gemini';
           map[apiKey] = providerName;
           typeMap[apiKey] = 'Gemini';
+          const prefix = config.prefix?.trim();
+          if (prefix) {
+            map[prefix] = providerName;
+            typeMap[prefix] = 'Gemini';
+          }
         }
       });
 
@@ -124,6 +135,11 @@ export function MonitorPage() {
           const providerName = config.prefix?.trim() || 'Claude';
           map[apiKey] = providerName;
           typeMap[apiKey] = 'Claude';
+          const prefix = config.prefix?.trim();
+          if (prefix) {
+            map[prefix] = providerName;
+            typeMap[prefix] = 'Claude';
+          }
           // 存储模型集合
           if (config.models && config.models.length > 0) {
             const modelSet = new Set<string>();
@@ -132,6 +148,9 @@ export function MonitorPage() {
               if (m.name) modelSet.add(m.name);
             });
             modelsMap[apiKey] = modelSet;
+            if (prefix) {
+              modelsMap[prefix] = modelSet;
+            }
           }
         }
       });
@@ -143,6 +162,11 @@ export function MonitorPage() {
           const providerName = config.prefix?.trim() || 'Codex';
           map[apiKey] = providerName;
           typeMap[apiKey] = 'Codex';
+          const prefix = config.prefix?.trim();
+          if (prefix) {
+            map[prefix] = providerName;
+            typeMap[prefix] = 'Codex';
+          }
           if (config.models && config.models.length > 0) {
             const modelSet = new Set<string>();
             config.models.forEach((m) => {
@@ -150,6 +174,9 @@ export function MonitorPage() {
               if (m.name) modelSet.add(m.name);
             });
             modelsMap[apiKey] = modelSet;
+            if (prefix) {
+              modelsMap[prefix] = modelSet;
+            }
           }
         }
       });
@@ -161,6 +188,11 @@ export function MonitorPage() {
           const providerName = config.prefix?.trim() || 'Vertex';
           map[apiKey] = providerName;
           typeMap[apiKey] = 'Vertex';
+          const prefix = config.prefix?.trim();
+          if (prefix) {
+            map[prefix] = providerName;
+            typeMap[prefix] = 'Vertex';
+          }
           if (config.models && config.models.length > 0) {
             const modelSet = new Set<string>();
             config.models.forEach((m) => {
@@ -168,6 +200,9 @@ export function MonitorPage() {
               if (m.name) modelSet.add(m.name);
             });
             modelsMap[apiKey] = modelSet;
+            if (prefix) {
+              modelsMap[prefix] = modelSet;
+            }
           }
         }
       });

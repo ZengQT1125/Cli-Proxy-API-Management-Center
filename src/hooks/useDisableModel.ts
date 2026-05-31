@@ -114,9 +114,15 @@ export function useDisableModel(options: UseDisableModelOptions): UseDisableMode
 
       // 获取当前配置
       const providers = await providersApi.getOpenAIProviders();
-      const targetProvider = providers.find(
-        (p) => p.name && p.name.toLowerCase() === providerName.toLowerCase()
-      );
+      const targetProvider = providers.find((p) => {
+        if (!p.name) return false;
+        const nameMatch = p.name.toLowerCase() === providerName.toLowerCase();
+        const xProvider = p.headers?.['X-Provider'] || p.headers?.['x-provider'];
+        const headerMatch = xProvider && xProvider.toLowerCase() === providerName.toLowerCase();
+        const prefix = p.prefix?.trim();
+        const prefixMatch = prefix && prefix.toLowerCase() === providerName.toLowerCase();
+        return nameMatch || headerMatch || prefixMatch;
+      });
 
       if (!targetProvider) {
         throw new Error(t('monitor.logs.disable_error_provider_not_found', { provider: providerName }));
