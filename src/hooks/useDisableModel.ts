@@ -107,7 +107,12 @@ export function useDisableModel(options: UseDisableModelOptions): UseDisableMode
     // 第3次点击，执行禁用
     setDisabling(true);
     try {
-      const providerName = resolveProvider(disableState.source, providerMap);
+      const providerName = resolveProvider(
+        disableState.source,
+        providerMap,
+        disableState.model,
+        providerModels
+      );
       if (!providerName) {
         throw new Error(t('monitor.logs.disable_error_no_provider'));
       }

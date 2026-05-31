@@ -91,23 +91,56 @@ export function MonitorPage() {
           if (m.alias) modelSet.add(m.alias);
           if (m.name) modelSet.add(m.name);
         });
+        
+        // 存储以 providerName 索引的模型集合与提供商类型
+        modelsMap[providerName] = modelSet;
+        typeMap[providerName] = 'OpenAI';
+
         const apiKeyEntries = provider.apiKeyEntries || [];
         apiKeyEntries.forEach((entry) => {
           const apiKey = entry.apiKey;
           if (apiKey) {
-            map[apiKey] = providerName;
-            modelsMap[apiKey] = modelSet;
+            if (map[apiKey]) {
+              const existing = map[apiKey].split(',');
+              if (!existing.includes(providerName)) {
+                map[apiKey] = `${map[apiKey]},${providerName}`;
+              }
+            } else {
+              map[apiKey] = providerName;
+            }
+            
+            // 归并所有共享该 apiKey 的渠道模型集合
+            if (!modelsMap[apiKey]) {
+              modelsMap[apiKey] = new Set<string>();
+            }
+            modelSet.forEach((m) => modelsMap[apiKey].add(m));
             typeMap[apiKey] = 'OpenAI';
           }
         });
+        
         if (provider.name) {
-          map[provider.name] = providerName;
+          if (map[provider.name]) {
+            const existing = map[provider.name].split(',');
+            if (!existing.includes(providerName)) {
+              map[provider.name] = `${map[provider.name]},${providerName}`;
+            }
+          } else {
+            map[provider.name] = providerName;
+          }
           modelsMap[provider.name] = modelSet;
           typeMap[provider.name] = 'OpenAI';
         }
+        
         const prefix = provider.prefix?.trim();
         if (prefix) {
-          map[prefix] = providerName;
+          if (map[prefix]) {
+            const existing = map[prefix].split(',');
+            if (!existing.includes(providerName)) {
+              map[prefix] = `${map[prefix]},${providerName}`;
+            }
+          } else {
+            map[prefix] = providerName;
+          }
           modelsMap[prefix] = modelSet;
           typeMap[prefix] = 'OpenAI';
         }
@@ -118,11 +151,30 @@ export function MonitorPage() {
         const apiKey = config.apiKey;
         if (apiKey) {
           const providerName = config.prefix?.trim() || 'Gemini';
-          map[apiKey] = providerName;
+          
+          if (map[apiKey]) {
+            const existing = map[apiKey].split(',');
+            if (!existing.includes(providerName)) {
+              map[apiKey] = `${map[apiKey]},${providerName}`;
+            }
+          } else {
+            map[apiKey] = providerName;
+          }
+          
           typeMap[apiKey] = 'Gemini';
+          modelsMap[providerName] = new Set<string>();
+          typeMap[providerName] = 'Gemini';
+
           const prefix = config.prefix?.trim();
           if (prefix) {
-            map[prefix] = providerName;
+            if (map[prefix]) {
+              const existing = map[prefix].split(',');
+              if (!existing.includes(providerName)) {
+                map[prefix] = `${map[prefix]},${providerName}`;
+              }
+            } else {
+              map[prefix] = providerName;
+            }
             typeMap[prefix] = 'Gemini';
           }
         }
@@ -133,13 +185,19 @@ export function MonitorPage() {
         const apiKey = config.apiKey;
         if (apiKey) {
           const providerName = config.prefix?.trim() || 'Claude';
-          map[apiKey] = providerName;
-          typeMap[apiKey] = 'Claude';
-          const prefix = config.prefix?.trim();
-          if (prefix) {
-            map[prefix] = providerName;
-            typeMap[prefix] = 'Claude';
+          
+          if (map[apiKey]) {
+            const existing = map[apiKey].split(',');
+            if (!existing.includes(providerName)) {
+              map[apiKey] = `${map[apiKey]},${providerName}`;
+            }
+          } else {
+            map[apiKey] = providerName;
           }
+          
+          typeMap[apiKey] = 'Claude';
+          typeMap[providerName] = 'Claude';
+
           // 存储模型集合
           if (config.models && config.models.length > 0) {
             const modelSet = new Set<string>();
@@ -147,8 +205,25 @@ export function MonitorPage() {
               if (m.alias) modelSet.add(m.alias);
               if (m.name) modelSet.add(m.name);
             });
-            modelsMap[apiKey] = modelSet;
+            
+            modelsMap[providerName] = modelSet;
+
+            if (!modelsMap[apiKey]) {
+              modelsMap[apiKey] = new Set<string>();
+            }
+            modelSet.forEach((m) => modelsMap[apiKey].add(m));
+
+            const prefix = config.prefix?.trim();
             if (prefix) {
+              if (map[prefix]) {
+                const existing = map[prefix].split(',');
+                if (!existing.includes(providerName)) {
+                  map[prefix] = `${map[prefix]},${providerName}`;
+                }
+              } else {
+                map[prefix] = providerName;
+              }
+              typeMap[prefix] = 'Claude';
               modelsMap[prefix] = modelSet;
             }
           }
@@ -160,21 +235,44 @@ export function MonitorPage() {
         const apiKey = config.apiKey;
         if (apiKey) {
           const providerName = config.prefix?.trim() || 'Codex';
-          map[apiKey] = providerName;
-          typeMap[apiKey] = 'Codex';
-          const prefix = config.prefix?.trim();
-          if (prefix) {
-            map[prefix] = providerName;
-            typeMap[prefix] = 'Codex';
+          
+          if (map[apiKey]) {
+            const existing = map[apiKey].split(',');
+            if (!existing.includes(providerName)) {
+              map[apiKey] = `${map[apiKey]},${providerName}`;
+            }
+          } else {
+            map[apiKey] = providerName;
           }
+          
+          typeMap[apiKey] = 'Codex';
+          typeMap[providerName] = 'Codex';
+
           if (config.models && config.models.length > 0) {
             const modelSet = new Set<string>();
             config.models.forEach((m) => {
               if (m.alias) modelSet.add(m.alias);
               if (m.name) modelSet.add(m.name);
             });
-            modelsMap[apiKey] = modelSet;
+            
+            modelsMap[providerName] = modelSet;
+
+            if (!modelsMap[apiKey]) {
+              modelsMap[apiKey] = new Set<string>();
+            }
+            modelSet.forEach((m) => modelsMap[apiKey].add(m));
+
+            const prefix = config.prefix?.trim();
             if (prefix) {
+              if (map[prefix]) {
+                const existing = map[prefix].split(',');
+                if (!existing.includes(providerName)) {
+                  map[prefix] = `${map[prefix]},${providerName}`;
+                }
+              } else {
+                map[prefix] = providerName;
+              }
+              typeMap[prefix] = 'Codex';
               modelsMap[prefix] = modelSet;
             }
           }
@@ -186,21 +284,44 @@ export function MonitorPage() {
         const apiKey = config.apiKey;
         if (apiKey) {
           const providerName = config.prefix?.trim() || 'Vertex';
-          map[apiKey] = providerName;
-          typeMap[apiKey] = 'Vertex';
-          const prefix = config.prefix?.trim();
-          if (prefix) {
-            map[prefix] = providerName;
-            typeMap[prefix] = 'Vertex';
+          
+          if (map[apiKey]) {
+            const existing = map[apiKey].split(',');
+            if (!existing.includes(providerName)) {
+              map[apiKey] = `${map[apiKey]},${providerName}`;
+            }
+          } else {
+            map[apiKey] = providerName;
           }
+          
+          typeMap[apiKey] = 'Vertex';
+          typeMap[providerName] = 'Vertex';
+
           if (config.models && config.models.length > 0) {
             const modelSet = new Set<string>();
             config.models.forEach((m) => {
               if (m.alias) modelSet.add(m.alias);
               if (m.name) modelSet.add(m.name);
             });
-            modelsMap[apiKey] = modelSet;
+            
+            modelsMap[providerName] = modelSet;
+
+            if (!modelsMap[apiKey]) {
+              modelsMap[apiKey] = new Set<string>();
+            }
+            modelSet.forEach((m) => modelsMap[apiKey].add(m));
+
+            const prefix = config.prefix?.trim();
             if (prefix) {
+              if (map[prefix]) {
+                const existing = map[prefix].split(',');
+                if (!existing.includes(providerName)) {
+                  map[prefix] = `${map[prefix]},${providerName}`;
+                }
+              } else {
+                map[prefix] = providerName;
+              }
+              typeMap[prefix] = 'Vertex';
               modelsMap[prefix] = modelSet;
             }
           }
@@ -381,6 +502,7 @@ export function MonitorPage() {
         loading={loading}
         providerMap={providerMap}
         providerTypeMap={providerTypeMap}
+        providerModels={providerModels}
         apiFilter={apiFilter}
         authIndexMap={authIndexMap}
       />

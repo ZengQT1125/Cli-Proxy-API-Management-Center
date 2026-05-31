@@ -75,26 +75,59 @@ export function maskSecret(key: string): string {
  * @param providerMap 渠道映射表
  * @returns provider 名称或 null
  */
+/**
+ * 解析渠道名称（返回 provider 名称）
+ * @param source 来源标识
+ * @param providerMap 渠道映射表
+ * @param model 请求模型（用于解决相同 API Key 时的多渠道识别）
+ * @param providerModels 渠道模型映射表
+ * @returns provider 名称或 null
+ */
 export function resolveProvider(
   source: string,
-  providerMap: Record<string, string>
+  providerMap: Record<string, string>,
+  model?: string,
+  providerModels?: Record<string, Set<string>>
 ): string | null {
   if (!source || source === '-' || source === 'unknown') return null;
 
+  let resolved: string | null = null;
+
   // 首先尝试完全匹配
   if (providerMap[source]) {
-    return providerMap[source];
-  }
-
-  // 然后尝试前缀匹配（双向）
-  const entries = Object.entries(providerMap);
-  for (const [key, provider] of entries) {
-    if (source.startsWith(key) || key.startsWith(source)) {
-      return provider;
+    resolved = providerMap[source];
+  } else {
+    // 然后尝试前缀匹配（双向）
+    const entries = Object.entries(providerMap);
+    for (const [key, provider] of entries) {
+      if (source.startsWith(key) || key.startsWith(source)) {
+        resolved = provider;
+        break;
+      }
     }
   }
 
-  return null;
+  if (!resolved) return null;
+
+  // 如果解析出来的是多个以逗号分隔的提供商名字（由于 API Key 相同）
+  if (resolved.includes(',')) {
+    const candidates = resolved.split(',');
+    
+    // 如果有提供 model 且有模型列表，我们匹配拥有该 model 的 provider
+    if (model && providerModels) {
+      for (const candidate of candidates) {
+        const models = providerModels[candidate];
+        if (models && models.has(model)) {
+          return candidate;
+        }
+      }
+    }
+    
+    // 如果没有 model，或者没有匹配的，默认返回第一个
+    return candidates[0];
+  }
+
+  return resolved;
 }
 
 /**
@@ -150,9 +183,16 @@ function isGeminiOAuthSource(source: string): boolean {
  * 格式化渠道显示名称：渠道名 (脱敏后的api-key)
  * @param source 来源标识
  * @param providerMap 渠道映射表
+ * @param model 请求模型
+ * @param providerModels 渠道模型映射表
  * @returns 格式化后的显示名称
  */
-export function formatProviderDisplay(source: string, providerMap: Record<string, string>): string {
+export function formatProviderDisplay(
+  source: string,
+  providerMap: Record<string, string>,
+  model?: string,
+  providerModels?: Record<string, Set<string>>
+): string {
   if (!source || source === '-' || source === 'unknown') {
     return source || '-';
   }
@@ -162,7 +202,7 @@ export function formatProviderDisplay(source: string, providerMap: Record<string
     return formatGeminiSource(source);
   }
 
-  const provider = resolveProvider(source, providerMap);
+  const provider = resolveProvider(source, providerMap, model, providerModels);
   const masked = maskSecret(source);
   if (!provider) return masked;
   return `${provider} (${masked})`;
@@ -172,11 +212,15 @@ export function formatProviderDisplay(source: string, providerMap: Record<string
  * 获取渠道显示信息（分离渠道名和秘钥）
  * @param source 来源标识
  * @param providerMap 渠道映射表
+ * @param model 请求模型
+ * @param providerModels 渠道模型映射表
  * @returns 包含渠道名和秘钥的对象
  */
 export function getProviderDisplayParts(
   source: string,
-  providerMap: Record<string, string>
+  providerMap: Record<string, string>,
+  model?: string,
+  providerModels?: Record<string, Set<string>>
 ): { provider: string | null; masked: string } {
   if (!source || source === '-' || source === 'unknown') {
     return { provider: null, masked: source || '-' };
@@ -188,7 +232,7 @@ export function getProviderDisplayParts(
     return { provider: null, masked: formatted };
   }
 
-  const provider = resolveProvider(source, providerMap);
+  const provider = resolveProvider(source, providerMap, model, providerModels);
   const masked = maskSecret(source);
   return { provider, masked };
 }

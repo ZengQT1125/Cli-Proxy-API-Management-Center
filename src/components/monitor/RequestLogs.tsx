@@ -31,6 +31,7 @@ interface RequestLogsProps {
   loading: boolean;
   providerMap: Record<string, string>;
   providerTypeMap: Record<string, string>;
+  providerModels: Record<string, Set<string>>;
   apiFilter: string;
   authIndexMap: Record<string, string>;
 }
@@ -60,6 +61,7 @@ export function RequestLogs({
   loading,
   providerMap,
   providerTypeMap,
+  providerModels,
   apiFilter,
   authIndexMap,
 }: RequestLogsProps) {
@@ -99,7 +101,7 @@ export function RequestLogs({
     handleConfirmDisable,
     handleCancelDisable,
     handleCloseUnsupported,
-  } = useDisableModel({ providerMap, providerTypeMap });
+  } = useDisableModel({ providerMap, providerTypeMap, providerModels });
 
   const handleTimeRangeChange = useCallback((range: TimeRange, custom?: DateRange) => {
     setTimeRange(range);
@@ -110,7 +112,7 @@ export function RequestLogs({
   const toLogEntry = useCallback(
     (item: MonitorRequestLogItem, index: number): LogEntry => {
       const source = item.source || 'unknown';
-      const { provider, masked } = getProviderDisplayParts(source, providerMap);
+      const { provider, masked } = getProviderDisplayParts(source, providerMap, item.model, providerModels);
       const timestampMs = item.timestamp ? new Date(item.timestamp).getTime() : 0;
       return {
         id: `${item.timestamp}-${item.api_key}-${item.model}-${index}`,
@@ -135,7 +137,7 @@ export function RequestLogs({
         authIndex: item.auth_index || '',
       };
     },
-    [providerMap]
+    [providerMap, providerModels]
   );
 
   // 独立获取日志数据
