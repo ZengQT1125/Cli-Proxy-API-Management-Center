@@ -85,3 +85,19 @@ test('单字段配置与 api-call 响应只读取后端固定字段名', () => {
   assert.doesNotMatch(apiCallSource, /response\?\.statusCode/);
   assert.doesNotMatch(apiCallSource, /response\?\.headers/);
 });
+
+test('OpenAI 单个 key 条目不保留后端不支持的 headers 字段', () => {
+  const typeSource = readProjectFile('src/types/provider.ts');
+  const transformerSource = readProjectFile('src/services/api/transformers.ts');
+  const providerApiSource = readProjectFile('src/services/api/providers.ts');
+  const editLayoutSource = readProjectFile('src/pages/AiProvidersOpenAIEditLayout.tsx');
+  const providerUtilsSource = readProjectFile('src/components/providers/utils.ts');
+
+  const apiKeyEntryType = typeSource.match(/export interface ApiKeyEntry \{[\s\S]*?\n\}/)?.[0] ?? '';
+
+  assert.doesNotMatch(apiKeyEntryType, /headers\?:/);
+  assert.doesNotMatch(transformerSource, /normalizeHeaders\(record\.headers\)/);
+  assert.doesNotMatch(providerApiSource, /serializeHeaders\(entry\.headers\)/);
+  assert.doesNotMatch(editLayoutSource, /entry\.headers|normalizeKeyHeaders|ApiKeyEntry\['headers'\]/);
+  assert.doesNotMatch(providerUtilsSource, /headers: input\?\.headers/);
+});
