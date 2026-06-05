@@ -963,6 +963,8 @@
     "oauth_callback_status_success": "回調 URL 已提交，等待驗證中...",
     "oauth_callback_status_error": "回調 URL 提交失敗:",
     "missing_state": "無法取得驗證狀態參數",
+    "login_another_account": "登入另一個帳號",
+    "view_auth_files": "查看驗證檔案",
     "iflow_oauth_title": "iFlow OAuth",
     "iflow_oauth_button": "開始 iFlow 登入",
     "iflow_oauth_hint": "透過 OAuth 流程登入 iFlow 服務，自動取得並儲存驗證檔案。",

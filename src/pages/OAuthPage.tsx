@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type ChangeEvent } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useNavigate } from 'react-router-dom';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
@@ -17,6 +18,7 @@ import iconKimiDark from '@/assets/icons/kimi-dark.svg';
 import iconVertex from '@/assets/icons/vertex.svg';
 import iconGrok from '@/assets/icons/grok.svg';
 import iconGrokDark from '@/assets/icons/grok-dark.svg';
+import { normalizeGeminiCliProjectId } from './oauthProject';
 
 interface ProviderState {
   url?: string;
@@ -153,6 +155,7 @@ const resolveCallbackUrl = (
 
 export function OAuthPage() {
   const { t } = useTranslation();
+  const navigate = useNavigate();
   const { showNotification } = useNotificationStore();
   const resolvedTheme = useThemeStore((state) => state.resolvedTheme);
   const [states, setStates] = useState<Record<OAuthProvider, ProviderState>>({} as Record<OAuthProvider, ProviderState>);
@@ -213,12 +216,17 @@ export function OAuthPage() {
   };
 
   const startAuth = async (provider: OAuthProvider) => {
-    const projectId = provider === 'gemini-cli' ? (states[provider]?.projectId || '').trim() : undefined;
-    // 项目 ID 现在是可选的，如果不输入将自动选择第一个可用项目
+    const projectId =
+      provider === 'gemini-cli'
+        ? normalizeGeminiCliProjectId(states[provider]?.projectId)
+        : undefined;
+    // 项目 ID 可选：留空自动选择第一个可用项目，输入 ALL 获取全部项目。
     if (provider === 'gemini-cli') {
       updateProviderState(provider, { projectIdError: undefined });
     }
     updateProviderState(provider, {
+      url: undefined,
+      state: undefined,
       status: 'waiting',
       polling: true,
       error: undefined,
@@ -231,10 +239,20 @@ export function OAuthPage() {
         provider,
         provider === 'gemini-cli' ? { projectId: projectId || undefined } : undefined
       );
-      updateProviderState(provider, { url: res.url, state: res.state, status: 'waiting', polling: true });
-      if (res.state) {
-        startPolling(provider, res.state);
+      if (!res.state) {
+        const message = t('auth_login.missing_state');
+        updateProviderState(provider, {
+          url: res.url,
+          state: undefined,
+          status: 'error',
+          error: message,
+          polling: false
+        });
+        showNotification(message, 'error');
+        return;
       }
+      updateProviderState(provider, { url: res.url, state: res.state, status: 'waiting', polling: true });
+      startPolling(provider, res.state);
     } catch (err: unknown) {
       const message = getErrorMessage(err);
       updateProviderState(provider, { status: 'error', error: message, polling: false });
@@ -367,6 +385,17 @@ export function OAuthPage() {
         {PROVIDERS.map((provider) => {
           const state = states[provider.id] || {};
           const canSubmitCallback = CALLBACK_SUPPORTED.includes(provider.id) && Boolean(state.url);
+          const loginButtonLabel =
+            state.status === 'success'
+              ? t('auth_login.login_another_account')
+              : t(getAuthKey(provider.id, 'oauth_button'));
+          const statusBadgeClassName = [
+            'status-badge',
+            state.status === 'success' ? 'success' : '',
+            state.status === 'error' ? 'error' : ''
+          ]
+            .filter(Boolean)
+            .join(' ');
           return (
             <div key={provider.id}>
               <Card
@@ -382,7 +411,7 @@ export function OAuthPage() {
                 }
                 extra={
                   <Button onClick={() => startAuth(provider.id)} loading={state.polling}>
-                    {t('common.login')}
+                    {loginButtonLabel}
                   </Button>
                 }
               >
@@ -474,12 +503,19 @@ export function OAuthPage() {
                     </div>
                   )}
                   {state.status && state.status !== 'idle' && (
-                    <div className="status-badge">
+                    <div className={statusBadgeClassName}>
                       {state.status === 'success'
                         ? t(getAuthKey(provider.id, 'oauth_status_success'))
                         : state.status === 'error'
                           ? `${t(getAuthKey(provider.id, 'oauth_status_error'))} ${state.error || ''}`
                           : t(getAuthKey(provider.id, 'oauth_status_waiting'))}
+                    </div>
+                  )}
+                  {state.status === 'success' && (
+                    <div className={styles.successActions}>
+                      <Button variant="secondary" size="sm" onClick={() => navigate('/auth-files')}>
+                        {t('auth_login.view_auth_files')}
+                      </Button>
                     </div>
                   )}
                 </div>
