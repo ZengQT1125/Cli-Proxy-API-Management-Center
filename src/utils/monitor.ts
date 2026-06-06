@@ -77,24 +77,49 @@ export function maskSecret(key: string): string {
  */
 export function resolveProvider(
   source: string,
-  providerMap: Record<string, string>
+  providerMap: Record<string, string>,
+  model?: string,
+  providerModels?: Record<string, Set<string>>
 ): string | null {
   if (!source || source === '-' || source === 'unknown') return null;
 
+  let resolved: string | null = null;
+
   // 首先尝试完全匹配
   if (providerMap[source]) {
-    return providerMap[source];
-  }
-
-  // 然后尝试前缀匹配（双向）
-  const entries = Object.entries(providerMap);
-  for (const [key, provider] of entries) {
-    if (source.startsWith(key) || key.startsWith(source)) {
-      return provider;
+    resolved = providerMap[source];
+  } else {
+    // 然后尝试前缀匹配（双向）
+    const entries = Object.entries(providerMap);
+    for (const [key, provider] of entries) {
+      if (source.startsWith(key) || key.startsWith(source)) {
+        resolved = provider;
+        break;
+      }
     }
   }
 
-  return null;
+  if (!resolved) return null;
+
+  // 如果解析出来的是多个以逗号分隔的提供商名字（由于 API Key 相同）
+  if (resolved.includes(',')) {
+    const candidates = resolved.split(',');
+    
+    // 如果有提供 model 且有模型列表，我们匹配拥有该 model 的 provider
+    if (model && providerModels) {
+      for (const candidate of candidates) {
+        const models = providerModels[candidate];
+        if (models && models.has(model)) {
+          return candidate;
+        }
+      }
+    }
+    
+    // 如果没有 model，或者没有匹配的，返回所有提供商名字，用逗号和空格分隔
+    return candidates.join(', ');
+  }
+
+  return resolved;
 }
 
 /**
@@ -303,14 +328,16 @@ export function isModelDisabled(
  * @param source 来源标识
  * @param model 模型名称
  * @param providerMap 渠道映射表
+ * @param providerModels 渠道模型映射表
  * @returns 禁用状态对象
  */
 export function createDisableState(
   source: string,
   model: string,
-  providerMap: Record<string, string>
+  providerMap: Record<string, string>,
+  providerModels?: Record<string, Set<string>>
 ): DisableState {
-  const providerName = resolveProvider(source, providerMap);
+  const providerName = resolveProvider(source, providerMap, model, providerModels);
   const displayName = providerName
     ? `${providerName} / ${model}`
     : `${maskSecret(source)} / ${model}`;

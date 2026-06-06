@@ -75,7 +75,7 @@ export function useDisableModel(options: UseDisableModelOptions): UseDisableMode
 
     // 如果是不支持的类型，立即显示提示
     if (lowerType && UNSUPPORTED_PROVIDER_TYPES.includes(lowerType)) {
-      const providerName = resolveProvider(source, providerMap);
+      const providerName = resolveProvider(source, providerMap, model, providerModels);
       const displayName = providerName
         ? `${providerName} / ${model}`
         : `${source.slice(0, 8)}*** / ${model}`;
@@ -88,7 +88,7 @@ export function useDisableModel(options: UseDisableModelOptions): UseDisableMode
     }
 
     // 支持的类型，进入正常禁用流程
-    setDisableState(createDisableState(source, model, providerMap));
+    setDisableState(createDisableState(source, model, providerMap, providerModels));
   }, [providerMap, providerTypeMap]);
 
   // 确认禁用（需要点击3次）
