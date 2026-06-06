@@ -22,6 +22,7 @@ import {
   buildMonitorTimeRangeParams,
   formatCompactTokenNumber,
   maskSecret,
+  matchModel,
   type DateRange,
 } from '@/utils/monitor';
 import styles from '@/pages/MonitorPage.module.scss';
@@ -384,26 +385,78 @@ export function RequestLogs({
     );
   };
 
-  // 生成渠道选择下拉菜单选项（解决相同 API Key 时的渠道分拆）
+  // 生成渠道选择下拉菜单选项（解决相同 API Key 时的渠道分拆，且仅显示当前时间范围内有调用记录的渠道）
   const sourceOptions = useMemo(() => {
     const options: { value: string; label: string }[] = [];
     filterOptions.sources.forEach((source) => {
       const resolved = providerMap[source];
       const masked = maskSecret(source);
       if (resolved) {
-        if (resolved.includes(',')) {
-          const candidates = resolved.split(',');
-          candidates.forEach((candidate) => {
-            options.push({
-              value: `${source}@@@${candidate}`,
-              label: `${candidate} (${masked})`,
-            });
-          });
-        } else {
+        const candidates = resolved.split(',');
+        if (candidates.length <= 1) {
           options.push({
             value: `${source}@@@${resolved}`,
             label: `${resolved} (${masked})`,
           });
+        } else {
+          // 如果有多个候选渠道，我们根据当前时间范围内的 models 过滤出有调用记录的渠道
+          const activeModels = filterOptions.models || [];
+          if (activeModels.length === 0) {
+            // 如果没有活跃模型（例如无日志），默认显示所有候选渠道供用户选择
+            candidates.forEach((candidate) => {
+              options.push({
+                value: `${source}@@@${candidate}`,
+                label: `${candidate} (${masked})`,
+              });
+            });
+          } else {
+            // 找出每个活跃模型匹配的候选渠道
+            const activeCandidates = new Set<string>();
+            activeModels.forEach((activeModel) => {
+              let matchedExplicitly = false;
+              // 1. 尝试显式匹配
+              candidates.forEach((candidate) => {
+                const models = providerModels[candidate];
+                if (models) {
+                  for (const m of models) {
+                    if (matchModel(activeModel, m)) {
+                      activeCandidates.add(candidate);
+                      matchedExplicitly = true;
+                      break;
+                    }
+                  }
+                }
+              });
+              
+              // 2. 如果没有任何渠道显式匹配该活跃模型，归入空配置（catch-all）的渠道
+              if (!matchedExplicitly) {
+                candidates.forEach((candidate) => {
+                  const models = providerModels[candidate];
+                  if (!models || models.size === 0) {
+                    activeCandidates.add(candidate);
+                  }
+                });
+              }
+            });
+            
+            // 将过滤后活跃的候选渠道加入选项
+            if (activeCandidates.size > 0) {
+              activeCandidates.forEach((candidate) => {
+                options.push({
+                  value: `${source}@@@${candidate}`,
+                  label: `${candidate} (${masked})`,
+                });
+              });
+            } else {
+              // 兜底：如果没有匹配的活跃渠道，显示所有候选渠道
+              candidates.forEach((candidate) => {
+                options.push({
+                  value: `${source}@@@${candidate}`,
+                  label: `${candidate} (${masked})`,
+                });
+              });
+            }
+          }
         }
       } else {
         options.push({
@@ -412,14 +465,14 @@ export function RequestLogs({
         });
       }
     });
-    // 去重，以防有重复的 value
+    // 去重，以防有重复 durable value
     const seen = new Set<string>();
     return options.filter((opt) => {
       if (seen.has(opt.value)) return false;
       seen.add(opt.value);
       return true;
     });
-  }, [filterOptions.sources, providerMap]);
+  }, [filterOptions.sources, filterOptions.models, providerMap, providerModels]);
 
   const currentSelectValue = useMemo(() => {
     if (!filterSource) return '';

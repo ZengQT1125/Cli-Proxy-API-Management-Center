@@ -75,7 +75,7 @@ export function maskSecret(key: string): string {
  * @param configuredModel 配置的模型名称
  * @returns 是否匹配
  */
-function matchModel(requestedModel: string, configuredModel: string): boolean {
+export function matchModel(requestedModel: string, configuredModel: string): boolean {
   const req = requestedModel.trim().toLowerCase();
   const conf = configuredModel.trim().toLowerCase();
   
