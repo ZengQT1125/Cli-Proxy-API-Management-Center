@@ -113,8 +113,14 @@ export function resolveProvider(
   source: string,
   providerMap: Record<string, string>,
   model?: string,
-  providerModels?: Record<string, Set<string>>
+  providerModels?: Record<string, Set<string>>,
+  preferredProvider?: string
 ): string | null {
+  const normalizedPreferred = preferredProvider?.trim();
+  if (normalizedPreferred) {
+    return normalizedPreferred;
+  }
+
   if (!source || source === '-' || source === 'unknown') return null;
 
   let resolved: string | null = null;
@@ -233,7 +239,8 @@ export function formatProviderDisplay(
   source: string,
   providerMap: Record<string, string>,
   model?: string,
-  providerModels?: Record<string, Set<string>>
+  providerModels?: Record<string, Set<string>>,
+  preferredProvider?: string
 ): string {
   if (!source || source === '-' || source === 'unknown') {
     return source || '-';
@@ -244,7 +251,7 @@ export function formatProviderDisplay(
     return formatGeminiSource(source);
   }
 
-  const provider = resolveProvider(source, providerMap, model, providerModels);
+  const provider = resolveProvider(source, providerMap, model, providerModels, preferredProvider);
   const masked = maskSecret(source);
   if (!provider) return masked;
   return `${provider} (${masked})`;
@@ -262,7 +269,8 @@ export function getProviderDisplayParts(
   source: string,
   providerMap: Record<string, string>,
   model?: string,
-  providerModels?: Record<string, Set<string>>
+  providerModels?: Record<string, Set<string>>,
+  preferredProvider?: string
 ): { provider: string | null; masked: string } {
   if (!source || source === '-' || source === 'unknown') {
     return { provider: null, masked: source || '-' };
@@ -274,7 +282,7 @@ export function getProviderDisplayParts(
     return { provider: null, masked: formatted };
   }
 
-  const provider = resolveProvider(source, providerMap, model, providerModels);
+  const provider = resolveProvider(source, providerMap, model, providerModels, preferredProvider);
   const masked = maskSecret(source);
   return { provider, masked };
 }
@@ -402,4 +410,3 @@ export function createDisableState(
     : `${maskSecret(source)} / ${model}`;
   return { source, model, displayName, step: 1 };
 }
-

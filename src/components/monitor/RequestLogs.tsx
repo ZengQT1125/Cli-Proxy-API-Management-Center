@@ -43,6 +43,7 @@ interface LogEntry {
   timestampMs: number;
   model: string;
   source: string;
+  actionSource: string;
   providerName: string | null;
   maskedKey: string;
   failed: boolean;
@@ -114,14 +115,16 @@ export function RequestLogs({
   const toLogEntry = useCallback(
     (item: MonitorRequestLogItem, index: number): LogEntry => {
       const source = item.source || 'unknown';
-      const { provider, masked } = getProviderDisplayParts(source, providerMap, item.model, providerModels);
+      const channel = item.channel?.trim();
+      const { provider, masked } = getProviderDisplayParts(source, providerMap, item.model, providerModels, channel);
       const timestampMs = item.timestamp ? new Date(item.timestamp).getTime() : 0;
       return {
-        id: `${item.timestamp}-${item.api_key}-${item.model}-${index}`,
+        id: `${item.timestamp}-${item.api_key}-${channel || source}-${item.model}-${index}`,
         timestamp: item.timestamp,
         timestampMs,
         model: item.model,
         source,
+        actionSource: channel || source,
         providerName: provider,
         maskedKey: masked,
         failed: item.failed,
@@ -255,7 +258,7 @@ export function RequestLogs({
   };
 
   const renderCell = (entry: LogEntry, column: RequestLogTableColumnKey) => {
-    const disabled = isModelDisabled(entry.source, entry.model);
+    const disabled = isModelDisabled(entry.actionSource, entry.model);
     const authDisplayName = entry.authIndex
       ? authIndexMap[entry.authIndex] || entry.authIndex
       : '-';
@@ -355,14 +358,14 @@ export function RequestLogs({
       case 'actions':
         return (
           <td>
-            {entry.source && entry.source !== '-' && entry.source !== 'unknown' ? (
+            {entry.actionSource && entry.actionSource !== '-' && entry.actionSource !== 'unknown' ? (
               disabled ? (
                 <span className={styles.disabledLabel}>{t('monitor.logs.disabled')}</span>
               ) : (
                 <button
                   className={styles.disableBtn}
                   title={t('monitor.logs.disable_model')}
-                  onClick={() => handleDisableClick(entry.source, entry.model)}
+                  onClick={() => handleDisableClick(entry.actionSource, entry.model)}
                 >
                   {t('monitor.logs.disable')}
                 </button>
