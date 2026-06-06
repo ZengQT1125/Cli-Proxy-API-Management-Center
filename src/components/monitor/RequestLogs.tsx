@@ -1,4 +1,4 @@
-import { Fragment, useState, useEffect, useRef, useCallback } from 'react';
+import { Fragment, useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Card } from '@/components/ui/Card';
 import { monitorApi, type MonitorRequestLogItem } from '@/services/api';
@@ -16,12 +16,12 @@ import {
   type RequestLogTableColumnKey,
 } from './requestLogColumns';
 import {
-  formatProviderDisplay,
   formatTimestamp,
   getRateClassName,
   getProviderDisplayParts,
   buildMonitorTimeRangeParams,
   formatCompactTokenNumber,
+  maskSecret,
   type DateRange,
 } from '@/utils/monitor';
 import styles from '@/pages/MonitorPage.module.scss';
@@ -68,6 +68,7 @@ export function RequestLogs({
   const { t } = useTranslation();
   const [filterModel, setFilterModel] = useState('');
   const [filterSource, setFilterSource] = useState('');
+  const [filterChannel, setFilterChannel] = useState('');
   const [filterStatus, setFilterStatus] = useState<'' | 'success' | 'failed'>('');
   const [autoRefresh, setAutoRefresh] = useState(10);
   const [countdown, setCountdown] = useState(0);
@@ -150,6 +151,7 @@ export function RequestLogs({
         api_filter: apiFilter || undefined,
         model: filterModel || undefined,
         source: filterSource || undefined,
+        channel: filterChannel || undefined,
         status: filterStatus || undefined,
         ...buildMonitorTimeRangeParams(timeRange, customRange),
       };
@@ -161,7 +163,7 @@ export function RequestLogs({
       setTotalPages(response.total_pages || 0);
       setFilterOptions((prev) => ({
         models: filterModel ? prev.models : (response.filters?.models || []),
-        sources: filterSource ? prev.sources : (response.filters?.sources || []),
+        sources: (filterSource || filterChannel) ? prev.sources : (response.filters?.sources || []),
       }));
 
       const safePage = response.page || page;
@@ -182,6 +184,7 @@ export function RequestLogs({
     apiFilter,
     filterModel,
     filterSource,
+    filterChannel,
     filterStatus,
     timeRange,
     customRange,
@@ -381,6 +384,49 @@ export function RequestLogs({
     );
   };
 
+  // 生成渠道选择下拉菜单选项（解决相同 API Key 时的渠道分拆）
+  const sourceOptions = useMemo(() => {
+    const options: { value: string; label: string }[] = [];
+    filterOptions.sources.forEach((source) => {
+      const resolved = providerMap[source];
+      const masked = maskSecret(source);
+      if (resolved) {
+        if (resolved.includes(',')) {
+          const candidates = resolved.split(',');
+          candidates.forEach((candidate) => {
+            options.push({
+              value: `${source}@@@${candidate}`,
+              label: `${candidate} (${masked})`,
+            });
+          });
+        } else {
+          options.push({
+            value: `${source}@@@${resolved}`,
+            label: `${resolved} (${masked})`,
+          });
+        }
+      } else {
+        options.push({
+          value: source,
+          label: masked,
+        });
+      }
+    });
+    // 去重，以防有重复的 value
+    const seen = new Set<string>();
+    return options.filter((opt) => {
+      if (seen.has(opt.value)) return false;
+      seen.add(opt.value);
+      return true;
+    });
+  }, [filterOptions.sources, providerMap]);
+
+  const currentSelectValue = useMemo(() => {
+    if (!filterSource) return '';
+    if (filterChannel) return `${filterSource}@@@${filterChannel}`;
+    return filterSource;
+  }, [filterSource, filterChannel]);
+
   const renderFilterSelect = (filterKey: RequestLogFilterKey) => {
     switch (filterKey) {
       case 'model':
@@ -407,16 +453,27 @@ export function RequestLogs({
           <select
             key={filterKey}
             className={styles.logSelect}
-            value={filterSource}
+            value={currentSelectValue}
             onChange={(e) => {
-              setFilterSource(e.target.value);
+              const val = e.target.value;
+              if (!val) {
+                setFilterSource('');
+                setFilterChannel('');
+              } else if (val.includes('@@@')) {
+                const [src, chan] = val.split('@@@');
+                setFilterSource(src);
+                setFilterChannel(chan);
+              } else {
+                setFilterSource(val);
+                setFilterChannel('');
+              }
               setPage(1);
             }}
           >
             <option value="">{t('monitor.logs.all_sources')}</option>
-            {filterOptions.sources.map((source) => (
-              <option key={source} value={source}>
-                {formatProviderDisplay(source, providerMap, undefined, providerModels)}
+            {sourceOptions.map((opt) => (
+              <option key={opt.value} value={opt.value}>
+                {opt.label}
               </option>
             ))}
           </select>
