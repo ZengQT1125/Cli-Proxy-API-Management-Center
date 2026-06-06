@@ -26,10 +26,10 @@ test('请求日志拆分渠道选项按 source 拉取，再由前端按明确 ch
   });
 
   const entries = [
-    { actionSource: 'scnet', model: 'deepseek-v4-flash' },
-    { actionSource: 'generalcompute2api', model: 'deepseek-v4-flash' },
+    { actionSource: 'same-key', providerName: 'scnet', model: 'deepseek-v4-flash' },
+    { actionSource: 'same-key', providerName: 'generalcompute2api', model: 'deepseek-v4-flash' },
   ];
   assert.deepEqual(filterRequestLogEntriesByChannel(entries, 'scnet'), [
-    { actionSource: 'scnet', model: 'deepseek-v4-flash' },
+    { actionSource: 'same-key', providerName: 'scnet', model: 'deepseek-v4-flash' },
   ]);
 });

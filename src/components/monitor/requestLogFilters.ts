@@ -15,11 +15,11 @@ export function buildRequestLogSourceFilterParams(filterSource: string): { sourc
   return { source: filterSource || undefined };
 }
 
-export function filterRequestLogEntriesByChannel<T extends { actionSource: string }>(
+export function filterRequestLogEntriesByChannel<T extends { actionSource: string; providerName?: string | null }>(
   entries: T[],
   filterChannel: string
 ): T[] {
   if (!filterChannel) return entries;
 
-  return entries.filter((entry) => entry.actionSource === filterChannel);
+  return entries.filter((entry) => entry.actionSource === filterChannel || entry.providerName === filterChannel);
 }
