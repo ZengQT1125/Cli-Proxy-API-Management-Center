@@ -9,6 +9,7 @@ import { UnsupportedDisableModal } from './UnsupportedDisableModal';
 import {
   buildRequestLogSourceFilterParams,
   CHANNEL_OPTION_SEPARATOR,
+  filterRequestLogEntriesByChannel,
   parseRequestLogSourceFilterValue,
 } from './requestLogFilters';
 import {
@@ -159,18 +160,18 @@ export function RequestLogs({
         page_size: pageSize,
         api_filter: apiFilter || undefined,
         model: filterModel || undefined,
-        ...buildRequestLogSourceFilterParams(filterSource, filterChannel),
+        ...buildRequestLogSourceFilterParams(filterSource),
         status: filterStatus || undefined,
         ...buildMonitorTimeRangeParams(timeRange, customRange),
       };
 
       const response = await monitorApi.getRequestLogs(params);
-      const items = (response.items || []).map(toLogEntry);
+      const items = filterRequestLogEntriesByChannel((response.items || []).map(toLogEntry), filterChannel);
       setLogEntries(items);
-      setTotal(response.total || 0);
-      setTotalPages(response.total_pages || 0);
+      setTotal(filterChannel ? items.length : (response.total || 0));
+      setTotalPages(filterChannel ? Math.ceil(items.length / pageSize) : (response.total_pages || 0));
       setFilterOptions((prev) => ({
-        models: filterModel ? prev.models : (response.filters?.models || []),
+        models: (filterModel || filterSource || filterChannel) ? prev.models : (response.filters?.models || []),
         sources: (filterSource || filterChannel) ? prev.sources : (response.filters?.sources || []),
       }));
 
