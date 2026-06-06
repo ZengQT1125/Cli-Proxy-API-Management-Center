@@ -177,7 +177,12 @@ function isGeminiOAuthSource(source: string): boolean {
  * @param providerMap 渠道映射表
  * @returns 格式化后的显示名称
  */
-export function formatProviderDisplay(source: string, providerMap: Record<string, string>): string {
+export function formatProviderDisplay(
+  source: string,
+  providerMap: Record<string, string>,
+  model?: string,
+  providerModels?: Record<string, Set<string>>
+): string {
   if (!source || source === '-' || source === 'unknown') {
     return source || '-';
   }
@@ -187,7 +192,7 @@ export function formatProviderDisplay(source: string, providerMap: Record<string
     return formatGeminiSource(source);
   }
 
-  const provider = resolveProvider(source, providerMap);
+  const provider = resolveProvider(source, providerMap, model, providerModels);
   const masked = maskSecret(source);
   if (!provider) return masked;
   return `${provider} (${masked})`;
@@ -197,11 +202,15 @@ export function formatProviderDisplay(source: string, providerMap: Record<string
  * 获取渠道显示信息（分离渠道名和秘钥）
  * @param source 来源标识
  * @param providerMap 渠道映射表
+ * @param model 请求模型
+ * @param providerModels 渠道模型映射表
  * @returns 包含渠道名和秘钥的对象
  */
 export function getProviderDisplayParts(
   source: string,
-  providerMap: Record<string, string>
+  providerMap: Record<string, string>,
+  model?: string,
+  providerModels?: Record<string, Set<string>>
 ): { provider: string | null; masked: string } {
   if (!source || source === '-' || source === 'unknown') {
     return { provider: null, masked: source || '-' };
@@ -213,7 +222,7 @@ export function getProviderDisplayParts(
     return { provider: null, masked: formatted };
   }
 
-  const provider = resolveProvider(source, providerMap);
+  const provider = resolveProvider(source, providerMap, model, providerModels);
   const masked = maskSecret(source);
   return { provider, masked };
 }

@@ -31,6 +31,7 @@ interface RequestLogsProps {
   loading: boolean;
   providerMap: Record<string, string>;
   providerTypeMap: Record<string, string>;
+  providerModels: Record<string, Set<string>>;
   apiFilter: string;
   authIndexMap: Record<string, string>;
 }
@@ -60,6 +61,7 @@ export function RequestLogs({
   loading,
   providerMap,
   providerTypeMap,
+  providerModels,
   apiFilter,
   authIndexMap,
 }: RequestLogsProps) {

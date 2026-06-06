@@ -340,12 +340,12 @@ export function MonitorPage() {
         <FailureAnalysis refreshKey={refreshKey} loading={loading} providerMap={providerMap} providerModels={providerModels} />
       </div>
 
-      {/* 请求日志 */}
       <RequestLogs
         refreshKey={refreshKey}
         loading={loading}
         providerMap={providerMap}
         providerTypeMap={providerTypeMap}
+        providerModels={providerModels}
         apiFilter={apiFilter}
         authIndexMap={authIndexMap}
       />
