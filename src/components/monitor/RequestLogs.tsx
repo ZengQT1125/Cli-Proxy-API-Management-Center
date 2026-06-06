@@ -7,6 +7,11 @@ import { TimeRangeSelector, formatTimeRangeCaption, type TimeRange } from './Tim
 import { DisableModelModal } from './DisableModelModal';
 import { UnsupportedDisableModal } from './UnsupportedDisableModal';
 import {
+  buildRequestLogSourceFilterParams,
+  CHANNEL_OPTION_SEPARATOR,
+  parseRequestLogSourceFilterValue,
+} from './requestLogFilters';
+import {
   REQUEST_LOG_FILTER_KEYS,
   REQUEST_LOG_TABLE_COLUMN_KEYS,
   REQUEST_LOG_TABLE_COLUMN_WIDTHS,
@@ -154,8 +159,7 @@ export function RequestLogs({
         page_size: pageSize,
         api_filter: apiFilter || undefined,
         model: filterModel || undefined,
-        source: filterSource || undefined,
-        channel: filterChannel || undefined,
+        ...buildRequestLogSourceFilterParams(filterSource, filterChannel),
         status: filterStatus || undefined,
         ...buildMonitorTimeRangeParams(timeRange, customRange),
       };
@@ -398,7 +402,7 @@ export function RequestLogs({
         const candidates = resolved.split(',');
         if (candidates.length <= 1) {
           options.push({
-            value: `${source}@@@${resolved}`,
+            value: source,
             label: `${resolved} (${masked})`,
           });
         } else {
@@ -408,7 +412,7 @@ export function RequestLogs({
             // 如果没有活跃模型（例如无日志），默认显示所有候选渠道供用户选择
             candidates.forEach((candidate) => {
               options.push({
-                value: `${source}@@@${candidate}`,
+                value: `${source}${CHANNEL_OPTION_SEPARATOR}${candidate}`,
                 label: `${candidate} (${masked})`,
               });
             });
@@ -446,7 +450,7 @@ export function RequestLogs({
             if (activeCandidates.size > 0) {
               activeCandidates.forEach((candidate) => {
                 options.push({
-                  value: `${source}@@@${candidate}`,
+                  value: `${source}${CHANNEL_OPTION_SEPARATOR}${candidate}`,
                   label: `${candidate} (${masked})`,
                 });
               });
@@ -454,7 +458,7 @@ export function RequestLogs({
               // 兜底：如果没有匹配的活跃渠道，显示所有候选渠道
               candidates.forEach((candidate) => {
                 options.push({
-                  value: `${source}@@@${candidate}`,
+                  value: `${source}${CHANNEL_OPTION_SEPARATOR}${candidate}`,
                   label: `${candidate} (${masked})`,
                 });
               });
@@ -479,7 +483,7 @@ export function RequestLogs({
 
   const currentSelectValue = useMemo(() => {
     if (!filterSource) return '';
-    if (filterChannel) return `${filterSource}@@@${filterChannel}`;
+    if (filterChannel) return `${filterSource}${CHANNEL_OPTION_SEPARATOR}${filterChannel}`;
     return filterSource;
   }, [filterSource, filterChannel]);
 
@@ -515,13 +519,10 @@ export function RequestLogs({
               if (!val) {
                 setFilterSource('');
                 setFilterChannel('');
-              } else if (val.includes('@@@')) {
-                const [src, chan] = val.split('@@@');
-                setFilterSource(src);
-                setFilterChannel(chan);
               } else {
-                setFilterSource(val);
-                setFilterChannel('');
+                const { source, channel } = parseRequestLogSourceFilterValue(val);
+                setFilterSource(source);
+                setFilterChannel(channel);
               }
               setPage(1);
             }}
