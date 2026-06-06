@@ -70,11 +70,37 @@ export function maskSecret(key: string): string {
 }
 
 /**
- * 解析渠道名称（返回 provider 名称）
- * @param source 来源标识
- * @param providerMap 渠道映射表
- * @returns provider 名称或 null
+ * 检查模型名称是否匹配配置的模型（支持大小写不敏感、通配符以及前缀匹配）
+ * @param requestedModel 请求的模型名称
+ * @param configuredModel 配置的模型名称
+ * @returns 是否匹配
  */
+function matchModel(requestedModel: string, configuredModel: string): boolean {
+  const req = requestedModel.trim().toLowerCase();
+  const conf = configuredModel.trim().toLowerCase();
+  
+  if (req === conf) return true;
+  
+  // 支持通配符（例如 gpt-* 或 minimax-*）
+  if (conf.includes('*')) {
+    const escaped = conf.replace(/[.+^${}()|[\]\\]/g, '\\$&');
+    const regexStr = '^' + escaped.replace(/\*/g, '.*') + '$';
+    try {
+      const regex = new RegExp(regexStr);
+      if (regex.test(req)) return true;
+    } catch (e) {
+      // 忽略正则解析错误
+    }
+  }
+  
+  // 支持前缀匹配（例如配置了 minimax，应当匹配 minimax-m2.7）
+  if (req.startsWith(conf + '-') || req.startsWith(conf + '/')) {
+    return true;
+  }
+  
+  return false;
+}
+
 /**
  * 解析渠道名称（返回 provider 名称）
  * @param source 来源标识
@@ -115,16 +141,32 @@ export function resolveProvider(
     
     // 如果有提供 model 且有模型列表，我们匹配拥有该 model 的 provider
     if (model && providerModels) {
+      // 1. 优先寻找显式匹配的 candidate
       for (const candidate of candidates) {
         const models = providerModels[candidate];
-        if (models && models.has(model)) {
+        if (models) {
+          for (const m of models) {
+            if (matchModel(model, m)) {
+              return candidate;
+            }
+          }
+        }
+      }
+      
+      // 2. 如果没有显式匹配，寻找空模型列表（或 catch-all 渠道）
+      for (const candidate of candidates) {
+        const models = providerModels[candidate];
+        if (!models || models.size === 0) {
           return candidate;
         }
       }
+      
+      // 3. 都没有匹配，默认返回第一个
+      return candidates[0];
     }
     
-    // 如果没有 model，或者没有匹配的，默认返回第一个
-    return candidates[0];
+    // 如果没有提供 model，返回所有候选渠道的合并显示（如 "scnet / generalcompute2api"）
+    return candidates.join(' / ');
   }
 
   return resolved;

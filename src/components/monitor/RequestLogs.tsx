@@ -416,7 +416,7 @@ export function RequestLogs({
             <option value="">{t('monitor.logs.all_sources')}</option>
             {filterOptions.sources.map((source) => (
               <option key={source} value={source}>
-                {formatProviderDisplay(source, providerMap)}
+                {formatProviderDisplay(source, providerMap, undefined, providerModels)}
               </option>
             ))}
           </select>

@@ -79,13 +79,13 @@ export function ChannelStats({ refreshKey, loading, providerMap, providerModels 
 
   const formatChannelLabel = useCallback((source: string): string => {
     const normalizedSource = source || 'unknown';
-    const { provider, masked } = getProviderDisplayParts(normalizedSource, providerMap);
+    const { provider, masked } = getProviderDisplayParts(normalizedSource, providerMap, undefined, providerModels);
     return provider ? `${provider} (${masked})` : masked;
-  }, [providerMap]);
+  }, [providerMap, providerModels]);
 
   const mapChannelStat = useCallback((item: MonitorChannelStatsItem): ChannelStat => {
     const source = item.source || 'unknown';
-    const { provider, masked } = getProviderDisplayParts(source, providerMap);
+    const { provider, masked } = getProviderDisplayParts(source, providerMap, undefined, providerModels);
     const displayName = provider ? `${provider} (${masked})` : masked;
 
     const models: Record<string, ModelStat> = {};
@@ -119,7 +119,7 @@ export function ChannelStats({ refreshKey, loading, providerMap, providerModels 
       })),
       models,
     };
-  }, [providerMap]);
+  }, [providerMap, providerModels]);
 
   const loadChannelStats = useCallback(async () => {
     setStatsLoading(true);
