@@ -70,31 +70,113 @@ export function maskSecret(key: string): string {
 }
 
 /**
+ * 检查模型名称是否匹配配置的模型（支持大小写不敏感、通配符以及前缀匹配）
+ * @param requestedModel 请求的模型名称
+ * @param configuredModel 配置的模型名称
+ * @returns 是否匹配
+ */
+export function matchModel(requestedModel: string, configuredModel: string): boolean {
+  const req = requestedModel.trim().toLowerCase();
+  const conf = configuredModel.trim().toLowerCase();
+  
+  if (req === conf) return true;
+  
+  // 支持通配符（例如 gpt-* 或 minimax-*）
+  if (conf.includes('*')) {
+    const escaped = conf.replace(/[.+^${}()|[\]\\]/g, '\\$&');
+    const regexStr = '^' + escaped.replace(/\*/g, '.*') + '$';
+    try {
+      const regex = new RegExp(regexStr);
+      if (regex.test(req)) return true;
+    } catch (e) {
+      // 忽略正则解析错误
+    }
+  }
+  
+  // 支持前缀匹配（例如配置了 minimax，应当匹配 minimax-m2.7）
+  if (req.startsWith(conf + '-') || req.startsWith(conf + '/')) {
+    return true;
+  }
+  
+  return false;
+}
+
+/**
  * 解析渠道名称（返回 provider 名称）
  * @param source 来源标识
  * @param providerMap 渠道映射表
+ * @param model 请求模型（用于解决相同 API Key 时的多渠道识别）
+ * @param providerModels 渠道模型映射表
+ * @param preferredProvider 优先使用的渠道名（即后端返回的实际渠道名）
  * @returns provider 名称或 null
  */
 export function resolveProvider(
   source: string,
-  providerMap: Record<string, string>
+  providerMap: Record<string, string>,
+  model?: string,
+  providerModels?: Record<string, Set<string>>,
+  preferredProvider?: string
 ): string | null {
+  const normalizedPreferred = preferredProvider?.trim();
+  if (normalizedPreferred && normalizedPreferred !== '-' && normalizedPreferred !== 'unknown') {
+    return normalizedPreferred;
+  }
+
   if (!source || source === '-' || source === 'unknown') return null;
+
+  let resolved: string | null = null;
 
   // 首先尝试完全匹配
   if (providerMap[source]) {
-    return providerMap[source];
-  }
-
-  // 然后尝试前缀匹配（双向）
-  const entries = Object.entries(providerMap);
-  for (const [key, provider] of entries) {
-    if (source.startsWith(key) || key.startsWith(source)) {
-      return provider;
+    resolved = providerMap[source];
+  } else {
+    // 然后尝试前缀匹配（双向）
+    const entries = Object.entries(providerMap);
+    for (const [key, provider] of entries) {
+      if (source.startsWith(key) || key.startsWith(source)) {
+        resolved = provider;
+        break;
+      }
     }
   }
 
-  return null;
+  if (!resolved) return null;
+
+  // 如果解析出来的是多个以逗号分隔的提供商名字（由于 API Key 相同）
+  if (resolved.includes(',')) {
+    const candidates = resolved.split(',');
+    
+    // 如果有提供 model 且有模型列表，我们匹配拥有该 model 的 provider
+    if (model && providerModels) {
+      // 1. 优先寻找显式匹配的 candidate
+      for (const candidate of candidates) {
+        const models = providerModels[candidate];
+        if (models) {
+          for (const m of models) {
+            if (matchModel(model, m)) {
+              return candidate;
+            }
+          }
+        }
+      }
+      
+      // 2. 如果没有显式匹配，寻找空模型列表（或 catch-all 渠道）
+      for (const candidate of candidates) {
+        const models = providerModels[candidate];
+        if (!models || models.size === 0) {
+          return candidate;
+        }
+      }
+      
+      // 3. 都没有匹配，默认返回第一个
+      return candidates[0];
+    }
+    
+    // 如果没有提供 model，返回所有候选渠道的合并显示（如 "scnet / generalcompute2api"）
+    return candidates.join(' / ');
+  }
+
+  return resolved;
 }
 
 /**
@@ -150,9 +232,18 @@ function isGeminiOAuthSource(source: string): boolean {
  * 格式化渠道显示名称：渠道名 (脱敏后的api-key)
  * @param source 来源标识
  * @param providerMap 渠道映射表
+ * @param model 请求模型
+ * @param providerModels 渠道模型映射表
+ * @param preferredProvider 优先使用的渠道名（即后端返回的实际渠道名）
  * @returns 格式化后的显示名称
  */
-export function formatProviderDisplay(source: string, providerMap: Record<string, string>): string {
+export function formatProviderDisplay(
+  source: string,
+  providerMap: Record<string, string>,
+  model?: string,
+  providerModels?: Record<string, Set<string>>,
+  preferredProvider?: string
+): string {
   if (!source || source === '-' || source === 'unknown') {
     return source || '-';
   }
@@ -162,46 +253,19 @@ export function formatProviderDisplay(source: string, providerMap: Record<string
     return formatGeminiSource(source);
   }
 
-  const provider = resolveProvider(source, providerMap);
+  const provider = resolveProvider(source, providerMap, model, providerModels, preferredProvider);
   const masked = maskSecret(source);
   if (!provider) return masked;
   return `${provider} (${masked})`;
 }
 
 /**
- * 匹配模型名称，支持通配符 *
- * @param model 实际模型名
- * @param pattern 模式（可包含 * 通配符）
- */
-export function matchModel(model: string, pattern: string): boolean {
-  if (!model || !pattern) return false;
-  const lowerModel = model.toLowerCase();
-  const lowerPattern = pattern.toLowerCase();
-  if (lowerPattern === '*') return true;
-  if (lowerPattern.includes('*')) {
-    const parts = lowerPattern.split('*');
-    if (parts.length === 2) {
-      return lowerModel.startsWith(parts[0]) && lowerModel.endsWith(parts[1]);
-    }
-    // 复杂的通配符匹配
-    const regexStr = '^' + lowerPattern.replace(/\*/g, '.*') + '$';
-    try {
-      const regex = new RegExp(regexStr);
-      return regex.test(lowerModel);
-    } catch (e) {
-      return false;
-    }
-  }
-  return lowerModel === lowerPattern;
-}
-
-/**
  * 获取渠道显示信息（分离渠道名和秘钥）
  * @param source 来源标识
  * @param providerMap 渠道映射表
- * @param model 模型名称
+ * @param model 请求模型
  * @param providerModels 渠道模型映射表
- * @param channel 后端传回的实际渠道名称
+ * @param preferredProvider 优先使用的渠道名（即后端返回的实际渠道名）
  * @returns 包含渠道名和秘钥的对象
  */
 export function getProviderDisplayParts(
@@ -209,7 +273,7 @@ export function getProviderDisplayParts(
   providerMap: Record<string, string>,
   model?: string,
   providerModels?: Record<string, Set<string>>,
-  channel?: string
+  preferredProvider?: string
 ): { provider: string | null; masked: string } {
   if (!source || source === '-' || source === 'unknown') {
     return { provider: null, masked: source || '-' };
@@ -221,44 +285,8 @@ export function getProviderDisplayParts(
     return { provider: null, masked: formatted };
   }
 
+  const provider = resolveProvider(source, providerMap, model, providerModels, preferredProvider);
   const masked = maskSecret(source);
-
-  // 如果传入了后端识别出的 channel，优先以 channel 作为 provider 名称
-  if (channel && channel !== '-' && channel !== 'unknown' && channel.trim() !== '') {
-    return { provider: channel.trim(), masked };
-  }
-
-  // 否则，如果 providerMap 映射值是一个列表（以逗号分隔，代表多个渠道共享同一个 API Key）
-  const resolved = providerMap[source];
-  if (resolved) {
-    const candidates = resolved.split(',');
-    if (candidates.length === 1) {
-      return { provider: candidates[0], masked };
-    }
-    // 存在多个候选渠道，根据 model 和 providerModels 匹配
-    if (model && providerModels) {
-      for (const candidate of candidates) {
-        const models = providerModels[candidate];
-        if (models) {
-          for (const m of models) {
-            if (matchModel(model, m)) {
-              return { provider: candidate, masked };
-            }
-          }
-        }
-      }
-      // 兜底：寻找空配置渠道
-      for (const candidate of candidates) {
-        const models = providerModels[candidate];
-        if (!models || models.size === 0) {
-          return { provider: candidate, masked };
-        }
-      }
-    }
-    return { provider: candidates[0], masked };
-  }
-
-  const provider = resolveProvider(source, providerMap);
   return { provider, masked };
 }
 
