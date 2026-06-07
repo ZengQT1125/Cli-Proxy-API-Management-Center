@@ -23,10 +23,3 @@ export function filterRequestLogEntriesByChannel<T extends { actionSource: strin
 
   return entries.filter((entry) => entry.actionSource === filterChannel || entry.providerName === filterChannel);
 }
-
-export function paginateRequestLogEntries<T>(entries: T[], page: number, pageSize: number): T[] {
-  const safePage = Math.max(1, page);
-  const safePageSize = Math.max(1, pageSize);
-  const startIndex = (safePage - 1) * safePageSize;
-  return entries.slice(startIndex, startIndex + safePageSize);
-}

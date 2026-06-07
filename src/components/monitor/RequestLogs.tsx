@@ -1,7 +1,7 @@
 import { Fragment, useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Card } from '@/components/ui/Card';
-import { monitorApi, type MonitorRequestLogItem, type MonitorRequestLogsQuery } from '@/services/api';
+import { monitorApi, type MonitorRequestLogItem } from '@/services/api';
 import { useDisableModel } from '@/hooks';
 import { TimeRangeSelector, formatTimeRangeCaption, type TimeRange } from './TimeRangeSelector';
 import { DisableModelModal } from './DisableModelModal';
@@ -10,7 +10,6 @@ import {
   buildRequestLogSourceFilterParams,
   CHANNEL_OPTION_SEPARATOR,
   filterRequestLogEntriesByChannel,
-  paginateRequestLogEntries,
   parseRequestLogSourceFilterValue,
 } from './requestLogFilters';
 import {
@@ -33,8 +32,6 @@ import {
   type DateRange,
 } from '@/utils/monitor';
 import styles from '@/pages/MonitorPage.module.scss';
-
-const CHANNEL_FILTER_FETCH_PAGE_SIZE = 100;
 
 interface RequestLogsProps {
   refreshKey: number;
@@ -158,7 +155,9 @@ export function RequestLogs({
   const fetchLogData = useCallback(async () => {
     setLogLoading(true);
     try {
-      const baseParams: MonitorRequestLogsQuery = {
+      const params = {
+        page,
+        page_size: pageSize,
         api_filter: apiFilter || undefined,
         model: filterModel || undefined,
         ...buildRequestLogSourceFilterParams(filterSource),
@@ -166,54 +165,14 @@ export function RequestLogs({
         ...buildMonitorTimeRangeParams(timeRange, customRange),
       };
 
-      if (filterChannel) {
-        const firstResponse = await monitorApi.getRequestLogs({
-          ...baseParams,
-          page: 1,
-          page_size: CHANNEL_FILTER_FETCH_PAGE_SIZE,
-        });
-        const rawItems = [...(firstResponse.items || [])];
-        const allPages = firstResponse.total_pages || 1;
-
-        for (let nextPage = 2; nextPage <= allPages; nextPage += 1) {
-          const nextResponse = await monitorApi.getRequestLogs({
-            ...baseParams,
-            page: nextPage,
-            page_size: CHANNEL_FILTER_FETCH_PAGE_SIZE,
-          });
-          rawItems.push(...(nextResponse.items || []));
-        }
-
-        const filteredItems = filterRequestLogEntriesByChannel(rawItems.map(toLogEntry), filterChannel);
-        const filteredTotal = filteredItems.length;
-        const filteredTotalPages = Math.ceil(filteredTotal / pageSize);
-        const safePage = filteredTotalPages > 0 ? Math.min(page, filteredTotalPages) : 1;
-
-        setLogEntries(paginateRequestLogEntries(filteredItems, safePage, pageSize));
-        setTotal(filteredTotal);
-        setTotalPages(filteredTotalPages);
-        if (safePage !== page) {
-          setPage(safePage);
-        }
-        setFilterOptions((prev) => ({
-          models: prev.models,
-          sources: prev.sources,
-        }));
-        return;
-      }
-
-      const response = await monitorApi.getRequestLogs({
-        ...baseParams,
-        page,
-        page_size: pageSize,
-      });
-      const items = (response.items || []).map(toLogEntry);
+      const response = await monitorApi.getRequestLogs(params);
+      const items = filterRequestLogEntriesByChannel((response.items || []).map(toLogEntry), filterChannel);
       setLogEntries(items);
       setTotal(response.total || 0);
       setTotalPages(response.total_pages || 0);
       setFilterOptions((prev) => ({
-        models: (filterModel || filterSource) ? prev.models : (response.filters?.models || []),
-        sources: filterSource ? prev.sources : (response.filters?.sources || []),
+        models: (filterModel || filterSource || filterChannel) ? prev.models : (response.filters?.models || []),
+        sources: (filterSource || filterChannel) ? prev.sources : (response.filters?.sources || []),
       }));
 
       const safePage = response.page || page;
