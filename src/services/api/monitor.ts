@@ -41,6 +41,7 @@ export interface MonitorRequestLogItem {
   api_key: string;
   model: string;
   source: string;
+  channel?: string;
   auth_index: string;
   failed: boolean;
   input_tokens: number;

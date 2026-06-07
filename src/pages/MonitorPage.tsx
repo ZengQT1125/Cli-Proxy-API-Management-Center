@@ -346,6 +346,7 @@ export function MonitorPage() {
         loading={loading}
         providerMap={providerMap}
         providerTypeMap={providerTypeMap}
+        providerModels={providerModels}
         apiFilter={apiFilter}
         authIndexMap={authIndexMap}
       />

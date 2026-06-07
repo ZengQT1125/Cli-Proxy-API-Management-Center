@@ -169,14 +169,47 @@ export function formatProviderDisplay(source: string, providerMap: Record<string
 }
 
 /**
+ * 匹配模型名称，支持通配符 *
+ * @param model 实际模型名
+ * @param pattern 模式（可包含 * 通配符）
+ */
+export function matchModel(model: string, pattern: string): boolean {
+  if (!model || !pattern) return false;
+  const lowerModel = model.toLowerCase();
+  const lowerPattern = pattern.toLowerCase();
+  if (lowerPattern === '*') return true;
+  if (lowerPattern.includes('*')) {
+    const parts = lowerPattern.split('*');
+    if (parts.length === 2) {
+      return lowerModel.startsWith(parts[0]) && lowerModel.endsWith(parts[1]);
+    }
+    // 复杂的通配符匹配
+    const regexStr = '^' + lowerPattern.replace(/\*/g, '.*') + '$';
+    try {
+      const regex = new RegExp(regexStr);
+      return regex.test(lowerModel);
+    } catch (e) {
+      return false;
+    }
+  }
+  return lowerModel === lowerPattern;
+}
+
+/**
  * 获取渠道显示信息（分离渠道名和秘钥）
  * @param source 来源标识
  * @param providerMap 渠道映射表
+ * @param model 模型名称
+ * @param providerModels 渠道模型映射表
+ * @param channel 后端传回的实际渠道名称
  * @returns 包含渠道名和秘钥的对象
  */
 export function getProviderDisplayParts(
   source: string,
-  providerMap: Record<string, string>
+  providerMap: Record<string, string>,
+  model?: string,
+  providerModels?: Record<string, Set<string>>,
+  channel?: string
 ): { provider: string | null; masked: string } {
   if (!source || source === '-' || source === 'unknown') {
     return { provider: null, masked: source || '-' };
@@ -188,8 +221,44 @@ export function getProviderDisplayParts(
     return { provider: null, masked: formatted };
   }
 
-  const provider = resolveProvider(source, providerMap);
   const masked = maskSecret(source);
+
+  // 如果传入了后端识别出的 channel，优先以 channel 作为 provider 名称
+  if (channel && channel !== '-' && channel !== 'unknown' && channel.trim() !== '') {
+    return { provider: channel.trim(), masked };
+  }
+
+  // 否则，如果 providerMap 映射值是一个列表（以逗号分隔，代表多个渠道共享同一个 API Key）
+  const resolved = providerMap[source];
+  if (resolved) {
+    const candidates = resolved.split(',');
+    if (candidates.length === 1) {
+      return { provider: candidates[0], masked };
+    }
+    // 存在多个候选渠道，根据 model 和 providerModels 匹配
+    if (model && providerModels) {
+      for (const candidate of candidates) {
+        const models = providerModels[candidate];
+        if (models) {
+          for (const m of models) {
+            if (matchModel(model, m)) {
+              return { provider: candidate, masked };
+            }
+          }
+        }
+      }
+      // 兜底：寻找空配置渠道
+      for (const candidate of candidates) {
+        const models = providerModels[candidate];
+        if (!models || models.size === 0) {
+          return { provider: candidate, masked };
+        }
+      }
+    }
+    return { provider: candidates[0], masked };
+  }
+
+  const provider = resolveProvider(source, providerMap);
   return { provider, masked };
 }
 

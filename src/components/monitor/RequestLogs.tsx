@@ -6,13 +6,16 @@ import { useDisableModel } from '@/hooks';
 import { TimeRangeSelector, formatTimeRangeCaption, type TimeRange } from './TimeRangeSelector';
 import { DisableModelModal } from './DisableModelModal';
 import { UnsupportedDisableModal } from './UnsupportedDisableModal';
-import {
-  buildRequestLogSourceFilterParams,
-  CHANNEL_OPTION_SEPARATOR,
-  filterRequestLogEntriesByChannel,
-  paginateRequestLogEntries,
-  parseRequestLogSourceFilterValue,
-} from './requestLogFilters';
+const CHANNEL_OPTION_SEPARATOR = '@@@';
+
+function parseRequestLogSourceFilterValue(val: string) {
+  if (!val) return { source: '', channel: '' };
+  const parts = val.split(CHANNEL_OPTION_SEPARATOR);
+  return {
+    source: parts[0],
+    channel: parts[1] || '',
+  };
+}
 import {
   REQUEST_LOG_FILTER_KEYS,
   REQUEST_LOG_TABLE_COLUMN_KEYS,
@@ -33,8 +36,6 @@ import {
   type DateRange,
 } from '@/utils/monitor';
 import styles from '@/pages/MonitorPage.module.scss';
-
-const CHANNEL_FILTER_FETCH_PAGE_SIZE = 100;
 
 interface RequestLogsProps {
   refreshKey: number;
@@ -161,7 +162,7 @@ export function RequestLogs({
       const baseParams: MonitorRequestLogsQuery = {
         api_filter: apiFilter || undefined,
         model: filterModel || undefined,
-        ...buildRequestLogSourceFilterParams(filterSource),
+        source: filterSource || undefined,
         channel: filterChannel || undefined,
         status: filterStatus || undefined,
         ...buildMonitorTimeRangeParams(timeRange, customRange),
