@@ -159,11 +159,11 @@ export function RequestLogs({
   const fetchLogData = useCallback(async () => {
     setLogLoading(true);
     try {
+      // 兼容 1.2.20 旧后端，不向后端发送 channel 参数，仅在前端进行过滤
       const baseParams: MonitorRequestLogsQuery = {
         api_filter: apiFilter || undefined,
         model: filterModel || undefined,
         source: filterSource || undefined,
-        channel: filterChannel || undefined,
         status: filterStatus || undefined,
         ...buildMonitorTimeRangeParams(timeRange, customRange),
       };
@@ -173,7 +173,13 @@ export function RequestLogs({
         page,
         page_size: pageSize,
       });
-      const items = (response.items || []).map(toLogEntry);
+      let items = (response.items || []).map(toLogEntry);
+
+      // 如果选择了特定渠道，就在当前获取到的页面数据（如 20 条或 50 条）中进行过滤筛选
+      if (filterChannel) {
+        items = items.filter((item) => item.providerName === filterChannel);
+      }
+
       setLogEntries(items);
       setTotal(response.total || 0);
       setTotalPages(response.total_pages || 0);
