@@ -3,6 +3,7 @@ import { useNavigate, useOutletContext } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
+import { Modal } from '@/components/ui/Modal';
 import { HeaderInputList } from '@/components/ui/HeaderInputList';
 import { Input } from '@/components/ui/Input';
 import { ModelInputList } from '@/components/ui/ModelInputList';
@@ -126,6 +127,75 @@ export function AiProvidersOpenAIEditPage() {
 
   const swipeRef = useEdgeSwipeBack({ onBack: handleBack });
   const [isTestingKeys, setIsTestingKeys] = useState(false);
+
+  /* 分页与批量导入 API 密钥状态和处理 */
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageSize = 10;
+  const [importModalOpen, setImportModalOpen] = useState(false);
+  const [importText, setImportText] = useState('');
+
+  const apiKeyList = useMemo(() => {
+    return form.apiKeyEntries.length ? form.apiKeyEntries : [buildApiKeyEntry()];
+  }, [form.apiKeyEntries]);
+
+  const totalItems = apiKeyList.length;
+  const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
+  const activePage = Math.max(1, Math.min(currentPage, totalPages));
+  const startIndex = (activePage - 1) * pageSize;
+  const visibleKeys = useMemo(() => {
+    return apiKeyList.slice(startIndex, startIndex + pageSize);
+  }, [apiKeyList, startIndex, pageSize]);
+
+  const handleImportKeys = () => {
+    const lines = importText.split(/\r?\n/);
+    const newEntries: ApiKeyEntry[] = [];
+
+    lines.forEach((line) => {
+      const trimmed = line.trim();
+      if (!trimmed) return;
+
+      const parts = trimmed.split(/[\s\t]+/);
+      const apiKey = parts[0];
+      const proxyUrl = parts.length > 1 ? parts[1] : '';
+
+      if (apiKey) {
+        newEntries.push({
+          apiKey,
+          proxyUrl: proxyUrl || undefined,
+          headers: {},
+        });
+      }
+    });
+
+    if (newEntries.length === 0) {
+      showNotification(t('ai_providers.openai_keys_import_empty', '未检测到有效的密钥'), 'error');
+      return;
+    }
+
+    const currentList = form.apiKeyEntries;
+    let nextList: ApiKeyEntry[] = [];
+    if (currentList.length === 1 && !currentList[0].apiKey.trim() && !currentList[0].proxyUrl?.trim()) {
+      nextList = newEntries;
+    } else {
+      nextList = [...currentList, ...newEntries];
+    }
+
+    setForm((prev) => ({ ...prev, apiKeyEntries: nextList }));
+    resetDraftKeyTestStatuses(nextList.length);
+    setTestStatus('idle');
+    setTestMessage('');
+
+    showNotification(
+      t('ai_providers.openai_keys_import_success', '成功导入了 {{count}} 个 API 密钥', { count: newEntries.length }),
+      'success'
+    );
+    
+    setImportModalOpen(false);
+    setImportText('');
+
+    const nextTotalPages = Math.ceil(nextList.length / pageSize) || 1;
+    setCurrentPage(nextTotalPages);
+  };
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -367,51 +437,71 @@ export function AiProvidersOpenAIEditPage() {
     navigate('models');
   };
 
-  const renderKeyEntries = (entries: ApiKeyEntry[]) => {
-    const list = entries.length ? entries : [buildApiKeyEntry()];
-
-    const updateEntry = (idx: number, field: keyof ApiKeyEntry, value: string) => {
-      const next = list.map((entry, i) => (i === idx ? { ...entry, [field]: value } : entry));
+  const renderKeyEntries = () => {
+    const updateEntry = (localIndex: number, field: keyof ApiKeyEntry, value: string) => {
+      const globalIndex = startIndex + localIndex;
+      const next = apiKeyList.map((entry, i) => (i === globalIndex ? { ...entry, [field]: value } : entry));
       setForm((prev) => ({ ...prev, apiKeyEntries: next }));
-      setDraftKeyTestStatus(idx, { status: 'idle', message: '' });
+      setDraftKeyTestStatus(globalIndex, { status: 'idle', message: '' });
       setTestStatus('idle');
       setTestMessage('');
     };
 
-    const removeEntry = (idx: number) => {
-      const next = list.filter((_, i) => i !== idx);
+    const removeEntry = (localIndex: number) => {
+      const globalIndex = startIndex + localIndex;
+      const next = apiKeyList.filter((_, i) => i !== globalIndex);
       const nextLength = next.length ? next.length : 1;
+      const finalNextList = next.length ? next : [buildApiKeyEntry()];
       setForm((prev) => ({
         ...prev,
-        apiKeyEntries: next.length ? next : [buildApiKeyEntry()],
+        apiKeyEntries: finalNextList,
       }));
       resetDraftKeyTestStatuses(nextLength);
       setTestStatus('idle');
       setTestMessage('');
+
+      const nextTotalPages = Math.ceil(finalNextList.length / pageSize) || 1;
+      if (activePage > nextTotalPages) {
+        setCurrentPage(nextTotalPages);
+      }
     };
 
     const addEntry = () => {
-      setForm((prev) => ({ ...prev, apiKeyEntries: [...list, buildApiKeyEntry()] }));
-      resetDraftKeyTestStatuses(list.length + 1);
+      const nextList = [...apiKeyList, buildApiKeyEntry()];
+      setForm((prev) => ({ ...prev, apiKeyEntries: nextList }));
+      resetDraftKeyTestStatuses(nextList.length);
       setTestStatus('idle');
       setTestMessage('');
+
+      const nextTotalPages = Math.ceil(nextList.length / pageSize) || 1;
+      setCurrentPage(nextTotalPages);
     };
 
     return (
       <div className={styles.keyEntriesList}>
         <div className={styles.keyEntriesToolbar}>
           <span className={styles.keyEntriesCount}>
-            {t('ai_providers.openai_keys_count')}: {list.length}
+            {t('ai_providers.openai_keys_count')}: {totalItems}
           </span>
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={addEntry}
-            disabled={saving || disableControls || isTestingKeys}
-            className={styles.addKeyButton}
-          >
-            {t('ai_providers.openai_keys_add_btn')}
-          </Button>
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => setImportModalOpen(true)}
+              disabled={saving || disableControls || isTestingKeys}
+            >
+              {t('ai_providers.openai_keys_import_btn', '导入密钥')}
+            </Button>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={addEntry}
+              disabled={saving || disableControls || isTestingKeys}
+              className={styles.addKeyButton}
+            >
+              {t('ai_providers.openai_keys_add_btn')}
+            </Button>
+          </div>
         </div>
         <div className={styles.keyTableShell}>
           {/* 表头 */}
@@ -424,19 +514,20 @@ export function AiProvidersOpenAIEditPage() {
           </div>
 
           {/* 数据行 */}
-          {list.map((entry, index) => {
-            const keyStatus = keyTestStatuses[index]?.status ?? 'idle';
+          {visibleKeys.map((entry, localIndex) => {
+            const globalIndex = startIndex + localIndex;
+            const keyStatus = keyTestStatuses[globalIndex]?.status ?? 'idle';
             const canTestKey = Boolean(entry.apiKey?.trim()) && hasConfiguredModels;
 
             return (
-              <div key={index} className={styles.keyTableRow}>
+              <div key={globalIndex} className={styles.keyTableRow}>
                 {/* 序号 */}
-                <div className={styles.keyTableColIndex}>{index + 1}</div>
+                <div className={styles.keyTableColIndex}>{globalIndex + 1}</div>
 
                 {/* 状态指示灯 */}
                 <div
                   className={styles.keyTableColStatus}
-                  title={keyTestStatuses[index]?.message || ''}
+                  title={keyTestStatuses[globalIndex]?.message || ''}
                 >
                   <StatusIcon status={keyStatus} />
                 </div>
@@ -445,12 +536,8 @@ export function AiProvidersOpenAIEditPage() {
                 <div className={styles.keyTableColKey}>
                   <input
                     type="text"
-                    autoComplete="new-password"
-                    data-1p-ignore="true"
-                    data-lpignore="true"
-                    data-bwignore="true"
                     value={entry.apiKey}
-                    onChange={(e) => updateEntry(index, 'apiKey', e.target.value)}
+                    onChange={(e) => updateEntry(localIndex, 'apiKey', e.target.value)}
                     disabled={saving || disableControls || isTestingKeys}
                     className={`input ${styles.keyTableInput}`}
                     placeholder={t('ai_providers.openai_key_placeholder')}
@@ -462,7 +549,7 @@ export function AiProvidersOpenAIEditPage() {
                   <input
                     type="text"
                     value={entry.proxyUrl ?? ''}
-                    onChange={(e) => updateEntry(index, 'proxyUrl', e.target.value)}
+                    onChange={(e) => updateEntry(localIndex, 'proxyUrl', e.target.value)}
                     disabled={saving || disableControls || isTestingKeys}
                     className={`input ${styles.keyTableInput}`}
                     placeholder={t('ai_providers.openai_proxy_placeholder')}
@@ -474,7 +561,7 @@ export function AiProvidersOpenAIEditPage() {
                   <Button
                     variant="secondary"
                     size="sm"
-                    onClick={() => void testSingleKey(index)}
+                    onClick={() => void testSingleKey(globalIndex)}
                     disabled={saving || disableControls || isTestingKeys || !canTestKey}
                     loading={keyStatus === 'loading'}
                   >
@@ -483,8 +570,8 @@ export function AiProvidersOpenAIEditPage() {
                   <Button
                     variant="ghost"
                     size="sm"
-                    onClick={() => removeEntry(index)}
-                    disabled={saving || disableControls || isTestingKeys || list.length <= 1}
+                    onClick={() => removeEntry(localIndex)}
+                    disabled={saving || disableControls || isTestingKeys || totalItems <= 1}
                   >
                     {t('common.delete')}
                   </Button>
@@ -493,6 +580,35 @@ export function AiProvidersOpenAIEditPage() {
             );
           })}
         </div>
+
+        {/* 分页组件 */}
+        {totalItems > pageSize && (
+          <div className={styles.pagination} style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '16px', marginTop: '16px' }}>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+              disabled={activePage <= 1}
+            >
+              {t('auth_files.pagination_prev', '上一页')}
+            </Button>
+            <div className={styles.pageInfo} style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
+              {t('ai_providers.openai_keys_pagination_info', '第 {{current}} / {{total}} 页 · 共 {{count}} 个密钥', {
+                current: activePage,
+                total: totalPages,
+                count: totalItems,
+              })}
+            </div>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+              disabled={activePage >= totalPages}
+            >
+              {t('auth_files.pagination_next', '下一页')}
+            </Button>
+          </div>
+        )}
       </div>
     );
   };
@@ -692,11 +808,64 @@ export function AiProvidersOpenAIEditPage() {
                 <label className={styles.keyEntriesTitle}>{t('ai_providers.openai_add_modal_keys_label')}</label>
                 <span className={styles.keyEntriesHint}>{t('ai_providers.openai_keys_hint')}</span>
               </div>
-              {renderKeyEntries(form.apiKeyEntries)}
+              {renderKeyEntries()}
             </div>
           </div>
         )}
       </Card>
+
+      {/* 批量导入 API 密钥的 Modal 弹窗 */}
+      <Modal
+        open={importModalOpen}
+        title={t('ai_providers.openai_keys_import_title', '批量导入 API 密钥')}
+        onClose={() => {
+          setImportModalOpen(false);
+          setImportText('');
+        }}
+        footer={
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => {
+                setImportModalOpen(false);
+                setImportText('');
+              }}
+            >
+              {t('common.cancel', '取消')}
+            </Button>
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={handleImportKeys}
+              disabled={!importText.trim()}
+            >
+              {t('common.confirm', '确定')}
+            </Button>
+          </div>
+        }
+      >
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+          <label style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
+            {t('ai_providers.openai_keys_import_hint')}
+          </label>
+          <textarea
+            value={importText}
+            onChange={(e) => setImportText(e.target.value)}
+            rows={10}
+            className="input"
+            placeholder="sk-...\nsk-...\n..."
+            style={{
+              width: '100%',
+              fontFamily: 'monospace',
+              fontSize: '12px',
+              padding: '8px',
+              borderRadius: '8px',
+              resize: 'vertical',
+            }}
+          />
+        </div>
+      </Modal>
     </SecondaryScreenShell>
   );
 }

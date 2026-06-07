@@ -73,7 +73,7 @@ export const configApi = {
    */
   async getLogsMaxTotalSizeMb(): Promise<number> {
     const data = await apiClient.get<Record<string, unknown>>('/logs-max-total-size-mb');
-    const value = data?.['logs-max-total-size-mb'] ?? 0;
+    const value = data?.['logs-max-total-size-mb'] ?? data?.logsMaxTotalSizeMb ?? 0;
     const parsed = Number(value);
     return Number.isFinite(parsed) ? parsed : 0;
   },
@@ -94,7 +94,7 @@ export const configApi = {
    */
   async getForceModelPrefix(): Promise<boolean> {
     const data = await apiClient.get<Record<string, unknown>>('/force-model-prefix');
-    return Boolean(data?.['force-model-prefix'] ?? false);
+    return Boolean(data?.['force-model-prefix'] ?? data?.forceModelPrefix ?? false);
   },
 
   /**
@@ -107,7 +107,7 @@ export const configApi = {
    */
   async getRoutingStrategy(): Promise<string> {
     const data = await apiClient.get<Record<string, unknown>>('/routing/strategy');
-    const strategy = data?.strategy;
+    const strategy = data?.strategy ?? data?.['routing-strategy'] ?? data?.routingStrategy;
     return typeof strategy === 'string' ? strategy : 'round-robin';
   },
 

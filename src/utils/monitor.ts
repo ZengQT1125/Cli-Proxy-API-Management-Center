@@ -107,7 +107,6 @@ export function matchModel(requestedModel: string, configuredModel: string): boo
  * @param providerMap 渠道映射表
  * @param model 请求模型（用于解决相同 API Key 时的多渠道识别）
  * @param providerModels 渠道模型映射表
- * @param preferredProvider 优先使用的渠道名（即后端返回的实际渠道名）
  * @returns provider 名称或 null
  */
 export function resolveProvider(
@@ -118,7 +117,7 @@ export function resolveProvider(
   preferredProvider?: string
 ): string | null {
   const normalizedPreferred = preferredProvider?.trim();
-  if (normalizedPreferred && normalizedPreferred !== '-' && normalizedPreferred !== 'unknown') {
+  if (normalizedPreferred) {
     return normalizedPreferred;
   }
 
@@ -234,7 +233,6 @@ function isGeminiOAuthSource(source: string): boolean {
  * @param providerMap 渠道映射表
  * @param model 请求模型
  * @param providerModels 渠道模型映射表
- * @param preferredProvider 优先使用的渠道名（即后端返回的实际渠道名）
  * @returns 格式化后的显示名称
  */
 export function formatProviderDisplay(
@@ -265,7 +263,6 @@ export function formatProviderDisplay(
  * @param providerMap 渠道映射表
  * @param model 请求模型
  * @param providerModels 渠道模型映射表
- * @param preferredProvider 优先使用的渠道名（即后端返回的实际渠道名）
  * @returns 包含渠道名和秘钥的对象
  */
 export function getProviderDisplayParts(
@@ -413,4 +410,3 @@ export function createDisableState(
     : `${maskSecret(source)} / ${model}`;
   return { source, model, displayName, step: 1 };
 }
-

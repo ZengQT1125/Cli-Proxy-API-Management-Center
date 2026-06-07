@@ -6,16 +6,13 @@ import { useDisableModel } from '@/hooks';
 import { TimeRangeSelector, formatTimeRangeCaption, type TimeRange } from './TimeRangeSelector';
 import { DisableModelModal } from './DisableModelModal';
 import { UnsupportedDisableModal } from './UnsupportedDisableModal';
-const CHANNEL_OPTION_SEPARATOR = '@@@';
-
-function parseRequestLogSourceFilterValue(val: string) {
-  if (!val) return { source: '', channel: '' };
-  const parts = val.split(CHANNEL_OPTION_SEPARATOR);
-  return {
-    source: parts[0],
-    channel: parts[1] || '',
-  };
-}
+import {
+  buildRequestLogSourceFilterParams,
+  CHANNEL_OPTION_SEPARATOR,
+  filterRequestLogEntriesByChannel,
+  paginateRequestLogEntries,
+  parseRequestLogSourceFilterValue,
+} from './requestLogFilters';
 import {
   REQUEST_LOG_FILTER_KEYS,
   REQUEST_LOG_TABLE_COLUMN_KEYS,
@@ -36,6 +33,8 @@ import {
   type DateRange,
 } from '@/utils/monitor';
 import styles from '@/pages/MonitorPage.module.scss';
+
+const CHANNEL_FILTER_FETCH_PAGE_SIZE = 100;
 
 interface RequestLogsProps {
   refreshKey: number;
@@ -159,27 +158,56 @@ export function RequestLogs({
   const fetchLogData = useCallback(async () => {
     setLogLoading(true);
     try {
-      // 兼容 1.2.20 旧后端，不向后端发送 channel 参数，仅在前端进行过滤
       const baseParams: MonitorRequestLogsQuery = {
         api_filter: apiFilter || undefined,
         model: filterModel || undefined,
-        source: filterSource || undefined,
+        ...buildRequestLogSourceFilterParams(filterSource),
         status: filterStatus || undefined,
         ...buildMonitorTimeRangeParams(timeRange, customRange),
       };
+
+      if (filterChannel) {
+        const firstResponse = await monitorApi.getRequestLogs({
+          ...baseParams,
+          page: 1,
+          page_size: CHANNEL_FILTER_FETCH_PAGE_SIZE,
+        });
+        const rawItems = [...(firstResponse.items || [])];
+        const allPages = firstResponse.total_pages || 1;
+
+        for (let nextPage = 2; nextPage <= allPages; nextPage += 1) {
+          const nextResponse = await monitorApi.getRequestLogs({
+            ...baseParams,
+            page: nextPage,
+            page_size: CHANNEL_FILTER_FETCH_PAGE_SIZE,
+          });
+          rawItems.push(...(nextResponse.items || []));
+        }
+
+        const filteredItems = filterRequestLogEntriesByChannel(rawItems.map(toLogEntry), filterChannel);
+        const filteredTotal = filteredItems.length;
+        const filteredTotalPages = Math.ceil(filteredTotal / pageSize);
+        const safePage = filteredTotalPages > 0 ? Math.min(page, filteredTotalPages) : 1;
+
+        setLogEntries(paginateRequestLogEntries(filteredItems, safePage, pageSize));
+        setTotal(filteredTotal);
+        setTotalPages(filteredTotalPages);
+        if (safePage !== page) {
+          setPage(safePage);
+        }
+        setFilterOptions((prev) => ({
+          models: prev.models,
+          sources: prev.sources,
+        }));
+        return;
+      }
 
       const response = await monitorApi.getRequestLogs({
         ...baseParams,
         page,
         page_size: pageSize,
       });
-      let items = (response.items || []).map(toLogEntry);
-
-      // 如果选择了特定渠道，就在当前获取到的页面数据（如 20 条或 50 条）中进行过滤筛选
-      if (filterChannel) {
-        items = items.filter((item) => item.providerName === filterChannel);
-      }
-
+      const items = (response.items || []).map(toLogEntry);
       setLogEntries(items);
       setTotal(response.total || 0);
       setTotalPages(response.total_pages || 0);

@@ -16,16 +16,12 @@ const GEMINI_MODELS_IN_FLIGHT = new Map<string, Promise<ReturnType<typeof normal
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   value !== null && typeof value === 'object' && !Array.isArray(value);
 
-const buildRequestSignature = (
-  url: string,
-  headers: Record<string, string>,
-  authIndex?: string
-) => {
+const buildRequestSignature = (url: string, headers: Record<string, string>) => {
   const headerSignature = Object.entries(headers)
     .sort(([a], [b]) => a.toLowerCase().localeCompare(b.toLowerCase()))
     .map(([key, value]) => `${key}:${value}`)
     .join('|');
-  return `${url}||${headerSignature}||auth=${authIndex ?? ''}`;
+  return `${url}||${headerSignature}`;
 };
 
 const buildModelsEndpoint = (baseUrl: string): string => {
@@ -112,24 +108,19 @@ export const modelsApi = {
   async fetchV1ModelsViaApiCall(
     baseUrl: string,
     apiKey?: string,
-    headers: Record<string, string> = {},
-    authIndex?: string
+    headers: Record<string, string> = {}
   ) {
     const endpoint = buildV1ModelsEndpoint(baseUrl);
     if (!endpoint) {
       throw new Error('Invalid base url');
     }
 
-    const trimmedAuthIndex = authIndex?.trim() || undefined;
     const resolvedHeaders = { ...headers };
     if (apiKey && !hasHeader(resolvedHeaders, 'authorization')) {
       resolvedHeaders.Authorization = `Bearer ${apiKey}`;
-    } else if (trimmedAuthIndex && !hasHeader(resolvedHeaders, 'authorization')) {
-      resolvedHeaders.Authorization = 'Bearer $TOKEN$';
     }
 
     const result = await apiCallApi.request({
-      authIndex: trimmedAuthIndex,
       method: 'GET',
       url: endpoint,
       header: Object.keys(resolvedHeaders).length ? resolvedHeaders : undefined
@@ -149,24 +140,19 @@ export const modelsApi = {
   async fetchModelsViaApiCall(
     baseUrl: string,
     apiKey?: string,
-    headers: Record<string, string> = {},
-    authIndex?: string
+    headers: Record<string, string> = {}
   ) {
     const endpoint = buildModelsEndpoint(baseUrl);
     if (!endpoint) {
       throw new Error('Invalid base url');
     }
 
-    const trimmedAuthIndex = authIndex?.trim() || undefined;
     const resolvedHeaders = { ...headers };
     if (apiKey && !hasHeader(resolvedHeaders, 'authorization')) {
       resolvedHeaders.Authorization = `Bearer ${apiKey}`;
-    } else if (trimmedAuthIndex && !hasHeader(resolvedHeaders, 'authorization')) {
-      resolvedHeaders.Authorization = 'Bearer $TOKEN$';
     }
 
     const result = await apiCallApi.request({
-      authIndex: trimmedAuthIndex,
       method: 'GET',
       url: endpoint,
       header: Object.keys(resolvedHeaders).length ? resolvedHeaders : undefined
@@ -199,15 +185,13 @@ export const modelsApi = {
   async fetchClaudeModelsViaApiCall(
     baseUrl: string,
     apiKey?: string,
-    headers: Record<string, string> = {},
-    authIndex?: string
+    headers: Record<string, string> = {}
   ) {
     const endpoint = buildClaudeModelsEndpoint(baseUrl);
     if (!endpoint) {
       throw new Error('Invalid base url');
     }
 
-    const trimmedAuthIndex = authIndex?.trim() || undefined;
     const resolvedHeaders = { ...headers };
     let resolvedApiKey = String(apiKey ?? '').trim();
     if (!resolvedApiKey && !hasHeader(resolvedHeaders, 'x-api-key')) {
@@ -216,20 +200,17 @@ export const modelsApi = {
 
     if (resolvedApiKey && !hasHeader(resolvedHeaders, 'x-api-key')) {
       resolvedHeaders['x-api-key'] = resolvedApiKey;
-    } else if (trimmedAuthIndex && !hasHeader(resolvedHeaders, 'x-api-key')) {
-      resolvedHeaders['x-api-key'] = '$TOKEN$';
     }
     if (!hasHeader(resolvedHeaders, 'anthropic-version')) {
       resolvedHeaders['anthropic-version'] = DEFAULT_ANTHROPIC_VERSION;
     }
 
-    const signature = buildRequestSignature(endpoint, resolvedHeaders, trimmedAuthIndex);
+    const signature = buildRequestSignature(endpoint, resolvedHeaders);
     const existing = CLAUDE_MODELS_IN_FLIGHT.get(signature);
     if (existing) return existing;
 
     const request = (async () => {
       const result = await apiCallApi.request({
-        authIndex: trimmedAuthIndex,
         method: 'GET',
         url: endpoint,
         header: Object.keys(resolvedHeaders).length ? resolvedHeaders : undefined
@@ -258,24 +239,20 @@ export const modelsApi = {
   async fetchGeminiModelsViaApiCall(
     baseUrl: string,
     apiKey?: string,
-    headers: Record<string, string> = {},
-    authIndex?: string
+    headers: Record<string, string> = {}
   ) {
     const endpoint = buildGeminiModelsEndpoint(baseUrl);
     if (!endpoint) {
       throw new Error('Invalid base url');
     }
 
-    const trimmedAuthIndex = authIndex?.trim() || undefined;
     const resolvedHeaders = { ...headers };
     const resolvedApiKey = String(apiKey ?? '').trim();
     if (resolvedApiKey && !hasHeader(resolvedHeaders, 'x-goog-api-key')) {
       resolvedHeaders['x-goog-api-key'] = resolvedApiKey;
-    } else if (trimmedAuthIndex && !hasHeader(resolvedHeaders, 'x-goog-api-key')) {
-      resolvedHeaders['x-goog-api-key'] = '$TOKEN$';
     }
 
-    const signature = buildRequestSignature(endpoint, resolvedHeaders, trimmedAuthIndex);
+    const signature = buildRequestSignature(endpoint, resolvedHeaders);
     const existing = GEMINI_MODELS_IN_FLIGHT.get(signature);
     if (existing) return existing;
 
@@ -291,7 +268,6 @@ export const modelsApi = {
         }
 
         const result = await apiCallApi.request({
-          authIndex: trimmedAuthIndex,
           method: 'GET',
           url: url.toString(),
           header: Object.keys(resolvedHeaders).length ? resolvedHeaders : undefined

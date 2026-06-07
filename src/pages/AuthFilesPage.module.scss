@@ -599,6 +599,7 @@
   display: flex;
   align-items: stretch;
   gap: $spacing-md;
+  flex: 1;
 }
 
 .fileCardMain {
@@ -692,7 +693,7 @@
   flex-wrap: wrap;
   gap: $spacing-sm;
   padding-top: $spacing-xs;
-  margin-top: $spacing-xs;
+  margin-top: auto;
 }
 
 .statPill {
@@ -984,7 +985,7 @@
   gap: $spacing-xs;
   justify-content: flex-end;
   align-items: center;
-  margin-top: auto;
+  margin-top: 0;
   padding-top: $spacing-sm;
 }
 
