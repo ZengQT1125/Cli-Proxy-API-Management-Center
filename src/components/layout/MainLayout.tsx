@@ -36,6 +36,7 @@ import {
 } from '@/stores';
 import {
   collectPluginResourceEntries,
+  resolvePluginAssetURL,
   type PluginResourceEntry,
 } from '@/features/plugins/pluginResources';
 import { triggerHeaderRefresh } from '@/hooks/useHeaderRefresh';
@@ -79,6 +80,17 @@ type SidebarNavItem = SidebarNavLinkItem | SidebarNavDrawerItem;
 
 const flattenNavItems = (items: SidebarNavItem[]): SidebarNavLinkItem[] =>
   items.flatMap((item) => item.kind === 'drawer' ? item.children : [item]);
+
+function PluginSidebarIcon({ src }: { src: string }) {
+  const [failed, setFailed] = useState(false);
+  const showImage = Boolean(src) && !failed;
+
+  return showImage ? (
+    <img src={src} alt="" onError={() => setFailed(true)} />
+  ) : (
+    <IconSidebarPlugins size={18} />
+  );
+}
 
 // Header action icons - smaller size for header buttons
 const headerIconProps: SVGProps<SVGSVGElement> = {
@@ -544,23 +556,25 @@ export function MainLayout() {
     (group): SidebarNavItem[] => {
       if (group.entries.length === 1) {
         const resource = group.entries[0];
+        const pluginLogo = resolvePluginAssetURL(resource.pluginLogo, apiBase);
         return [
           {
             path: resource.route,
             label: resource.label,
             meta: resource.description,
-            icon: sidebarIcons.plugins,
+            icon: <PluginSidebarIcon src={pluginLogo} />,
           },
         ];
       }
 
+      const pluginLogo = resolvePluginAssetURL(group.entries[0]?.pluginLogo ?? '', apiBase);
       return [
         {
           kind: 'drawer',
           id: `plugin-pages-${group.pluginID}`,
           label: group.pluginTitle,
           meta: t('plugin_resource.page_count', { count: group.entries.length }),
-          icon: sidebarIcons.plugins,
+          icon: <PluginSidebarIcon src={pluginLogo} />,
           children: group.entries.map((resource) => ({
             path: resource.route,
             label: resource.label,

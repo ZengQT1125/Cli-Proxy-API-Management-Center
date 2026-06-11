@@ -582,6 +582,14 @@
         height: 18px;
         display: block;
       }
+
+      img {
+        display: block;
+        width: 18px;
+        height: 18px;
+        border-radius: 5px;
+        object-fit: cover;
+      }
     }
 
     .nav-label {
