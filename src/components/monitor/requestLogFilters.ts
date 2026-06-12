@@ -42,8 +42,59 @@ const REQUEST_LOG_CHANNEL_FIELDS = [
   'api',
 ] as const;
 
+const REQUEST_LOG_MODEL_FIELDS = [
+  'model',
+  'raw_model',
+  'rawModel',
+  'request_model',
+  'requestModel',
+  'requested_model',
+  'requestedModel',
+  'original_model',
+  'originalModel',
+  'source_model',
+  'sourceModel',
+] as const;
+
 function normalizeChannelName(value: unknown): string {
   return typeof value === 'string' ? value.trim() : '';
+}
+
+function normalizeCandidateList(value: string): string[] {
+  return value
+    .split(',')
+    .map((candidate) => candidate.trim())
+    .filter(Boolean);
+}
+
+function resolveChannelFromModelPrefix(
+  item: Record<string, unknown>,
+  candidateByLower: Map<string, string>,
+  providerMap: Record<string, string>
+): string {
+  for (const field of REQUEST_LOG_MODEL_FIELDS) {
+    const model = normalizeChannelName(item[field]);
+    const slashIndex = model.indexOf('/');
+    if (slashIndex <= 0) continue;
+
+    const prefix = model.slice(0, slashIndex).trim();
+    if (!prefix) continue;
+
+    const directCandidate = candidateByLower.get(prefix.toLowerCase());
+    if (directCandidate) {
+      return directCandidate;
+    }
+
+    const mappedCandidates = normalizeCandidateList(providerMap[prefix] || '');
+    for (const mapped of mappedCandidates) {
+      const matchedCandidate = candidateByLower.get(mapped.toLowerCase());
+      if (matchedCandidate) {
+        return matchedCandidate;
+      }
+    }
+  }
+
+  return '';
 }
 
 export function resolveRequestLogChannel(
@@ -51,10 +102,7 @@ export function resolveRequestLogChannel(
   source: string,
   providerMap: Record<string, string>
 ): string {
-  const candidates = (providerMap[source] || '')
-    .split(',')
-    .map((candidate) => candidate.trim())
-    .filter(Boolean);
+  const candidates = normalizeCandidateList(providerMap[source] || '');
   const candidateByLower = new Map(candidates.map((candidate) => [candidate.toLowerCase(), candidate]));
 
   for (const field of REQUEST_LOG_CHANNEL_FIELDS) {
@@ -65,6 +113,11 @@ export function resolveRequestLogChannel(
     if (matchedCandidate) {
       return matchedCandidate;
     }
+  }
+
+  const modelPrefixChannel = resolveChannelFromModelPrefix(item, candidateByLower, providerMap);
+  if (modelPrefixChannel) {
+    return modelPrefixChannel;
   }
 
   return normalizeChannelName(item.channel);

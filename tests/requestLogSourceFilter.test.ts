@@ -82,3 +82,40 @@ test('请求日志从后端渠道别名字段识别明确渠道', () => {
     'ds2api'
   );
 });
+
+test('请求日志从原始请求模型前缀识别路由渠道', () => {
+  const source = 'zqt1125';
+  const providerMap = {
+    [source]: 'scnet,ds2api',
+    scnet: 'scnet',
+    ds: 'ds2api',
+  };
+
+  assert.equal(
+    resolveRequestLogChannel(
+      {
+        source,
+        api_key: source,
+        request_model: 'scnet/deepseek-v4-flash',
+        model: 'deepseek-v4-flash',
+      },
+      source,
+      providerMap
+    ),
+    'scnet'
+  );
+
+  assert.equal(
+    resolveRequestLogChannel(
+      {
+        source,
+        api_key: source,
+        request_model: 'ds/deepseek-v4-flash',
+        model: 'deepseek-v4-flash',
+      },
+      source,
+      providerMap
+    ),
+    'ds2api'
+  );
+});

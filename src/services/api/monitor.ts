@@ -41,6 +41,16 @@ export interface MonitorRequestLogItem {
   api?: string;
   api_key: string;
   model: string;
+  raw_model?: string;
+  rawModel?: string;
+  request_model?: string;
+  requestModel?: string;
+  requested_model?: string;
+  requestedModel?: string;
+  original_model?: string;
+  originalModel?: string;
+  source_model?: string;
+  sourceModel?: string;
   source: string;
   channel?: string;
   channel_name?: string;
