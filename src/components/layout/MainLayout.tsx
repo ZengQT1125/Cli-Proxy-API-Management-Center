@@ -288,6 +288,7 @@ export function MainLayout() {
   const apiBase = useAuthStore((state) => state.apiBase);
   const serverVersion = useAuthStore((state) => state.serverVersion);
   const connectionStatus = useAuthStore((state) => state.connectionStatus);
+  const supportsPlugin = useAuthStore((state) => state.supportsPlugin);
   const logout = useAuthStore((state) => state.logout);
 
   const config = useConfigStore((state) => state.config);
@@ -516,7 +517,7 @@ export function MainLayout() {
           : 'muted';
 
   const loadPluginResources = useCallback(async () => {
-    if (connectionStatus !== 'connected') {
+    if (connectionStatus !== 'connected' || !supportsPlugin) {
       setPluginResources([]);
       return;
     }
@@ -527,7 +528,7 @@ export function MainLayout() {
     } catch {
       setPluginResources([]);
     }
-  }, [connectionStatus]);
+  }, [connectionStatus, supportsPlugin]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -554,39 +555,39 @@ export function MainLayout() {
     return groups;
   }, []);
 
-  const pluginPageNavItems: SidebarNavItem[] = pluginResourceGroups.flatMap(
-    (group): SidebarNavItem[] => {
-      if (group.entries.length === 1) {
-        const resource = group.entries[0];
-        const pluginLogo = resolvePluginAssetURL(resource.pluginLogo, apiBase);
+  const pluginPageNavItems: SidebarNavItem[] = supportsPlugin
+    ? pluginResourceGroups.flatMap((group): SidebarNavItem[] => {
+        if (group.entries.length === 1) {
+          const resource = group.entries[0];
+          const pluginLogo = resolvePluginAssetURL(resource.pluginLogo, apiBase);
+          return [
+            {
+              path: resource.route,
+              label: resource.label,
+              meta: resource.description,
+              icon: <PluginSidebarIcon src={pluginLogo} />,
+            },
+          ];
+        }
+
+        const pluginLogo = resolvePluginAssetURL(group.entries[0]?.pluginLogo ?? '', apiBase);
         return [
           {
-            path: resource.route,
-            label: resource.label,
-            meta: resource.description,
+            kind: 'drawer',
+            id: `plugin-pages-${group.pluginID}`,
+            label: group.pluginTitle,
+            meta: t('plugin_resource.page_count', { count: group.entries.length }),
             icon: <PluginSidebarIcon src={pluginLogo} />,
+            children: group.entries.map((resource) => ({
+              path: resource.route,
+              label: resource.label,
+              meta: resource.description,
+              icon: <span className="nav-sub-dot" aria-hidden="true" />,
+            })),
           },
         ];
-      }
-
-      const pluginLogo = resolvePluginAssetURL(group.entries[0]?.pluginLogo ?? '', apiBase);
-      return [
-        {
-          kind: 'drawer',
-          id: `plugin-pages-${group.pluginID}`,
-          label: group.pluginTitle,
-          meta: t('plugin_resource.page_count', { count: group.entries.length }),
-          icon: <PluginSidebarIcon src={pluginLogo} />,
-          children: group.entries.map((resource) => ({
-            path: resource.route,
-            label: resource.label,
-            meta: resource.description,
-            icon: <span className="nav-sub-dot" aria-hidden="true" />,
-          })),
-        },
-      ];
-    }
-  );
+      })
+    : [];
 
   const navItems: SidebarNavItem[] = [
     { path: '/', label: t('nav.dashboard'), icon: sidebarIcons.dashboard },
@@ -595,9 +596,13 @@ export function MainLayout() {
     { path: '/auth-files', label: t('nav.auth_files'), icon: sidebarIcons.authFiles },
     { path: '/oauth', label: t('nav.oauth', { defaultValue: 'OAuth' }), icon: sidebarIcons.oauth },
     { path: '/quota', label: t('nav.quota_management'), icon: sidebarIcons.quota },
-    { path: '/plugins', label: t('nav.plugins'), icon: sidebarIcons.plugins },
-    { path: '/plugin-store', label: t('nav.plugin_store'), icon: sidebarIcons.pluginStore },
-    ...pluginPageNavItems,
+    ...(supportsPlugin
+      ? [
+          { path: '/plugins', label: t('nav.plugins'), icon: sidebarIcons.plugins },
+          { path: '/plugin-store', label: t('nav.plugin_store'), icon: sidebarIcons.pluginStore },
+          ...pluginPageNavItems,
+        ]
+      : []),
     ...(config?.loggingToFile
       ? [{ path: '/logs', label: t('nav.logs'), icon: sidebarIcons.logs }]
       : []),

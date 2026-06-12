@@ -5,7 +5,7 @@
 
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
-import type { AuthState, LoginCredentials, ConnectionStatus } from '@/types';
+import type { AuthState, LoginCredentials, ConnectionStatus, ServerRuntimeKind } from '@/types';
 import { STORAGE_KEY_AUTH } from '@/utils/constants';
 import { obfuscatedStorage } from '@/services/storage/secureStorage';
 import { apiClient } from '@/services/api/client';
@@ -22,7 +22,13 @@ interface AuthStoreState extends AuthState {
   logout: () => void;
   checkAuth: () => Promise<boolean>;
   restoreSession: () => Promise<boolean>;
-  updateServerVersion: (version: string | null, buildDate?: string | null) => void;
+  updateServerVersion: (
+    version: string | null,
+    buildDate?: string | null,
+    runtimeKind?: ServerRuntimeKind | null
+  ) => void;
+  updateServerRuntimeKind: (runtimeKind: ServerRuntimeKind) => void;
+  updateServerPluginSupport: (supportsPlugin: boolean) => void;
   updateConnectionStatus: (status: ConnectionStatus, error?: string | null) => void;
 }
 
@@ -38,6 +44,8 @@ export const useAuthStore = create<AuthStoreState>()(
       rememberPassword: false,
       serverVersion: null,
       serverBuildDate: null,
+      serverRuntimeKind: 'unknown',
+      supportsPlugin: false,
       connectionStatus: 'disconnected',
       connectionError: null,
 
@@ -93,7 +101,13 @@ export const useAuthStore = create<AuthStoreState>()(
         const rememberPassword = credentials.rememberPassword ?? get().rememberPassword ?? false;
 
         try {
-          set({ connectionStatus: 'connecting' });
+          set({
+            connectionStatus: 'connecting',
+            serverVersion: null,
+            serverBuildDate: null,
+            serverRuntimeKind: 'unknown',
+            supportsPlugin: false
+          });
           useModelsStore.getState().clearCache();
 
           // 配置 API 客户端
@@ -145,6 +159,8 @@ export const useAuthStore = create<AuthStoreState>()(
           managementKey: '',
           serverVersion: null,
           serverBuildDate: null,
+          serverRuntimeKind: 'unknown',
+          supportsPlugin: false,
           connectionStatus: 'disconnected',
           connectionError: null
         });
@@ -162,6 +178,7 @@ export const useAuthStore = create<AuthStoreState>()(
         try {
           // 重新配置客户端
           apiClient.setConfig({ apiBase, managementKey });
+          set({ supportsPlugin: false });
 
           // 验证连接
           await useConfigStore.getState().fetchConfig();
@@ -175,15 +192,28 @@ export const useAuthStore = create<AuthStoreState>()(
         } catch {
           set({
             isAuthenticated: false,
-            connectionStatus: 'error'
+            connectionStatus: 'error',
+            supportsPlugin: false
           });
           return false;
         }
       },
 
       // 更新服务器版本
-      updateServerVersion: (version, buildDate) => {
-        set({ serverVersion: version || null, serverBuildDate: buildDate || null });
+      updateServerVersion: (version, buildDate, runtimeKind) => {
+        set({
+          serverVersion: version || null,
+          serverBuildDate: buildDate || null,
+          ...(runtimeKind ? { serverRuntimeKind: runtimeKind } : {})
+        });
+      },
+
+      updateServerRuntimeKind: (runtimeKind) => {
+        set({ serverRuntimeKind: runtimeKind });
+      },
+
+      updateServerPluginSupport: (supportsPlugin) => {
+        set({ supportsPlugin });
       },
 
       // 更新连接状态
@@ -229,7 +259,20 @@ if (typeof window !== 'undefined') {
     'server-version-update',
     ((e: CustomEvent) => {
       const detail = e.detail || {};
-      useAuthStore.getState().updateServerVersion(detail.version || null, detail.buildDate || null);
+      const runtimeKind =
+        detail.runtimeKind === 'home' || detail.runtimeKind === 'cpa'
+          ? detail.runtimeKind
+          : undefined;
+      useAuthStore
+        .getState()
+        .updateServerVersion(detail.version || null, detail.buildDate || null, runtimeKind);
+    }) as EventListener
+  );
+
+  window.addEventListener(
+    'server-plugin-support-update',
+    ((e: CustomEvent) => {
+      useAuthStore.getState().updateServerPluginSupport(e.detail?.supportsPlugin === true);
     }) as EventListener
   );
 }
