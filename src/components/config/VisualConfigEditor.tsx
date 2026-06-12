@@ -47,12 +47,11 @@ function ToggleRow({ title, description, checked, disabled, onChange }: ToggleRo
       style={{
         display: 'flex',
         alignItems: 'center',
-        justifyContent: 'space-between',
-        gap: 16,
-        flexWrap: 'wrap',
+        gap: 12,
       }}
     >
-      <div style={{ minWidth: 220 }}>
+      <ToggleSwitch checked={checked} onChange={onChange} disabled={disabled} ariaLabel={title} />
+      <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{title}</div>
         {description && (
           <div style={{ marginTop: 4, fontSize: 13, color: 'var(--text-secondary)' }}>
@@ -60,7 +59,6 @@ function ToggleRow({ title, description, checked, disabled, onChange }: ToggleRo
           </div>
         )}
       </div>
-      <ToggleSwitch checked={checked} onChange={onChange} disabled={disabled} ariaLabel={title} />
     </div>
   );
 }
