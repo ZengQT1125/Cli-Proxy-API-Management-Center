@@ -4,6 +4,7 @@ import {
   buildRequestLogSourceFilterParams,
   filterRequestLogEntriesByChannel,
   parseRequestLogSourceFilterValue,
+  resolveRequestLogChannel,
 } from '../src/components/monitor/requestLogFilters.ts';
 
 test('请求日志普通来源选项按 source 过滤', () => {
@@ -32,4 +33,25 @@ test('请求日志拆分渠道选项按 source 拉取，再由前端按明确 ch
   assert.deepEqual(filterRequestLogEntriesByChannel(entries, 'scnet'), [
     { actionSource: 'same-key', providerName: 'scnet', model: 'deepseek-v4-flash' },
   ]);
+});
+
+test('请求日志从后端 api 字段识别同 key 同模型的明确渠道', () => {
+  const source = 'zqt1125';
+  const providerMap = {
+    [source]: 'scnet,ds2api',
+  };
+
+  assert.equal(
+    resolveRequestLogChannel(
+      {
+        source,
+        api_key: source,
+        api: 'ds2api',
+        model: 'deepseek-v4-flash',
+      },
+      source,
+      providerMap
+    ),
+    'ds2api'
+  );
 });

@@ -38,10 +38,16 @@ export interface MonitorRequestLogsQuery extends MonitorTimeRangeQuery {
 
 export interface MonitorRequestLogItem {
   timestamp: string;
+  api?: string;
   api_key: string;
   model: string;
   source: string;
   channel?: string;
+  channel_name?: string;
+  channelName?: string;
+  provider?: string;
+  provider_name?: string;
+  providerName?: string;
   auth_index: string;
   failed: boolean;
   input_tokens: number;

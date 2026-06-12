@@ -11,6 +11,7 @@ import {
   CHANNEL_OPTION_SEPARATOR,
   filterRequestLogEntriesByChannel,
   parseRequestLogSourceFilterValue,
+  resolveRequestLogChannel,
 } from './requestLogFilters';
 import {
   REQUEST_LOG_FILTER_KEYS,
@@ -121,7 +122,7 @@ export function RequestLogs({
   const toLogEntry = useCallback(
     (item: MonitorRequestLogItem, index: number): LogEntry => {
       const source = item.source || 'unknown';
-      const channel = item.channel?.trim();
+      const channel = resolveRequestLogChannel(item as unknown as Record<string, unknown>, source, providerMap);
       const { provider, masked } = getProviderDisplayParts(source, providerMap, item.model, providerModels, channel);
       const timestampMs = item.timestamp ? new Date(item.timestamp).getTime() : 0;
       return {
