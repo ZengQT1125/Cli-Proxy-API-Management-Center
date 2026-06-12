@@ -521,6 +521,8 @@
     "problem_filter_only": "Only show problematic credentials",
     "disabled_filter_label": "Disabled Filter",
     "disabled_filter_only": "Only show disabled credentials",
+    "enabled_filter_label": "Enabled Filter",
+    "enabled_filter_only": "Only show enabled credentials",
     "sort_label": "Sort",
     "sort_default": "Default",
     "sort_az": "A-Z Name",

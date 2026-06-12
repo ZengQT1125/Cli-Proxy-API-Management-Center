@@ -525,6 +525,8 @@
     "problem_filter_only": "Показывать только проблемные учётные данные",
     "disabled_filter_label": "Фильтр отключённых",
     "disabled_filter_only": "Показывать только отключённые учётные данные",
+    "enabled_filter_label": "Фильтр включённых",
+    "enabled_filter_only": "Показывать только включённые учётные данные",
     "sort_label": "Сортировка",
     "sort_default": "По умолчанию",
     "sort_az": "A-Z Имя",

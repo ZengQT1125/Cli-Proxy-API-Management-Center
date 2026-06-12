@@ -521,6 +521,8 @@
     "problem_filter_only": "仅显示有问题凭证",
     "disabled_filter_label": "停用筛选",
     "disabled_filter_only": "仅显示已停用凭证",
+    "enabled_filter_label": "启用筛选",
+    "enabled_filter_only": "仅显示启用凭证",
     "sort_label": "排序",
     "sort_default": "默认",
     "sort_az": "A-Z 名称",
