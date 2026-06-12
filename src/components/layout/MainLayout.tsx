@@ -22,6 +22,7 @@ import {
   IconSidebarPlugins,
   IconSidebarProviders,
   IconSidebarQuota,
+  IconSidebarStore,
   IconSidebarSystem,
   IconChevronDown,
   IconActivity,
@@ -51,6 +52,7 @@ const sidebarIcons: Record<string, ReactNode> = {
   oauth: <IconSidebarOauth size={18} />,
   quota: <IconSidebarQuota size={18} />,
   plugins: <IconSidebarPlugins size={18} />,
+  pluginStore: <IconSidebarStore size={18} />,
   config: <IconSidebarConfig size={18} />,
   logs: <IconSidebarLogs size={18} />,
   system: <IconSidebarSystem size={18} />,
@@ -594,6 +596,7 @@ export function MainLayout() {
     { path: '/oauth', label: t('nav.oauth', { defaultValue: 'OAuth' }), icon: sidebarIcons.oauth },
     { path: '/quota', label: t('nav.quota_management'), icon: sidebarIcons.quota },
     { path: '/plugins', label: t('nav.plugins'), icon: sidebarIcons.plugins },
+    { path: '/plugin-store', label: t('nav.plugin_store'), icon: sidebarIcons.pluginStore },
     ...pluginPageNavItems,
     ...(config?.loggingToFile
       ? [{ path: '/logs', label: t('nav.logs'), icon: sidebarIcons.logs }]
