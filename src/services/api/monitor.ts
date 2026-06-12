@@ -48,6 +48,17 @@ export interface MonitorRequestLogItem {
   provider?: string;
   provider_name?: string;
   providerName?: string;
+  api_name?: string;
+  apiName?: string;
+  api_channel?: string;
+  apiChannel?: string;
+  matched_api?: string;
+  matchedApi?: string;
+  target_api?: string;
+  targetApi?: string;
+  route?: string;
+  route_name?: string;
+  routeName?: string;
   auth_index: string;
   failed: boolean;
   input_tokens: number;

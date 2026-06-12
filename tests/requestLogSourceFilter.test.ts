@@ -55,3 +55,24 @@ test('请求日志从后端 api 字段识别同 key 同模型的明确渠道', (
     'ds2api'
   );
 });
+
+test('请求日志从后端渠道别名字段识别明确渠道', () => {
+  const source = 'zqt1125';
+  const providerMap = {
+    [source]: 'scnet,ds2api',
+  };
+
+  assert.equal(
+    resolveRequestLogChannel(
+      {
+        source,
+        api_key: source,
+        api_name: 'ds2api',
+        model: 'deepseek-v4-flash',
+      },
+      source,
+      providerMap
+    ),
+    'ds2api'
+  );
+});

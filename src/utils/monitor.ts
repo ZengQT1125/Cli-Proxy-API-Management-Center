@@ -143,32 +143,51 @@ export function resolveProvider(
 
   // 如果解析出来的是多个以逗号分隔的提供商名字（由于 API Key 相同）
   if (resolved.includes(',')) {
-    const candidates = resolved.split(',');
+    const candidates = resolved.split(',').map((candidate) => candidate.trim()).filter(Boolean);
     
     // 如果有提供 model 且有模型列表，我们匹配拥有该 model 的 provider
     if (model && providerModels) {
-      // 1. 优先寻找显式匹配的 candidate
+      // 1. 优先寻找显式匹配的 candidate；如果多个候选都匹配，不能猜第一个
+      const matchedCandidates: string[] = [];
       for (const candidate of candidates) {
         const models = providerModels[candidate];
         if (models) {
           for (const m of models) {
             if (matchModel(model, m)) {
-              return candidate;
+              matchedCandidates.push(candidate);
+              break;
             }
           }
         }
       }
+
+      if (matchedCandidates.length === 1) {
+        return matchedCandidates[0];
+      }
+
+      if (matchedCandidates.length > 1) {
+        return matchedCandidates.join(' / ');
+      }
       
       // 2. 如果没有显式匹配，寻找空模型列表（或 catch-all 渠道）
+      const fallbackCandidates: string[] = [];
       for (const candidate of candidates) {
         const models = providerModels[candidate];
         if (!models || models.size === 0) {
-          return candidate;
+          fallbackCandidates.push(candidate);
         }
       }
+
+      if (fallbackCandidates.length === 1) {
+        return fallbackCandidates[0];
+      }
+
+      if (fallbackCandidates.length > 1) {
+        return fallbackCandidates.join(' / ');
+      }
       
-      // 3. 都没有匹配，默认返回第一个
-      return candidates[0];
+      // 3. 都没有匹配，返回候选合并显示，避免误判为第一个渠道
+      return candidates.join(' / ');
     }
     
     // 如果没有提供 model，返回所有候选渠道的合并显示（如 "scnet / generalcompute2api"）

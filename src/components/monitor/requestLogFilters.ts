@@ -22,6 +22,17 @@ const REQUEST_LOG_CHANNEL_FIELDS = [
   'provider',
   'provider_name',
   'providerName',
+  'api_name',
+  'apiName',
+  'api_channel',
+  'apiChannel',
+  'matched_api',
+  'matchedApi',
+  'target_api',
+  'targetApi',
+  'route',
+  'route_name',
+  'routeName',
   'api',
 ] as const;
 
