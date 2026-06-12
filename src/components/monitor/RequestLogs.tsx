@@ -9,6 +9,7 @@ import { UnsupportedDisableModal } from './UnsupportedDisableModal';
 import {
   buildRequestLogSourceFilterParams,
   CHANNEL_OPTION_SEPARATOR,
+  filterRequestLogEntriesByChannel,
   parseRequestLogSourceFilterValue,
   resolveRequestLogChannel,
 } from './requestLogFilters';
@@ -32,6 +33,13 @@ import {
   type DateRange,
 } from '@/utils/monitor';
 import styles from '@/pages/MonitorPage.module.scss';
+
+function hasMultipleProviderCandidates(source: string, providerMap: Record<string, string>): boolean {
+  return (providerMap[source] || '')
+    .split(',')
+    .map((candidate) => candidate.trim())
+    .filter(Boolean).length > 1;
+}
 
 interface RequestLogsProps {
   refreshKey: number;
@@ -119,11 +127,13 @@ export function RequestLogs({
   }, []);
 
   const toLogEntry = useCallback(
-    (item: MonitorRequestLogItem, index: number, selectedChannel = ''): LogEntry => {
+    (item: MonitorRequestLogItem, index: number): LogEntry => {
       const source = item.source || 'unknown';
-      const channel = selectedChannel || resolveRequestLogChannel(item as unknown as Record<string, unknown>, source, providerMap);
+      const channel = resolveRequestLogChannel(item as unknown as Record<string, unknown>, source, providerMap);
       const { provider, masked } = getProviderDisplayParts(source, providerMap, item.model, providerModels, channel);
-      const providerName = !channel && provider?.includes(' / ') ? null : provider;
+      const ambiguousWithoutChannel = !channel && hasMultipleProviderCandidates(source, providerMap);
+      const providerName = ambiguousWithoutChannel ? null : provider;
+      const displayMasked = ambiguousWithoutChannel ? '-' : masked;
       const timestampMs = item.timestamp ? new Date(item.timestamp).getTime() : 0;
       return {
         id: `${item.timestamp}-${item.api_key}-${channel || source}-${item.model}-${index}`,
@@ -133,7 +143,7 @@ export function RequestLogs({
         source,
         actionSource: channel || source,
         providerName,
-        maskedKey: masked,
+        maskedKey: displayMasked,
         failed: item.failed,
         inputTokens: item.input_tokens || 0,
         outputTokens: item.output_tokens || 0,
@@ -167,7 +177,7 @@ export function RequestLogs({
       };
 
       const response = await monitorApi.getRequestLogs(params);
-      const items = (response.items || []).map((item, index) => toLogEntry(item, index, filterChannel));
+      const items = filterRequestLogEntriesByChannel((response.items || []).map(toLogEntry), filterChannel);
       setLogEntries(items);
       setTotal(response.total || 0);
       setTotalPages(response.total_pages || 0);
