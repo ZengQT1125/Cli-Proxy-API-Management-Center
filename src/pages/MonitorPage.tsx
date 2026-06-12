@@ -65,6 +65,7 @@ export function MonitorPage() {
   const [providerModels, setProviderModels] = useState<Record<string, Set<string>>>({});
   const [providerTypeMap, setProviderTypeMap] = useState<Record<string, string>>({});
   const [authIndexMap, setAuthIndexMap] = useState<Record<string, string>>({});
+  const [authIndexProviderMap, setAuthIndexProviderMap] = useState<Record<string, string>>({});
 
   // 加载渠道名称映射（支持所有提供商类型）
   const loadProviderMap = useCallback(async () => {
@@ -72,6 +73,7 @@ export function MonitorPage() {
       const map: Record<string, string> = {};
       const modelsMap: Record<string, Set<string>> = {};
       const typeMap: Record<string, string> = {};
+      const authProviderMap: Record<string, string> = {};
 
       // 并行加载所有提供商配置
       const [openaiProviders, geminiKeys, claudeConfigs, codexConfigs, vertexConfigs, authFilesRes] = await Promise.all([
@@ -115,6 +117,9 @@ export function MonitorPage() {
             }
             modelSet.forEach((m) => modelsMap[apiKey].add(m));
             typeMap[apiKey] = 'OpenAI';
+          }
+          if (entry.authIndex) {
+            authProviderMap[entry.authIndex] = providerName;
           }
         });
         
@@ -164,6 +169,9 @@ export function MonitorPage() {
           typeMap[apiKey] = 'Gemini';
           modelsMap[providerName] = new Set<string>();
           typeMap[providerName] = 'Gemini';
+          if (config.authIndex) {
+            authProviderMap[config.authIndex] = providerName;
+          }
 
           const prefix = config.prefix?.trim();
           if (prefix) {
@@ -197,6 +205,9 @@ export function MonitorPage() {
           
           typeMap[apiKey] = 'Claude';
           typeMap[providerName] = 'Claude';
+          if (config.authIndex) {
+            authProviderMap[config.authIndex] = providerName;
+          }
 
           // 存储模型集合
           if (config.models && config.models.length > 0) {
@@ -247,6 +258,9 @@ export function MonitorPage() {
           
           typeMap[apiKey] = 'Codex';
           typeMap[providerName] = 'Codex';
+          if (config.authIndex) {
+            authProviderMap[config.authIndex] = providerName;
+          }
 
           if (config.models && config.models.length > 0) {
             const modelSet = new Set<string>();
@@ -296,6 +310,9 @@ export function MonitorPage() {
           
           typeMap[apiKey] = 'Vertex';
           typeMap[providerName] = 'Vertex';
+          if (config.authIndex) {
+            authProviderMap[config.authIndex] = providerName;
+          }
 
           if (config.models && config.models.length > 0) {
             const modelSet = new Set<string>();
@@ -363,6 +380,7 @@ export function MonitorPage() {
       setProviderModels(modelsMap);
       setProviderTypeMap(typeMap);
       setAuthIndexMap(authIdxMap);
+      setAuthIndexProviderMap(authProviderMap);
     } catch (err) {
       console.warn('Monitor: Failed to load provider map:', err);
     }
@@ -505,6 +523,7 @@ export function MonitorPage() {
         providerModels={providerModels}
         apiFilter={apiFilter}
         authIndexMap={authIndexMap}
+        authIndexProviderMap={authIndexProviderMap}
       />
     </div>
   );

@@ -49,6 +49,7 @@ interface RequestLogsProps {
   providerModels: Record<string, Set<string>>;
   apiFilter: string;
   authIndexMap: Record<string, string>;
+  authIndexProviderMap: Record<string, string>;
 }
 
 interface LogEntry {
@@ -80,6 +81,7 @@ export function RequestLogs({
   providerModels,
   apiFilter,
   authIndexMap,
+  authIndexProviderMap,
 }: RequestLogsProps) {
   const { t } = useTranslation();
   const [filterModel, setFilterModel] = useState('');
@@ -129,7 +131,12 @@ export function RequestLogs({
   const toLogEntry = useCallback(
     (item: MonitorRequestLogItem, index: number): LogEntry => {
       const source = item.source || 'unknown';
-      const channel = resolveRequestLogChannel(item as unknown as Record<string, unknown>, source, providerMap);
+      const channel = resolveRequestLogChannel(
+        item as unknown as Record<string, unknown>,
+        source,
+        providerMap,
+        authIndexProviderMap
+      );
       const { provider, masked } = getProviderDisplayParts(source, providerMap, item.model, providerModels, channel);
       const ambiguousWithoutChannel = !channel && hasMultipleProviderCandidates(source, providerMap);
       const providerName = ambiguousWithoutChannel ? null : provider;
@@ -159,7 +166,7 @@ export function RequestLogs({
         authIndex: item.auth_index || '',
       };
     },
-    [providerMap, providerModels]
+    [authIndexProviderMap, providerMap, providerModels]
   );
 
   // 独立获取日志数据

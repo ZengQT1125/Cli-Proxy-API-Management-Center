@@ -119,3 +119,28 @@ test('请求日志从原始请求模型前缀识别路由渠道', () => {
     'ds2api'
   );
 });
+
+test('请求日志从认证索引识别同 key 渠道', () => {
+  const source = 'zqt1125';
+  const providerMap = {
+    [source]: 'scnet,ds2api',
+  };
+  const authIndexProviderMap = {
+    f42b5b9a6efa19a7: 'ds2api',
+  };
+
+  assert.equal(
+    resolveRequestLogChannel(
+      {
+        source,
+        api_key: source,
+        auth_index: 'f42b5b9a6efa19a7',
+        model: 'deepseek-v4-flash',
+      },
+      source,
+      providerMap,
+      authIndexProviderMap
+    ),
+    'ds2api'
+  );
+});

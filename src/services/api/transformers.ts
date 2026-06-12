@@ -104,12 +104,19 @@ const normalizeApiKeyEntry = (entry: unknown): ApiKeyEntry | null => {
 
   const proxyUrl = record ? record['proxy-url'] ?? record.proxyUrl : undefined;
   const headers = record ? normalizeHeaders(record.headers) : undefined;
+  const authIndex = record
+    ? record['auth-index'] ?? record.authIndex ?? record['auth_index']
+    : undefined;
 
-  return {
+  const normalized: ApiKeyEntry = {
     apiKey: trimmed,
     proxyUrl: proxyUrl ? String(proxyUrl) : undefined,
     headers
   };
+  if (authIndex !== undefined && authIndex !== null && String(authIndex).trim()) {
+    normalized.authIndex = String(authIndex).trim();
+  }
+  return normalized;
 };
 
 const normalizeProviderKeyConfig = (item: unknown): ProviderKeyConfig | null => {
@@ -120,6 +127,10 @@ const normalizeProviderKeyConfig = (item: unknown): ProviderKeyConfig | null => 
   if (!trimmed) return null;
 
   const config: ProviderKeyConfig = { apiKey: trimmed };
+  const authIndex = record?.['auth-index'] ?? record?.authIndex ?? record?.['auth_index'];
+  if (authIndex !== undefined && authIndex !== null && String(authIndex).trim()) {
+    config.authIndex = String(authIndex).trim();
+  }
   const priority = record?.priority ?? record?.['priority'];
   if (priority !== undefined && priority !== null && String(priority).trim() !== '') {
     const parsed = Number(priority);
@@ -185,6 +196,10 @@ const normalizeGeminiKeyConfig = (item: unknown): GeminiKeyConfig | null => {
   if (!trimmed) return null;
 
   const config: GeminiKeyConfig = { apiKey: trimmed };
+  const authIndex = record?.['auth-index'] ?? record?.authIndex ?? record?.['auth_index'];
+  if (authIndex !== undefined && authIndex !== null && String(authIndex).trim()) {
+    config.authIndex = String(authIndex).trim();
+  }
   const priority = record?.priority ?? record?.['priority'];
   if (priority !== undefined && priority !== null && String(priority).trim() !== '') {
     const parsed = Number(priority);

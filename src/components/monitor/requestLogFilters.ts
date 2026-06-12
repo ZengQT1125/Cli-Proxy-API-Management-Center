@@ -97,10 +97,25 @@ function resolveChannelFromModelPrefix(
   return '';
 }
 
+function resolveChannelFromAuthIndex(
+  item: Record<string, unknown>,
+  candidateByLower: Map<string, string>,
+  authIndexProviderMap: Record<string, string>
+): string {
+  const authIndex = normalizeChannelName(item.auth_index ?? item.authIndex ?? item['auth-index']);
+  if (!authIndex) return '';
+
+  const provider = normalizeChannelName(authIndexProviderMap[authIndex]);
+  if (!provider) return '';
+
+  return candidateByLower.get(provider.toLowerCase()) || '';
+}
+
 export function resolveRequestLogChannel(
   item: Record<string, unknown>,
   source: string,
-  providerMap: Record<string, string>
+  providerMap: Record<string, string>,
+  authIndexProviderMap: Record<string, string> = {}
 ): string {
   const candidates = normalizeCandidateList(providerMap[source] || '');
   const candidateByLower = new Map(candidates.map((candidate) => [candidate.toLowerCase(), candidate]));
@@ -113,6 +128,11 @@ export function resolveRequestLogChannel(
     if (matchedCandidate) {
       return matchedCandidate;
     }
+  }
+
+  const authIndexChannel = resolveChannelFromAuthIndex(item, candidateByLower, authIndexProviderMap);
+  if (authIndexChannel) {
+    return authIndexChannel;
   }
 
   const modelPrefixChannel = resolveChannelFromModelPrefix(item, candidateByLower, providerMap);
