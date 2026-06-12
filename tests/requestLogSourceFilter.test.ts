@@ -14,6 +14,7 @@ test('请求日志普通来源选项按 source 过滤', () => {
   });
   assert.deepEqual(buildRequestLogSourceFilterParams('key-1'), {
     source: 'key-1',
+    channel: undefined,
   });
 });
 
@@ -24,6 +25,11 @@ test('请求日志拆分渠道选项按 source 拉取，再由前端按明确 ch
   });
   assert.deepEqual(buildRequestLogSourceFilterParams('same-key'), {
     source: 'same-key',
+    channel: undefined,
+  });
+  assert.deepEqual(buildRequestLogSourceFilterParams('same-key', 'scnet'), {
+    source: 'same-key',
+    channel: 'scnet',
   });
 
   const entries = [

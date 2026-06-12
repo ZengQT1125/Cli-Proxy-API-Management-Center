@@ -9,7 +9,6 @@ import { UnsupportedDisableModal } from './UnsupportedDisableModal';
 import {
   buildRequestLogSourceFilterParams,
   CHANNEL_OPTION_SEPARATOR,
-  filterRequestLogEntriesByChannel,
   parseRequestLogSourceFilterValue,
   resolveRequestLogChannel,
 } from './requestLogFilters';
@@ -120,10 +119,11 @@ export function RequestLogs({
   }, []);
 
   const toLogEntry = useCallback(
-    (item: MonitorRequestLogItem, index: number): LogEntry => {
+    (item: MonitorRequestLogItem, index: number, selectedChannel = ''): LogEntry => {
       const source = item.source || 'unknown';
-      const channel = resolveRequestLogChannel(item as unknown as Record<string, unknown>, source, providerMap);
+      const channel = selectedChannel || resolveRequestLogChannel(item as unknown as Record<string, unknown>, source, providerMap);
       const { provider, masked } = getProviderDisplayParts(source, providerMap, item.model, providerModels, channel);
+      const providerName = !channel && provider?.includes(' / ') ? null : provider;
       const timestampMs = item.timestamp ? new Date(item.timestamp).getTime() : 0;
       return {
         id: `${item.timestamp}-${item.api_key}-${channel || source}-${item.model}-${index}`,
@@ -132,7 +132,7 @@ export function RequestLogs({
         model: item.model,
         source,
         actionSource: channel || source,
-        providerName: provider,
+        providerName,
         maskedKey: masked,
         failed: item.failed,
         inputTokens: item.input_tokens || 0,
@@ -161,13 +161,13 @@ export function RequestLogs({
         page_size: pageSize,
         api_filter: apiFilter || undefined,
         model: filterModel || undefined,
-        ...buildRequestLogSourceFilterParams(filterSource),
+        ...buildRequestLogSourceFilterParams(filterSource, filterChannel),
         status: filterStatus || undefined,
         ...buildMonitorTimeRangeParams(timeRange, customRange),
       };
 
       const response = await monitorApi.getRequestLogs(params);
-      const items = filterRequestLogEntriesByChannel((response.items || []).map(toLogEntry), filterChannel);
+      const items = (response.items || []).map((item, index) => toLogEntry(item, index, filterChannel));
       setLogEntries(items);
       setTotal(response.total || 0);
       setTotalPages(response.total_pages || 0);

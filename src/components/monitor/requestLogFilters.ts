@@ -11,8 +11,14 @@ export function parseRequestLogSourceFilterValue(value: string): { source: strin
   return { source, channel };
 }
 
-export function buildRequestLogSourceFilterParams(filterSource: string): { source?: string } {
-  return { source: filterSource || undefined };
+export function buildRequestLogSourceFilterParams(
+  filterSource: string,
+  filterChannel = ''
+): { source?: string; channel?: string } {
+  return {
+    source: filterSource || undefined,
+    channel: filterChannel || undefined,
+  };
 }
 
 const REQUEST_LOG_CHANNEL_FIELDS = [
