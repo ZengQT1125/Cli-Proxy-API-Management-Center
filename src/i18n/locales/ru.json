@@ -659,7 +659,15 @@
     "missing_auth_index": "В файле авторизации отсутствует auth_index",
     "empty_models": "Данные по квоте отсутствуют",
     "refresh_button": "Обновить квоту",
-    "fetch_all": "Получить все"
+    "fetch_all": "Получить все",
+    "plan_label": "Тариф"
+  },
+  "antigravity_subscription": {
+    "plan_free": "Бесплатный",
+    "plan_pro": "Pro",
+    "plan_ultra": "Ultra",
+    "plan_ultra_lite": "Ultra Lite",
+    "plan_unknown": "Неизвестно"
   },
   "claude_quota": {
     "title": "Квота Claude",

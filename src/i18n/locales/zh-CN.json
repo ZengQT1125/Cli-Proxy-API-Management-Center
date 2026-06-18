@@ -658,7 +658,15 @@
     "missing_auth_index": "认证文件缺少 auth_index",
     "empty_models": "暂无额度数据",
     "refresh_button": "刷新额度",
-    "fetch_all": "获取全部"
+    "fetch_all": "获取全部",
+    "plan_label": "订阅计划"
+  },
+  "antigravity_subscription": {
+    "plan_free": "免费版",
+    "plan_pro": "Pro",
+    "plan_ultra": "Ultra",
+    "plan_ultra_lite": "Ultra Lite",
+    "plan_unknown": "未知"
   },
   "claude_quota": {
     "title": "Claude 额度",

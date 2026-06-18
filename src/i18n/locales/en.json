@@ -658,7 +658,15 @@
     "missing_auth_index": "Auth file missing auth_index",
     "empty_models": "No quota data available",
     "refresh_button": "Refresh Quota",
-    "fetch_all": "Fetch All"
+    "fetch_all": "Fetch All",
+    "plan_label": "Plan"
+  },
+  "antigravity_subscription": {
+    "plan_free": "Free",
+    "plan_pro": "Pro",
+    "plan_ultra": "Ultra",
+    "plan_ultra_lite": "Ultra Lite",
+    "plan_unknown": "Unknown"
   },
   "claude_quota": {
     "title": "Claude Quota",

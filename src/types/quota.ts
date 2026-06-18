@@ -209,9 +209,18 @@ export interface AntigravityQuotaGroup {
   resetTime?: string;
 }
 
+export type AntigravityQuotaPlan = 'free' | 'pro' | 'ultra' | 'ultra-lite' | 'unknown';
+
+export interface AntigravityQuotaSubscription {
+  plan: AntigravityQuotaPlan;
+  tierName: string | null;
+  tierId: string | null;
+}
+
 export interface AntigravityQuotaState {
   status: 'idle' | 'loading' | 'success' | 'error';
   groups: AntigravityQuotaGroup[];
+  subscription?: AntigravityQuotaSubscription | null;
   error?: string;
   errorStatus?: number;
 }
