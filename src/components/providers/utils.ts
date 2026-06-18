@@ -85,6 +85,63 @@ export const buildClaudeMessagesEndpoint = (baseUrl: string): string => {
   return `${trimmed}/v1/messages`;
 };
 
+export const buildCodexResponsesEndpoint = (baseUrl: string): string => {
+  const trimmed = normalizeOpenAIBaseUrl(baseUrl);
+  if (!trimmed) return '';
+  if (/\/v1\/responses$/i.test(trimmed)) {
+    return trimmed;
+  }
+  if (/\/v1\/models$/i.test(trimmed)) {
+    return trimmed.replace(/\/models$/i, '/responses');
+  }
+  if (/\/v1$/i.test(trimmed)) {
+    return `${trimmed}/responses`;
+  }
+  return `${trimmed}/v1/responses`;
+};
+
+const DEFAULT_GEMINI_BASE_URL = 'https://generativelanguage.googleapis.com';
+
+const buildGeminiModelResource = (model: string): string => {
+  const trimmed = String(model || '')
+    .trim()
+    .replace(/^\/+/g, '')
+    .replace(/:generateContent$/i, '');
+  if (!trimmed) return '';
+  if (/^(models|tunedModels)\//i.test(trimmed)) {
+    return trimmed.split('/').map(encodeURIComponent).join('/');
+  }
+  return `models/${encodeURIComponent(trimmed)}`;
+};
+
+const normalizeGeminiBaseUrl = (baseUrl: string): string => {
+  let trimmed = String(baseUrl || '').trim();
+  if (!trimmed) return DEFAULT_GEMINI_BASE_URL;
+  trimmed = trimmed.replace(/\/+$/g, '');
+  if (!/^https?:\/\//i.test(trimmed)) {
+    trimmed = `http://${trimmed}`;
+  }
+  return trimmed;
+};
+
+export const buildGeminiGenerateContentEndpoint = (baseUrl: string, model: string): string => {
+  const resource = buildGeminiModelResource(model);
+  if (!resource) return '';
+  const trimmed = normalizeGeminiBaseUrl(baseUrl);
+  if (!trimmed) return '';
+  if (/:generateContent$/i.test(trimmed)) {
+    return trimmed;
+  }
+  let root = trimmed.replace(/\/+$/g, '');
+  if (/\/v1beta\/models$/i.test(root)) {
+    root = root.replace(/\/models$/i, '');
+  } else if (!/\/v1beta$/i.test(root)) {
+    root = root.replace(/\/v1beta(?:\/.*)?$/i, '');
+    root = `${root}/v1beta`;
+  }
+  return `${root}/${resource}:generateContent`;
+};
+
 // 根据 source (apiKey) 获取统计数据 - 与旧版逻辑一致
 export const getStatsBySource = (
   apiKey: string,
