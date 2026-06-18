@@ -358,6 +358,10 @@ export function QuotaSection<TState extends QuotaStatusState, TData>({
               const isResettingQuota = resettingQuotaName === item.name;
               const canUseQuotaAction =
                 !disabled && !item.disabled && itemQuota?.status !== 'loading';
+              const canReset = !config.canResetQuota || (itemQuota ? config.canResetQuota(itemQuota) : true);
+              const resetButtonTitle = canReset
+                ? t('codex_quota.reset_button')
+                : t('codex_quota.reset_no_credits_hint');
               const resetQuotaAction = config.resetQuota ? (
                 <Button
                   type="button"
@@ -365,10 +369,10 @@ export function QuotaSection<TState extends QuotaStatusState, TData>({
                   size="sm"
                   className={styles.quotaResetCreditButton}
                   onClick={() => resetQuotaForFile(item)}
-                  disabled={!canUseQuotaAction || isResettingQuota}
+                  disabled={!canUseQuotaAction || isResettingQuota || !canReset}
                   loading={isResettingQuota}
-                  title={t('codex_quota.reset_button')}
-                  aria-label={t('codex_quota.reset_button')}
+                  title={resetButtonTitle}
+                  aria-label={resetButtonTitle}
                 >
                   {!isResettingQuota && <IconRefreshCw size={14} />}
                   {t('codex_quota.reset_button')}

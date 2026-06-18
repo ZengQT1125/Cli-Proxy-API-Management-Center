@@ -689,6 +689,8 @@
     "additional_team_secondary_window": "{{name}} 月度限額",
     "plan_label": "方案",
     "expires_label": "續期時間",
+    "reset_credits_label": "手動重置次數",
+    "reset_no_credits_hint": "手動重置次數已耗盡",
     "plan_plus": "Plus",
     "plan_team": "Team",
     "plan_free": "Free",

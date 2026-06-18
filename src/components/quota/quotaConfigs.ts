@@ -137,6 +137,7 @@ export interface QuotaConfig<TState, TData> {
   filterFn: (file: AuthFileItem) => boolean;
   fetchQuota: (file: AuthFileItem, t: TFunction) => Promise<TData>;
   resetQuota?: (file: AuthFileItem, t: TFunction) => Promise<TData>;
+  canResetQuota?: (quota: TState) => boolean;
   storeSelector: (state: QuotaStore) => Record<string, TState>;
   storeSetter: keyof QuotaStore;
   buildLoadingState: () => TState;
@@ -973,10 +974,9 @@ const renderCodexItems = (
   const planLabel = getPlanLabel(planType);
   const isPremiumPlan = PREMIUM_CODEX_PLAN_TYPES.has(normalizePlanType(planType) ?? '');
   const expiryLabel = subscriptionActiveUntil ? formatUnixTimestamp(subscriptionActiveUntil) : '';
-  const resetQuotaAction =
-    rateLimitResetCreditsAvailableCount !== null && rateLimitResetCreditsAvailableCount > 0
-      ? resetQuotaActionHelper
-      : null;
+  const resetQuotaAction = rateLimitResetCreditsAvailableCount !== null
+    ? (resetQuotaActionHelper ?? null)
+    : null;
   const nodes: ReactNode[] = [];
 
   if (planLabel || rateLimitResetCreditsAvailableCount !== null || expiryLabel) {
@@ -1470,6 +1470,7 @@ export const CODEX_CONFIG: QuotaConfig<
   filterFn: (file) => isCodexFile(file) && !isDisabledAuthFile(file),
   fetchQuota: fetchCodexQuota,
   resetQuota: resetCodexQuota,
+  canResetQuota: (quota) => (quota.rateLimitResetCreditsAvailableCount ?? 0) > 0,
   storeSelector: (state) => state.codexQuota,
   storeSetter: 'setCodexQuota',
   buildLoadingState: () => ({ status: 'loading', windows: [] }),

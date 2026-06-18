@@ -722,6 +722,7 @@
     "plan_label": "Тариф",
     "expires_label": "Истекает",
     "reset_credits_label": "Ручные сбросы",
+    "reset_no_credits_hint": "Ручные сбросы недоступны",
     "reset_button": "Сбросить квоту",
     "reset_confirm_title": "Сброс квоты Codex",
     "reset_confirm_message": "Это израсходует 1 ручной сброс для сброса квоты Codex для «{{name}}». Продолжить?",
