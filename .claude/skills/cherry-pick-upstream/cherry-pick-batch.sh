@@ -294,6 +294,14 @@ SKIP_HASHES=(
   069eaf2   # feat(quota): subscription mgmt + Antigravity localization — 本地 ddb5ce40 已具备 antigravitySubscriptionApi + getAntigravityPlanLabel(free/pro/ultra/ultra-lite/unknown) + premiumPlanValue scss(含 dark 主题)，与上游终点收敛，跳过
   496f990   # fix(usage): normalize RFC3339 timestamps — 本地已应用 parseTimestamp（timestamp.ts/format.ts/constants.ts/useTraceResolver.ts），剩余 usage.ts/authFiles.ts 已分叉、RequestEventsDetailsCard 已删
   d173349   # fix: commas/formatting in TokenBreakdownChart+UsagePage — 路径已迁移，UsagePage 与 usage 组件本地已删，纯格式化无效
+  # --- 上游 PR #321 feat/config-editor-simple-full-mode（6 提交，整体跳过）---
+  # 计划跳过：#321 的简单/完整模式+搜索构建在 section 导航架构之上；本地 VisualConfigEditor 已刻意砍掉 section 导航/移动导航/页面过渡层（581 行 vs 上游基线 1271 行，-1138 行），与本 fork 扁平化架构决策根本对立。移植=推翻架构再重写，UX 增强不值得。
+  9a154c7   # feat(config): add simple/full editor modes and task-oriented sections — #321，与本地扁平化 VisualConfigEditor 架构冲突
+  b5344a7   # refactor(config): flatten advanced section and card-style simple-mode fields — #321 配套
+  aa114b2   # feat: add search index for visual config editor (configSearchIndex.ts) — #321 配套，依赖 section 导航
+  96e41f5   # fix(config): jump correctly across horizontally snapped sections — #321 配套，依赖 section 导航
+  a1d2e11   # feat(search): keyboard navigation and highlight for search results — #321 配套
+  1a8e059   # fix(config): jump request handling + Collapsible state — #321 配套
 )
 
 is_skip() {
