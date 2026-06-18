@@ -13,6 +13,7 @@ import type { AuthFileItem, ResolvedTheme } from '@/types';
 import { getStatusFromError } from '@/utils/quota';
 import { QuotaCard } from './QuotaCard';
 import type { QuotaStatusState } from './QuotaCard';
+import { canRunQuotaResetAction } from './quotaActions';
 import { useQuotaLoader } from './useQuotaLoader';
 import type { QuotaConfig } from './quotaConfigs';
 import { useGridColumns } from './useGridColumns';
@@ -243,10 +244,19 @@ export function QuotaSection<TState extends QuotaStatusState, TData>({
   const resetQuotaForFile = useCallback(
     (file: AuthFileItem) => {
       const resetQuota = config.resetQuota;
+      const itemQuota = quota[file.name];
       if (!resetQuota) return;
-      if (disabled || file.disabled) return;
-      if (quota[file.name]?.status === 'loading') return;
-      if (resettingQuotaName === file.name) return;
+      if (
+        !canRunQuotaResetAction({
+          sectionDisabled: disabled,
+          fileDisabled: file.disabled,
+          quota: itemQuota,
+          resetting: resettingQuotaName === file.name,
+          canResetQuota: config.canResetQuota,
+        })
+      ) {
+        return;
+      }
 
       showConfirmation({
         title: t('codex_quota.reset_confirm_title'),
@@ -358,7 +368,15 @@ export function QuotaSection<TState extends QuotaStatusState, TData>({
               const isResettingQuota = resettingQuotaName === item.name;
               const canUseQuotaAction =
                 !disabled && !item.disabled && itemQuota?.status !== 'loading';
-              const canReset = !config.canResetQuota || (itemQuota ? config.canResetQuota(itemQuota) : true);
+              const canReset =
+                !config.canResetQuota || (itemQuota ? config.canResetQuota(itemQuota) : true);
+              const canRunResetQuotaAction = canRunQuotaResetAction({
+                sectionDisabled: disabled,
+                fileDisabled: item.disabled,
+                quota: itemQuota,
+                resetting: isResettingQuota,
+                canResetQuota: config.canResetQuota,
+              });
               const resetButtonTitle = canReset
                 ? t('codex_quota.reset_button')
                 : t('codex_quota.reset_no_credits_hint');
@@ -369,7 +387,7 @@ export function QuotaSection<TState extends QuotaStatusState, TData>({
                   size="sm"
                   className={styles.quotaResetCreditButton}
                   onClick={() => resetQuotaForFile(item)}
-                  disabled={!canUseQuotaAction || isResettingQuota || !canReset}
+                  disabled={!canRunResetQuotaAction}
                   loading={isResettingQuota}
                   title={resetButtonTitle}
                   aria-label={resetButtonTitle}

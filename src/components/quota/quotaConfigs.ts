@@ -1028,19 +1028,12 @@ const renderCodexItems = (
           rateLimitResetCreditsAvailableCount.toString()
         )
       );
+      if (resetQuotaAction) {
+        planNodes.push(h(Fragment, { key: 'reset-credits-action' }, resetQuotaAction));
+      }
     }
 
     nodes.push(h('div', { key: 'plan', className: styleMap.codexPlan }, ...planNodes));
-  }
-
-  if (resetQuotaAction) {
-    nodes.push(
-      h(
-        'div',
-        { key: 'reset-credits-action', className: styleMap.quotaInlineActions },
-        resetQuotaAction
-      )
-    );
   }
 
   if (windows.length === 0) {

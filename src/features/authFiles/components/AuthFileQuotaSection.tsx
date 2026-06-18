@@ -9,6 +9,7 @@ import {
   KIMI_CONFIG,
   XAI_CONFIG,
 } from '@/components/quota';
+import { canRunQuotaResetAction } from '@/components/quota/quotaActions';
 import { useNotificationStore, useQuotaStore } from '@/stores';
 import type { AuthFileItem } from '@/types';
 import { getStatusFromError } from '@/utils/quota';
@@ -23,6 +24,7 @@ import { QuotaProgressBar } from '@/features/authFiles/components/QuotaProgressB
 import styles from '@/pages/AuthFilesPage.module.scss';
 
 type QuotaState = { status?: string; error?: string; errorStatus?: number } | undefined;
+type ResolvedQuotaState = NonNullable<QuotaState>;
 
 const getQuotaConfig = (type: QuotaProviderType) => {
   if (type === 'antigravity') return ANTIGRAVITY_CONFIG;
@@ -105,18 +107,26 @@ export function AuthFileQuotaSection(props: AuthFileQuotaSectionProps) {
   }, [disableControls, file, quota?.status, quotaType, showNotification, t, updateQuotaState]);
 
   const resetQuotaForFile = useCallback(() => {
-    if (disableControls) return;
     if (isRuntimeOnlyAuthFile(file)) return;
-    if (file.disabled) return;
-    if (quota?.status === 'loading') return;
-    if (resettingQuota) return;
 
     const config = getQuotaConfig(quotaType) as unknown as {
       resetQuota?: (file: AuthFileItem, t: TFunction) => Promise<unknown>;
+      canResetQuota?: (quota: ResolvedQuotaState) => boolean;
       buildSuccessState: (data: unknown) => unknown;
     };
     const resetQuota = config.resetQuota;
     if (!resetQuota) return;
+    if (
+      !canRunQuotaResetAction({
+        sectionDisabled: disableControls,
+        fileDisabled: file.disabled,
+        quota,
+        resetting: resettingQuota,
+        canResetQuota: config.canResetQuota,
+      })
+    ) {
+      return;
+    }
 
     showConfirmation({
       title: t('codex_quota.reset_confirm_title'),
@@ -143,7 +153,7 @@ export function AuthFileQuotaSection(props: AuthFileQuotaSectionProps) {
   }, [
     disableControls,
     file,
-    quota?.status,
+    quota,
     quotaType,
     resettingQuota,
     showConfirmation,
@@ -155,12 +165,23 @@ export function AuthFileQuotaSection(props: AuthFileQuotaSectionProps) {
   const config = getQuotaConfig(quotaType) as unknown as {
     i18nPrefix: string;
     resetQuota?: (file: AuthFileItem, t: TFunction) => Promise<unknown>;
+    canResetQuota?: (quota: ResolvedQuotaState) => boolean;
     renderQuotaItems: (quota: unknown, t: TFunction, helpers: unknown) => unknown;
   };
 
   const quotaStatus = quota?.status ?? 'idle';
   const canRefreshQuota = !disableControls && !file.disabled && !resettingQuota;
-  const canResetQuota = canRefreshQuota && quotaStatus !== 'loading';
+  const canReset = !config.canResetQuota || (quota ? config.canResetQuota(quota) : true);
+  const canRunResetQuotaAction = canRunQuotaResetAction({
+    sectionDisabled: disableControls,
+    fileDisabled: file.disabled,
+    quota,
+    resetting: resettingQuota,
+    canResetQuota: config.canResetQuota,
+  });
+  const resetButtonTitle = canReset
+    ? t('codex_quota.reset_button')
+    : t('codex_quota.reset_no_credits_hint');
   const resetQuotaAction = config.resetQuota ? (
     <Button
       type="button"
@@ -168,10 +189,10 @@ export function AuthFileQuotaSection(props: AuthFileQuotaSectionProps) {
       size="sm"
       className={styles.quotaResetCreditButton}
       onClick={() => resetQuotaForFile()}
-      disabled={!canResetQuota}
+      disabled={!canRunResetQuotaAction}
       loading={resettingQuota}
-      title={t('codex_quota.reset_button')}
-      aria-label={t('codex_quota.reset_button')}
+      title={resetButtonTitle}
+      aria-label={resetButtonTitle}
     >
       {!resettingQuota && <IconRefreshCw size={14} />}
       {t('codex_quota.reset_button')}

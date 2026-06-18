@@ -508,20 +508,16 @@
   background-color: var(--border-color);
 }
 
-.quotaInlineActions {
-  display: flex;
-  justify-content: flex-start;
-  padding-top: $spacing-xs;
-}
-
 .quotaResetCreditButton:global(.btn.btn-sm) {
-  border-radius: 999px;
-  padding-inline: 12px;
+  border-radius: $radius-sm;
+  padding: 5px 8px;
+  font-size: 12px;
+  line-height: 16px;
 
   > span {
     display: inline-flex;
     align-items: center;
-    gap: 6px;
+    gap: 4px;
     white-space: nowrap;
   }
 }
