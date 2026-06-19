@@ -727,6 +727,18 @@ function getNextDirtyFields(
   if (Object.prototype.hasOwnProperty.call(patch, 'wsAuth')) {
     updateDirty('wsAuth', nextValues.wsAuth === baselineValues.wsAuth);
   }
+  if (Object.prototype.hasOwnProperty.call(patch, 'gptImage2BaseModel')) {
+    updateDirty(
+      'gptImage2BaseModel',
+      nextValues.gptImage2BaseModel === baselineValues.gptImage2BaseModel
+    );
+  }
+  if (Object.prototype.hasOwnProperty.call(patch, 'codexIdentityConfuse')) {
+    updateDirty(
+      'codexIdentityConfuse',
+      nextValues.codexIdentityConfuse === baselineValues.codexIdentityConfuse
+    );
+  }
   if (Object.prototype.hasOwnProperty.call(patch, 'quotaSwitchProject')) {
     updateDirty(
       'quotaSwitchProject',
@@ -898,6 +910,7 @@ export function useVisualConfig() {
       const routing = asRecord(parsed.routing);
       const payload = asRecord(parsed.payload);
       const streaming = asRecord(parsed.streaming);
+      const codex = asRecord(parsed.codex);
       const apiKeysStorage = resolveApiKeysStorage(parsed);
 
       const newValues: VisualConfigValues = {
@@ -935,6 +948,11 @@ export function useVisualConfig() {
         requestRetry: String(parsed['request-retry'] ?? ''),
         maxRetryCredentials: String(parsed['max-retry-credentials'] ?? ''),
         maxRetryInterval: String(parsed['max-retry-interval'] ?? ''),
+        gptImage2BaseModel:
+          typeof parsed['gpt-image-2-base-model'] === 'string'
+            ? parsed['gpt-image-2-base-model']
+            : '',
+        codexIdentityConfuse: Boolean(codex?.['identity-confuse']),
         wsAuth: Boolean(parsed['ws-auth']),
 
         quotaSwitchProject: Boolean(quotaExceeded?.['switch-project'] ?? true),
@@ -1086,6 +1104,33 @@ export function useVisualConfig() {
         setIntFromStringInDoc(doc, ['max-retry-credentials'], values.maxRetryCredentials);
         setIntFromStringInDoc(doc, ['max-retry-interval'], values.maxRetryInterval);
         setBooleanInDoc(doc, ['ws-auth'], values.wsAuth);
+
+        if (
+          values.gptImage2BaseModel.trim() ||
+          shouldWriteManagedField(
+            doc,
+            ['gpt-image-2-base-model'],
+            dirtyFields,
+            'gptImage2BaseModel'
+          )
+        ) {
+          setStringInDoc(doc, ['gpt-image-2-base-model'], values.gptImage2BaseModel);
+        }
+
+        if (
+          docHas(doc, ['codex']) ||
+          values.codexIdentityConfuse ||
+          shouldWriteManagedField(
+            doc,
+            ['codex', 'identity-confuse'],
+            dirtyFields,
+            'codexIdentityConfuse'
+          )
+        ) {
+          ensureMapInDoc(doc, ['codex']);
+          setBooleanInDoc(doc, ['codex', 'identity-confuse'], values.codexIdentityConfuse);
+          deleteIfMapEmpty(doc, ['codex']);
+        }
 
         if (
           docHas(doc, ['quota-exceeded']) ||

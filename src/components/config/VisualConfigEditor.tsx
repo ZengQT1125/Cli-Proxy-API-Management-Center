@@ -363,6 +363,14 @@ export function VisualConfigEditor({ values, validationErrors, disabled = false,
               onChange={(e) => onChange({ routingSessionAffinityTTL: e.target.value })}
               disabled={disabled}
             />
+            <Input
+              label={t('config_management.visual.sections.network.gpt_image_2_base_model')}
+              placeholder="gpt-5.4-mini"
+              value={values.gptImage2BaseModel}
+              onChange={(e) => onChange({ gptImage2BaseModel: e.target.value })}
+              disabled={disabled}
+              hint={t('config_management.visual.sections.network.gpt_image_2_base_model_hint')}
+            />
           </SectionGrid>
 
           <ToggleRow
@@ -384,6 +392,13 @@ export function VisualConfigEditor({ values, validationErrors, disabled = false,
             checked={values.wsAuth}
             disabled={disabled}
             onChange={(wsAuth) => onChange({ wsAuth })}
+          />
+          <ToggleRow
+            title={t('config_management.visual.sections.network.codex_identity_confuse')}
+            description={t('config_management.visual.sections.network.codex_identity_confuse_desc')}
+            checked={values.codexIdentityConfuse}
+            disabled={disabled}
+            onChange={(codexIdentityConfuse) => onChange({ codexIdentityConfuse })}
           />
         </div>
       </ConfigSection>
