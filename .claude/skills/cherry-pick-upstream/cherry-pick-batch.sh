@@ -287,7 +287,17 @@ SKIP_HASHES=(
   1279cc1   # feat(pluginStore): third-party sources/config — 计划跳过，依赖未采纳插件管理
   b0db1df   # feat(logs): cursor/after incremental fetching — 计划跳过，依赖 1dcf8fe 日志分页系列
   dbeefda   # fix(plugins): poll runtime state after plugin changes — 计划跳过，依赖未采纳插件管理
-  e95cc2b   # feat(quota): new quota structures/UI — Codex 手动重置已等价于本地 23e59d75；quota 已分叉走独立实现，其余结构性改动无需摘取，跳过
+  e95cc2b   # feat(quota): new quota structures/UI — 本地 ba8e3e1 已完整移植：Antigravity 新 UI（groups→buckets 分层、时间倒计时、SCSS 分组样式），保留本地 subscription 展示
+  d64780f   # fix(quota): Gemini Pro Series model id → gemini-3.1 format — 本地 constants.ts 第 155 行已等价（gemini-3.1-pro-preview）
+  72c0ef0   # fix(quota): localize kimi quota fallback labels — 本地 en.json kimi_quota 已含 fetch_all/weekly_limit/limit_window/limit_index/reset_hint，等价
+  62587c9   # feat(quota): sync antigravity groups with latest usage models — 本地 builders.ts/constants.ts/parsers.ts 已等价（ba8e3e1 一并引入）
+  ccf90f8   # feat(quota): Claude plan detection via profile API — 本地 quotaConfigs.ts 第 1217 行 parseClaudeProfilePayload + resolveClaudePlanType 已等价
+  e833c03   # fix(quota): detect Claude plan from account flags — 本地 normalizeFlagValue + has_claude_max/has_claude_pro 已等价（第 1205-1241 行）
+  3f1f6a1   # feat(quota): gold premium pill badge for Gemini CLI Ultra/Codex Pro — 本地 PREMIUM_GEMINI_CLI_TIER_IDS + premiumPlanValue 已等价
+  7d58341   # fix(quota): distinguish codex pro plan labels — 本地 PREMIUM_CODEX_PLAN_TYPES + plan_prolite 已等价（第 947-966 行）
+  c43df08   # fix(quota): detect Claude Team organizations — 本地 organization_type === 'claude_team' 已等价（第 1250 行）
+  62092cc   # refactor(quotaConfigs): make Chatgpt-Account-Id header optional — 本地 if (accountId) 分支已等价（第 514、574 行）
+  ea018ae   # Merge PR #316 fix/codex-team-weekly-quota-label — merge commit，内容已含于 e4b8721（已跳过）
   c595ada   # feat(antigravity): subscription management — 上游中间架构（AuthFileCard badge + useAntigravitySubscriptions hook），被上游自身 069eaf21 废弃(-82行)；本地 ddb5ce40 走 quotaConfigs 路线已等价，跳过避免回退
   d9045a7   # feat(authFiles): premium subscription badge — 上游废弃架构配套 scss；本地 ddb5ce40 已有 premiumPlanValue 等价样式，跳过
   a44bcd3   # feat(providers): config handling/serialization — 本地已 pick 为 8e6c923e（手工解决 7 处冲突，patch-id 不同故 git cherry 仍显示未应用）
