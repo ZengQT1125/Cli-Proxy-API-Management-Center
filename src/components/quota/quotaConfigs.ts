@@ -1714,7 +1714,7 @@ const renderKimiItems = (
           'div',
           { className: styleMap.quotaMeta },
           h('span', { className: styleMap.quotaPercent }, percentLabel),
-          limit > 0 ? h('span', { className: styleMap.quotaAmount }, `${used} / ${limit}`) : null,
+          limit > 0 ? h('span', { className: styleMap.quotaAmount }, t('kimi_quota.usage_format', { used, limit })) : null,
           resetLabel ? h('span', { className: styleMap.quotaReset }, resetLabel) : null
         )
       ),
@@ -1807,7 +1807,7 @@ const formatUsdFromCents = (cents: number | null): string => {
   }).format(cents / 100);
 };
 
-const formatXaiRemainingAmount = (billing: XaiBillingSummary): string => {
+const formatXaiRemainingAmount = (billing: XaiBillingSummary, t: TFunction): string => {
   const remainingCents =
     billing.monthlyLimitCents !== null && billing.usedCents !== null
       ? Math.max(0, billing.monthlyLimitCents - billing.usedCents)
@@ -1815,7 +1815,7 @@ const formatXaiRemainingAmount = (billing: XaiBillingSummary): string => {
   const remaining = formatUsdFromCents(remainingCents);
   const limit = formatUsdFromCents(billing.monthlyLimitCents);
   if (billing.monthlyLimitCents === null) return remaining;
-  return `${remaining} / ${limit}`;
+  return t('xai_quota.remaining_format', { remaining, limit });
 };
 
 const XAI_SUPERGROK_LIMIT_CENTS = 15_000;
@@ -1850,7 +1850,7 @@ const renderXaiItems = (
     billing.usedPercent === null ? null : Math.max(0, Math.min(100, billing.usedPercent));
   const remaining = clampedUsed === null ? null : Math.max(0, Math.min(100, 100 - clampedUsed));
   const percentLabel = remaining === null ? '--' : `${Math.round(remaining)}%`;
-  const amountLabel = formatXaiRemainingAmount(billing);
+  const amountLabel = formatXaiRemainingAmount(billing, t);
   const resetLabel = formatQuotaResetTime(billing.billingPeriodEnd);
   const onDemandCap = billing.onDemandCapCents ?? 0;
   const plan = resolveXaiPlan(billing.monthlyLimitCents);

@@ -742,7 +742,8 @@
     "weekly_limit": "週限額",
     "limit_window": "{{duration}} 限額",
     "limit_index": "限額 #{{index}}",
-    "reset_hint": "{{hint}} 後重置"
+    "reset_hint": "{{hint}} 後重置",
+    "usage_format": "{{used}} / {{limit}}"
   },
   "xai_quota": {
     "title": "Grok 配額",
@@ -761,7 +762,8 @@
     "plan_supergrok_heavy": "SuperGrok Heavy",
     "pay_as_you_go_label": "按量付費",
     "pay_as_you_go_enabled": "已啟用，封頂 {{cap}}",
-    "pay_as_you_go_disabled": "未啟用"
+    "pay_as_you_go_disabled": "未啟用",
+    "remaining_format": "{{remaining}} / {{limit}}"
   },
   "vertex_import": {
     "title": "Vertex JSON 登入",

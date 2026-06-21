@@ -780,7 +780,8 @@
     "weekly_limit": "Недельный лимит",
     "limit_window": "Лимит {{duration}}",
     "limit_index": "Лимит #{{index}}",
-    "reset_hint": "сброс через {{hint}}"
+    "reset_hint": "сброс через {{hint}}",
+    "usage_format": "{{used}} / {{limit}}"
   },
   "xai_quota": {
     "title": "Квота Grok",
@@ -799,7 +800,8 @@
     "plan_supergrok_heavy": "SuperGrok Heavy",
     "pay_as_you_go_label": "Оплата по факту",
     "pay_as_you_go_enabled": "Включено, лимит {{cap}}",
-    "pay_as_you_go_disabled": "Отключено"
+    "pay_as_you_go_disabled": "Отключено",
+    "remaining_format": "{{remaining}} / {{limit}}"
   },
   "vertex_import": {
     "title": "Вход с Vertex JSON",

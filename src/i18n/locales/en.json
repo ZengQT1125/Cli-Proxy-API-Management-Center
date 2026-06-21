@@ -779,7 +779,8 @@
     "weekly_limit": "Weekly limit",
     "limit_window": "{{duration}} limit",
     "limit_index": "Limit #{{index}}",
-    "reset_hint": "resets in {{hint}}"
+    "reset_hint": "resets in {{hint}}",
+    "usage_format": "{{used}} / {{limit}}"
   },
   "xai_quota": {
     "title": "Grok Quota",
@@ -798,7 +799,8 @@
     "plan_supergrok_heavy": "SuperGrok Heavy",
     "pay_as_you_go_label": "Pay as you go",
     "pay_as_you_go_enabled": "Enabled, cap {{cap}}",
-    "pay_as_you_go_disabled": "Disabled"
+    "pay_as_you_go_disabled": "Disabled",
+    "remaining_format": "{{remaining}} / {{limit}}"
   },
   "vertex_import": {
     "title": "Vertex JSON Login",
