@@ -1,13 +1,16 @@
-import { useCallback, useEffect, useRef, useState, type ChangeEvent } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
-import { useNotificationStore, useThemeStore } from '@/stores';
-import { oauthApi, type OAuthProvider } from '@/services/api/oauth';
+import { IconPlug } from '@/components/ui/icons';
+import { useAuthStore, useNotificationStore, useThemeStore } from '@/stores';
+import { oauthApi, pluginsApi, type BuiltInOAuthProvider } from '@/services/api';
 import { vertexApi, type VertexImportResponse } from '@/services/api/vertex';
 import { copyToClipboard } from '@/utils/clipboard';
+import { getPluginTitle, resolvePluginAssetURL } from '@/features/plugins/pluginResources';
+import type { PluginListEntry } from '@/types';
 import styles from './OAuthPage.module.scss';
 import iconCodex from '@/assets/icons/codex.svg';
 import iconClaude from '@/assets/icons/claude.svg';
@@ -45,6 +48,24 @@ interface VertexImportState {
   result?: VertexImportResult;
 }
 
+interface BuiltInOAuthProviderCard {
+  kind: 'builtin';
+  id: BuiltInOAuthProvider;
+  titleKey: string;
+  hintKey: string;
+  urlLabelKey: string;
+  icon: string | { light: string; dark: string };
+}
+
+interface PluginOAuthProviderCard {
+  kind: 'plugin';
+  id: string;
+  title: string;
+  icon: string;
+}
+
+type OAuthProviderCard = BuiltInOAuthProviderCard | PluginOAuthProviderCard;
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object';
 }
@@ -60,22 +81,77 @@ function getErrorStatus(error: unknown): number | undefined {
   return typeof error.status === 'number' ? error.status : undefined;
 }
 
-const PROVIDERS: { id: OAuthProvider; titleKey: string; hintKey: string; urlLabelKey: string; icon: string | { light: string; dark: string } }[] = [
-  { id: 'codex', titleKey: 'auth_login.codex_oauth_title', hintKey: 'auth_login.codex_oauth_hint', urlLabelKey: 'auth_login.codex_oauth_url_label', icon: iconCodex },
-  { id: 'anthropic', titleKey: 'auth_login.anthropic_oauth_title', hintKey: 'auth_login.anthropic_oauth_hint', urlLabelKey: 'auth_login.anthropic_oauth_url_label', icon: iconClaude },
-  { id: 'antigravity', titleKey: 'auth_login.antigravity_oauth_title', hintKey: 'auth_login.antigravity_oauth_hint', urlLabelKey: 'auth_login.antigravity_oauth_url_label', icon: iconAntigravity },
-  { id: 'kimi', titleKey: 'auth_login.kimi_oauth_title', hintKey: 'auth_login.kimi_oauth_hint', urlLabelKey: 'auth_login.kimi_oauth_url_label', icon: { light: iconKimiLight, dark: iconKimiDark } },
-  { id: 'xai', titleKey: 'auth_login.xai_oauth_title', hintKey: 'auth_login.xai_oauth_hint', urlLabelKey: 'auth_login.xai_oauth_url_label', icon: { light: iconGrok, dark: iconGrokDark } }
+const PROVIDERS: BuiltInOAuthProviderCard[] = [
+  { kind: 'builtin', id: 'codex', titleKey: 'auth_login.codex_oauth_title', hintKey: 'auth_login.codex_oauth_hint', urlLabelKey: 'auth_login.codex_oauth_url_label', icon: iconCodex },
+  { kind: 'builtin', id: 'anthropic', titleKey: 'auth_login.anthropic_oauth_title', hintKey: 'auth_login.anthropic_oauth_hint', urlLabelKey: 'auth_login.anthropic_oauth_url_label', icon: iconClaude },
+  { kind: 'builtin', id: 'antigravity', titleKey: 'auth_login.antigravity_oauth_title', hintKey: 'auth_login.antigravity_oauth_hint', urlLabelKey: 'auth_login.antigravity_oauth_url_label', icon: iconAntigravity },
+  { kind: 'builtin', id: 'kimi', titleKey: 'auth_login.kimi_oauth_title', hintKey: 'auth_login.kimi_oauth_hint', urlLabelKey: 'auth_login.kimi_oauth_url_label', icon: { light: iconKimiLight, dark: iconKimiDark } },
+  { kind: 'builtin', id: 'xai', titleKey: 'auth_login.xai_oauth_title', hintKey: 'auth_login.xai_oauth_hint', urlLabelKey: 'auth_login.xai_oauth_url_label', icon: { light: iconGrok, dark: iconGrokDark } }
 ];
 
-const CALLBACK_SUPPORTED: OAuthProvider[] = ['codex', 'anthropic', 'antigravity', 'xai'];
+const BUILTIN_PROVIDER_IDS = new Set<string>(PROVIDERS.map((provider) => provider.id));
+const CALLBACK_SUPPORTED = new Set<string>(['codex', 'anthropic', 'antigravity', 'xai']);
 const XAI_CALLBACK_URL = 'http://127.0.0.1:56121/callback';
-const getProviderI18nPrefix = (provider: OAuthProvider) => provider.replace('-', '_');
-const getAuthKey = (provider: OAuthProvider, suffix: string) =>
+const getProviderI18nPrefix = (provider: string) => provider.replace('-', '_');
+const getAuthKey = (provider: string, suffix: string) =>
   `auth_login.${getProviderI18nPrefix(provider)}_${suffix}`;
 
 const getIcon = (icon: string | { light: string; dark: string }, theme: 'light' | 'dark') => {
   return typeof icon === 'string' ? icon : icon[theme];
+};
+
+function PluginOAuthIcon({ src }: { src: string }) {
+  const [failed, setFailed] = useState(false);
+  if (src && !failed) {
+    return (
+      <img src={src} alt="" className={styles.cardTitleIcon} onError={() => setFailed(true)} />
+    );
+  }
+  return (
+    <span className={styles.cardTitleIconFallback} aria-hidden="true">
+      <IconPlug size={18} />
+    </span>
+  );
+}
+
+function OAuthProviderIcon({
+  provider,
+  theme,
+}: {
+  provider: OAuthProviderCard;
+  theme: 'light' | 'dark';
+}) {
+  if (provider.kind === 'plugin') {
+    return <PluginOAuthIcon src={provider.icon} />;
+  }
+  return <img src={getIcon(provider.icon, theme)} alt="" className={styles.cardTitleIcon} />;
+}
+
+const buildPluginOAuthProviderCards = (
+  plugins: PluginListEntry[],
+  apiBase: string
+): PluginOAuthProviderCard[] => {
+  const seenProviders = new Set(BUILTIN_PROVIDER_IDS);
+  return plugins.flatMap((plugin) => {
+    const provider = plugin.oauthProvider;
+    if (
+      !plugin.supportsOAuth ||
+      !plugin.effectiveEnabled ||
+      !provider ||
+      seenProviders.has(provider)
+    ) {
+      return [];
+    }
+    seenProviders.add(provider);
+    return [
+      {
+        kind: 'plugin' as const,
+        id: provider,
+        title: getPluginTitle(plugin),
+        icon: resolvePluginAssetURL(plugin.logo || plugin.metadata?.logo || '', apiBase),
+      },
+    ];
+  });
 };
 
 const isAbsoluteUrl = (value: string): boolean => {
@@ -138,11 +214,7 @@ const buildXaiCallbackUrl = (input: string, state?: string): string | null => {
   return callbackUrl.toString();
 };
 
-const resolveCallbackUrl = (
-  provider: OAuthProvider,
-  input: string,
-  state?: string
-): string | null => {
+const resolveCallbackUrl = (provider: string, input: string, state?: string): string | null => {
   if (provider !== 'xai') return input.trim();
   return buildXaiCallbackUrl(input, state);
 };
@@ -150,9 +222,11 @@ const resolveCallbackUrl = (
 export function OAuthPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const apiBase = useAuthStore((state) => state.apiBase);
   const { showNotification } = useNotificationStore();
   const resolvedTheme = useThemeStore((state) => state.resolvedTheme);
-  const [states, setStates] = useState<Record<OAuthProvider, ProviderState>>({} as Record<OAuthProvider, ProviderState>);
+  const [states, setStates] = useState<Record<string, ProviderState>>({});
+  const [pluginProviders, setPluginProviders] = useState<PluginOAuthProviderCard[]>([]);
   const [vertexState, setVertexState] = useState<VertexImportState>({
     fileName: '',
     location: '',
@@ -172,14 +246,57 @@ export function OAuthPage() {
     };
   }, [clearTimers]);
 
-  const updateProviderState = (provider: OAuthProvider, next: Partial<ProviderState>) => {
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadPluginProviders = async () => {
+      try {
+        const response = await pluginsApi.list();
+        if (!cancelled) {
+          setPluginProviders(buildPluginOAuthProviderCards(response.plugins, apiBase));
+        }
+      } catch {
+        if (!cancelled) {
+          setPluginProviders([]);
+        }
+      }
+    };
+
+    void loadPluginProviders();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [apiBase]);
+
+  const providerCards = useMemo<OAuthProviderCard[]>(
+    () => [...PROVIDERS, ...pluginProviders],
+    [pluginProviders]
+  );
+
+  const getProviderTitleText = (provider: OAuthProviderCard) =>
+    provider.kind === 'plugin'
+      ? t('auth_login.plugin_oauth_title', { name: provider.title })
+      : t(provider.titleKey);
+
+  const getProviderText = (provider: OAuthProviderCard, suffix: string) =>
+    provider.kind === 'plugin'
+      ? t(`auth_login.plugin_${suffix}`, { name: provider.title })
+      : t(getAuthKey(provider.id, suffix));
+
+  const getProviderTextByID = (provider: string, suffix: string) => {
+    const card = providerCards.find((item) => item.id === provider);
+    return card ? getProviderText(card, suffix) : t(getAuthKey(provider, suffix));
+  };
+
+  const updateProviderState = (provider: string, next: Partial<ProviderState>) => {
     setStates((prev) => ({
       ...prev,
       [provider]: { ...(prev[provider] ?? {}), ...next }
     }));
   };
 
-  const startPolling = (provider: OAuthProvider, state: string) => {
+  const startPolling = (provider: string, state: string) => {
     if (timers.current[provider]) {
       clearInterval(timers.current[provider]);
     }
@@ -188,13 +305,13 @@ export function OAuthPage() {
         const res = await oauthApi.getAuthStatus(state);
         if (res.status === 'ok') {
           updateProviderState(provider, { status: 'success', polling: false });
-          showNotification(t(getAuthKey(provider, 'oauth_status_success')), 'success');
+          showNotification(getProviderTextByID(provider, 'oauth_status_success'), 'success');
           window.clearInterval(timer);
           delete timers.current[provider];
         } else if (res.status === 'error') {
           updateProviderState(provider, { status: 'error', error: res.error, polling: false });
           showNotification(
-            `${t(getAuthKey(provider, 'oauth_status_error'))} ${res.error || ''}`,
+            `${getProviderTextByID(provider, 'oauth_status_error')} ${res.error || ''}`,
             'error'
           );
           window.clearInterval(timer);
@@ -209,7 +326,7 @@ export function OAuthPage() {
     timers.current[provider] = timer;
   };
 
-  const startAuth = async (provider: OAuthProvider) => {
+  const startAuth = async (provider: string) => {
     updateProviderState(provider, {
       url: undefined,
       state: undefined,
@@ -240,7 +357,7 @@ export function OAuthPage() {
       const message = getErrorMessage(err);
       updateProviderState(provider, { status: 'error', error: message, polling: false });
       showNotification(
-        `${t(getAuthKey(provider, 'oauth_start_error'))}${message ? ` ${message}` : ''}`,
+        `${getProviderTextByID(provider, 'oauth_start_error')}${message ? ` ${message}` : ''}`,
         'error'
       );
     }
@@ -255,7 +372,7 @@ export function OAuthPage() {
     );
   };
 
-  const submitCallback = async (provider: OAuthProvider) => {
+  const submitCallback = async (provider: string) => {
     const callbackInput = (states[provider]?.callbackUrl || '').trim();
     if (!callbackInput) {
       showNotification(
@@ -365,13 +482,15 @@ export function OAuthPage() {
       <h1 className={styles.pageTitle}>{t('nav.oauth', { defaultValue: 'OAuth' })}</h1>
 
       <div className={styles.content}>
-        {PROVIDERS.map((provider) => {
+        {providerCards.map((provider) => {
           const state = states[provider.id] || {};
-          const canSubmitCallback = CALLBACK_SUPPORTED.includes(provider.id) && Boolean(state.url);
+          const canSubmitCallback =
+            (provider.kind === 'plugin' || CALLBACK_SUPPORTED.has(provider.id)) &&
+            Boolean(state.url);
           const loginButtonLabel =
             state.status === 'success'
               ? t('auth_login.login_another_account')
-              : t(getAuthKey(provider.id, 'oauth_button'));
+              : getProviderText(provider, 'oauth_button');
           const statusBadgeClassName = [
             'status-badge',
             state.status === 'success' ? 'success' : '',
@@ -384,12 +503,8 @@ export function OAuthPage() {
               <Card
                 title={
                   <span className={styles.cardTitle}>
-                    <img
-                      src={getIcon(provider.icon, resolvedTheme)}
-                      alt=""
-                      className={styles.cardTitleIcon}
-                    />
-                    {t(provider.titleKey)}
+                    <OAuthProviderIcon provider={provider} theme={resolvedTheme} />
+                    {getProviderTitleText(provider)}
                   </span>
                 }
                 extra={
@@ -399,21 +514,23 @@ export function OAuthPage() {
                 }
               >
                 <div className={styles.cardContent}>
-                  <div className={styles.cardHint}>{t(provider.hintKey)}</div>
+                  <div className={styles.cardHint}>{getProviderText(provider, 'oauth_hint')}</div>
                   {state.url && (
                     <div className={styles.authUrlBox}>
-                      <div className={styles.authUrlLabel}>{t(provider.urlLabelKey)}</div>
+                      <div className={styles.authUrlLabel}>
+                        {getProviderText(provider, 'oauth_url_label')}
+                      </div>
                       <div className={styles.authUrlValue}>{state.url}</div>
                       <div className={styles.authUrlActions}>
                         <Button variant="secondary" size="sm" onClick={() => copyLink(state.url!)}>
-                          {t(getAuthKey(provider.id, 'copy_link'))}
+                          {getProviderText(provider, 'copy_link')}
                         </Button>
                         <Button
                           variant="secondary"
                           size="sm"
                           onClick={() => window.open(state.url, '_blank', 'noopener,noreferrer')}
                         >
-                          {t(getAuthKey(provider.id, 'open_link'))}
+                          {getProviderText(provider, 'open_link')}
                         </Button>
                       </div>
                     </div>
@@ -470,10 +587,10 @@ export function OAuthPage() {
                   {state.status && state.status !== 'idle' && (
                     <div className={statusBadgeClassName}>
                       {state.status === 'success'
-                        ? t(getAuthKey(provider.id, 'oauth_status_success'))
+                        ? getProviderText(provider, 'oauth_status_success')
                         : state.status === 'error'
-                          ? `${t(getAuthKey(provider.id, 'oauth_status_error'))} ${state.error || ''}`
-                          : t(getAuthKey(provider.id, 'oauth_status_waiting'))}
+                          ? `${getProviderText(provider, 'oauth_status_error')} ${state.error || ''}`
+                          : getProviderText(provider, 'oauth_status_waiting')}
                     </div>
                   )}
                   {state.status === 'success' && (
