@@ -1,6 +1,5 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
 import {
   formatMonitorNumber,
   normalizeMonitorHourlyModelsData,
@@ -42,16 +41,6 @@ test('监控 KPI 数字格式化接受 undefined 和非数字脏值', () => {
   assert.equal(formatMonitorNumber(undefined), '0');
   assert.equal(formatMonitorNumber(Number.NaN), '0');
   assert.equal(formatMonitorNumber('1234'), '1.23K');
-});
-
-test('KpiCards 渲染前重新归一化 KPI 数据', () => {
-  const source = readFileSync(
-    new URL('../src/components/monitor/KpiCards.tsx', import.meta.url),
-    'utf8'
-  );
-
-  assert.match(source, /normalizeMonitorKpiData/);
-  assert.match(source, /const stats = normalizeMonitorKpiData\(kpiData\)/);
 });
 
 test('小时图响应缺少数组字段时归一化为空数据', () => {

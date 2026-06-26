@@ -1,4 +1,4 @@
-import { DEFAULT_API_PORT, MANAGEMENT_API_PREFIX } from './constants';
+import { DEFAULT_API_PORT, MANAGEMENT_API_PREFIX } from './constants.ts';
 
 export const normalizeApiBase = (input: string): string => {
   let base = (input || '').trim();

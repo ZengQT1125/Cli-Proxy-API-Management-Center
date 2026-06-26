@@ -21,8 +21,13 @@ export const MAX_CARD_PAGE_SIZE = 30;
 export const AUTH_FILE_REFRESH_WARNING_MS = 24 * 60 * 60 * 1000;
 
 export { INTEGER_STRING_PATTERN, parsePriorityValue } from './priority.ts';
-export const TRUTHY_TEXT_VALUES = new Set(['true', '1', 'yes', 'y', 'on']);
-export const FALSY_TEXT_VALUES = new Set(['false', '0', 'no', 'n', 'off']);
+export {
+  applyCodexAuthFileWebsockets,
+  FALSY_TEXT_VALUES,
+  parseDisableCoolingValue,
+  readCodexAuthFileWebsockets,
+  TRUTHY_TEXT_VALUES,
+} from './websockets.ts';
 
 // 标签类型颜色配置（对齐重构前 styles.css 的 file-type-badge 颜色）
 export const TYPE_COLORS: Record<string, TypeColorSet> = {
@@ -134,31 +139,6 @@ export const normalizeExcludedModels = (value: unknown): string[] => {
 
 export const parseExcludedModelsText = (value: string): string[] =>
   normalizeExcludedModels(value.split(/[\n,]+/));
-
-export const parseDisableCoolingValue = (value: unknown): boolean | undefined => {
-  if (typeof value === 'boolean') return value;
-  if (typeof value === 'number' && Number.isFinite(value)) return value !== 0;
-  if (typeof value !== 'string') return undefined;
-
-  const normalized = value.trim().toLowerCase();
-  if (!normalized) return undefined;
-  if (TRUTHY_TEXT_VALUES.has(normalized)) return true;
-  if (FALSY_TEXT_VALUES.has(normalized)) return false;
-  return undefined;
-};
-
-export const readCodexAuthFileWebsockets = (value: Record<string, unknown>): boolean =>
-  parseDisableCoolingValue(value.websockets ?? value.websocket) ?? false;
-
-export const applyCodexAuthFileWebsockets = (
-  value: Record<string, unknown>,
-  websockets: boolean
-): Record<string, unknown> => {
-  const next = { ...value };
-  delete next.websocket;
-  next.websockets = websockets;
-  return next;
-};
 
 export function isRuntimeOnlyAuthFile(file: AuthFileItem): boolean {
   const raw = file['runtime_only'] ?? file.runtimeOnly;
