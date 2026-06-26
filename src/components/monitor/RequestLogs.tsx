@@ -2,10 +2,7 @@ import { Fragment, useState, useEffect, useRef, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Card } from '@/components/ui/Card';
 import { monitorApi, type MonitorRequestLogItem } from '@/services/api';
-import { useDisableModel } from '@/hooks';
 import { TimeRangeSelector, formatTimeRangeCaption, type TimeRange } from './TimeRangeSelector';
-import { DisableModelModal } from './DisableModelModal';
-import { UnsupportedDisableModal } from './UnsupportedDisableModal';
 import {
   REQUEST_LOG_FILTER_KEYS,
   REQUEST_LOG_TABLE_COLUMN_KEYS,
@@ -22,6 +19,7 @@ import {
   getProviderDisplayParts,
   buildMonitorTimeRangeParams,
   formatCompactTokenNumber,
+  formatCacheTokenRatio,
   type DateRange,
 } from '@/utils/monitor';
 import styles from '@/pages/MonitorPage.module.scss';
@@ -30,7 +28,6 @@ interface RequestLogsProps {
   refreshKey: number;
   loading: boolean;
   providerMap: Record<string, string>;
-  providerTypeMap: Record<string, string>;
   apiFilter: string;
   authIndexMap: Record<string, string>;
 }
@@ -47,7 +44,6 @@ interface LogEntry {
   inputTokens: number;
   outputTokens: number;
   cachedTokens: number;
-  requestCount: number;
   successRate: number;
   latencyMs: number;
   ttftMs: number;
@@ -59,7 +55,6 @@ export function RequestLogs({
   refreshKey,
   loading,
   providerMap,
-  providerTypeMap,
   apiFilter,
   authIndexMap,
 }: RequestLogsProps) {
@@ -89,18 +84,6 @@ export function RequestLogs({
     sources: [],
   });
 
-  // 使用禁用模型 Hook
-  const {
-    disableState,
-    unsupportedState,
-    disabling,
-    isModelDisabled,
-    handleDisableClick,
-    handleConfirmDisable,
-    handleCancelDisable,
-    handleCloseUnsupported,
-  } = useDisableModel({ providerMap, providerTypeMap });
-
   const handleTimeRangeChange = useCallback((range: TimeRange, custom?: DateRange) => {
     setTimeRange(range);
     setCustomRange(custom);
@@ -124,7 +107,6 @@ export function RequestLogs({
         inputTokens: item.input_tokens || 0,
         outputTokens: item.output_tokens || 0,
         cachedTokens: item.cached_tokens || 0,
-        requestCount: item.request_count || 0,
         successRate: item.success_rate || 0,
         latencyMs: item.latency_ms || 0,
         ttftMs: item.ttft_ms || 0,
@@ -249,7 +231,6 @@ export function RequestLogs({
   };
 
   const renderCell = (entry: LogEntry, column: RequestLogTableColumnKey) => {
-    const disabled = isModelDisabled(entry.source, entry.model);
     const authDisplayName = entry.authIndex
       ? authIndexMap[entry.authIndex] || entry.authIndex
       : '-';
@@ -301,8 +282,6 @@ export function RequestLogs({
             {entry.successRate.toFixed(1)}%
           </td>
         );
-      case 'count':
-        return <td>{formatNumber(entry.requestCount)}</td>;
       case 'timing': {
         const ttft = entry.ttftMs > 0 ? (entry.ttftMs / 1000).toFixed(2) : '-';
         const latency = entry.latencyMs > 0 ? (entry.latencyMs / 1000).toFixed(2) : '-';
@@ -339,33 +318,16 @@ export function RequestLogs({
           </td>
         );
       case 'cache':
+        const cache = formatCacheTokenRatio(entry.cachedTokens, entry.inputTokens);
         return (
-          <td className={styles.tokenCell} title={formatNumber(entry.cachedTokens)}>
-            {formatCompactTokenNumber(entry.cachedTokens)}
+          <td className={styles.tokenCell} title={cache.title}>
+            {cache.count}
+            {' / '}
+            <span style={{ color: 'var(--text-secondary)' }}>{cache.ratio}</span>
           </td>
         );
       case 'time':
         return <td>{formatTimestamp(entry.timestamp)}</td>;
-      case 'actions':
-        return (
-          <td>
-            {entry.source && entry.source !== '-' && entry.source !== 'unknown' ? (
-              disabled ? (
-                <span className={styles.disabledLabel}>{t('monitor.logs.disabled')}</span>
-              ) : (
-                <button
-                  className={styles.disableBtn}
-                  title={t('monitor.logs.disable_model')}
-                  onClick={() => handleDisableClick(entry.source, entry.model)}
-                >
-                  {t('monitor.logs.disable')}
-                </button>
-              )
-            ) : (
-              '-'
-            )}
-          </td>
-        );
     }
   };
 
@@ -571,15 +533,6 @@ export function RequestLogs({
           </div>
         )}
       </Card>
-
-      <DisableModelModal
-        disableState={disableState}
-        disabling={disabling}
-        onConfirm={handleConfirmDisable}
-        onCancel={handleCancelDisable}
-      />
-
-      <UnsupportedDisableModal state={unsupportedState} onClose={handleCloseUnsupported} />
     </>
   );
 }

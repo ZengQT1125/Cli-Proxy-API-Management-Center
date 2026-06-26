@@ -63,7 +63,6 @@ export function MonitorPage() {
   const [refreshKey, setRefreshKey] = useState(0);
   const [providerMap, setProviderMap] = useState<Record<string, string>>({});
   const [providerModels, setProviderModels] = useState<Record<string, Set<string>>>({});
-  const [providerTypeMap, setProviderTypeMap] = useState<Record<string, string>>({});
   const [authIndexMap, setAuthIndexMap] = useState<Record<string, string>>({});
 
   // 加载渠道名称映射（支持所有提供商类型）
@@ -71,7 +70,6 @@ export function MonitorPage() {
     try {
       const map: Record<string, string> = {};
       const modelsMap: Record<string, Set<string>> = {};
-      const typeMap: Record<string, string> = {};
 
       // 并行加载所有提供商配置
       const [openaiProviders, geminiKeys, claudeConfigs, codexConfigs, vertexConfigs, authFilesRes] = await Promise.all([
@@ -97,13 +95,11 @@ export function MonitorPage() {
           if (apiKey) {
             map[apiKey] = providerName;
             modelsMap[apiKey] = modelSet;
-            typeMap[apiKey] = 'OpenAI';
           }
         });
         if (provider.name) {
           map[provider.name] = providerName;
           modelsMap[provider.name] = modelSet;
-          typeMap[provider.name] = 'OpenAI';
         }
       });
 
@@ -113,7 +109,6 @@ export function MonitorPage() {
         if (apiKey) {
           const providerName = config.prefix?.trim() || 'Gemini';
           map[apiKey] = providerName;
-          typeMap[apiKey] = 'Gemini';
         }
       });
 
@@ -123,7 +118,6 @@ export function MonitorPage() {
         if (apiKey) {
           const providerName = config.prefix?.trim() || 'Claude';
           map[apiKey] = providerName;
-          typeMap[apiKey] = 'Claude';
           // 存储模型集合
           if (config.models && config.models.length > 0) {
             const modelSet = new Set<string>();
@@ -142,7 +136,6 @@ export function MonitorPage() {
         if (apiKey) {
           const providerName = config.prefix?.trim() || 'Codex';
           map[apiKey] = providerName;
-          typeMap[apiKey] = 'Codex';
           if (config.models && config.models.length > 0) {
             const modelSet = new Set<string>();
             config.models.forEach((m) => {
@@ -160,7 +153,6 @@ export function MonitorPage() {
         if (apiKey) {
           const providerName = config.prefix?.trim() || 'Vertex';
           map[apiKey] = providerName;
-          typeMap[apiKey] = 'Vertex';
           if (config.models && config.models.length > 0) {
             const modelSet = new Set<string>();
             config.models.forEach((m) => {
@@ -192,7 +184,6 @@ export function MonitorPage() {
         const fileType = file.type || 'unknown';
         const providerName = authTypeToProvider[fileType] || fileType;
         map[name] = providerName;
-        typeMap[name] = providerName;
         // auth_index → 文件名映射（供 RequestLogs 使用）
         const rawAuthIndex = (file as Record<string, unknown>)['auth_index'] ?? file.authIndex;
         if (rawAuthIndex !== undefined && rawAuthIndex !== null) {
@@ -205,7 +196,6 @@ export function MonitorPage() {
 
       setProviderMap(map);
       setProviderModels(modelsMap);
-      setProviderTypeMap(typeMap);
       setAuthIndexMap(authIdxMap);
     } catch (err) {
       console.warn('Monitor: Failed to load provider map:', err);
@@ -345,7 +335,6 @@ export function MonitorPage() {
         refreshKey={refreshKey}
         loading={loading}
         providerMap={providerMap}
-        providerTypeMap={providerTypeMap}
         apiFilter={apiFilter}
         authIndexMap={authIndexMap}
       />

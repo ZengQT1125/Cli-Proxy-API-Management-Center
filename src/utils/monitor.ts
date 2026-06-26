@@ -237,6 +237,25 @@ export function formatCompactTokenNumber(value: number): string {
   return Math.round(num).toLocaleString('zh-CN');
 }
 
+export function formatCacheTokenRatio(
+  cachedTokens: number,
+  inputTokens: number
+): { count: string; ratio: string; title: string } {
+  const cached = Number(cachedTokens);
+  const input = Number(inputTokens);
+  const safeCached = Number.isFinite(cached) ? cached : 0;
+  const safeInput = Number.isFinite(input) ? input : 0;
+  const ratio = safeInput > 0 ? (safeCached / safeInput) * 100 : 0;
+  const ratioText = `${ratio.toFixed(1)}%`;
+  const fullCount = Math.round(safeCached).toLocaleString('zh-CN');
+
+  return {
+    count: formatCompactTokenNumber(safeCached),
+    ratio: ratioText,
+    title: `${fullCount} / ${ratioText}`,
+  };
+}
+
 /**
  * 获取成功率对应的样式类名
  * @param rate 成功率（0-100）
@@ -267,4 +286,3 @@ export function createDisableState(
     : `${maskSecret(source)} / ${model}`;
   return { source, model, displayName, step: 1 };
 }
-
