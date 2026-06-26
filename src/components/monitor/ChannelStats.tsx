@@ -12,6 +12,7 @@ import {
   getRateClassName,
   getProviderDisplayParts,
   buildMonitorTimeRangeParams,
+  computeUncachedInputTokens,
   type DateRange,
 } from '@/utils/monitor';
 import styles from '@/pages/MonitorPage.module.scss';
@@ -28,6 +29,7 @@ interface ModelStat {
   success: number;
   failed: number;
   inputTokens: number;
+  totalInputTokens: number;
   outputTokens: number;
   cachedTokens: number;
   successRate: number;
@@ -44,6 +46,7 @@ interface ChannelStat {
   successRequests: number;
   failedRequests: number;
   inputTokens: number;
+  totalInputTokens: number;
   outputTokens: number;
   cachedTokens: number;
   successRate: number;
@@ -98,13 +101,16 @@ export function ChannelStats({ refreshKey, loading, providerMap, providerModels 
 
     const models: Record<string, ModelStat> = {};
     (item.models || []).forEach((model) => {
+      const totalInputTokens = model.input_tokens || 0;
+      const cachedTokens = model.cached_tokens || 0;
       models[model.model] = {
         requests: model.requests || 0,
         success: model.success || 0,
         failed: model.failed || 0,
-        inputTokens: model.input_tokens || 0,
+        inputTokens: computeUncachedInputTokens(totalInputTokens, cachedTokens),
+        totalInputTokens,
         outputTokens: model.output_tokens || 0,
-        cachedTokens: model.cached_tokens || 0,
+        cachedTokens,
         successRate: model.success_rate || 0,
         recentRequests: (model.recent_requests || []).map((req) => ({
           failed: !!req.failed,
@@ -113,6 +119,8 @@ export function ChannelStats({ refreshKey, loading, providerMap, providerModels 
         lastTimestamp: model.last_request_at ? new Date(model.last_request_at).getTime() : 0,
       };
     });
+    const totalInputTokens = item.input_tokens || 0;
+    const cachedTokens = item.cached_tokens || 0;
 
     return {
       source,
@@ -122,9 +130,10 @@ export function ChannelStats({ refreshKey, loading, providerMap, providerModels 
       totalRequests: item.total_requests || 0,
       successRequests: item.success_requests || 0,
       failedRequests: item.failed_requests || 0,
-      inputTokens: item.input_tokens || 0,
+      inputTokens: computeUncachedInputTokens(totalInputTokens, cachedTokens),
+      totalInputTokens,
       outputTokens: item.output_tokens || 0,
-      cachedTokens: item.cached_tokens || 0,
+      cachedTokens,
       successRate: item.success_rate || 0,
       lastRequestTime: item.last_request_at ? new Date(item.last_request_at).getTime() : 0,
       recentRequests: (item.recent_requests || []).map((req) => ({
@@ -311,7 +320,7 @@ export function ChannelStats({ refreshKey, loading, providerMap, providerModels 
                       {renderTokenCell(stat.inputTokens)}
                       {renderTokenCell(stat.outputTokens)}
                       {renderCacheCell(stat.cachedTokens)}
-                      {renderCacheRatioCell(stat.cachedTokens, stat.inputTokens)}
+                      {renderCacheRatioCell(stat.cachedTokens, stat.totalInputTokens)}
                       <td className={`${getRateClassName(stat.successRate, styles)} ${styles.numberCell}`}>
                         {stat.successRate.toFixed(1)}%
                       </td>
@@ -366,7 +375,7 @@ export function ChannelStats({ refreshKey, loading, providerMap, providerModels 
                                         {renderTokenCell(modelStat.inputTokens)}
                                         {renderTokenCell(modelStat.outputTokens)}
                                         {renderCacheCell(modelStat.cachedTokens)}
-                                        {renderCacheRatioCell(modelStat.cachedTokens, modelStat.inputTokens)}
+                                        {renderCacheRatioCell(modelStat.cachedTokens, modelStat.totalInputTokens)}
                                         <td className={`${getRateClassName(modelStat.successRate, styles)} ${styles.numberCell}`}>
                                           {modelStat.successRate.toFixed(1)}%
                                         </td>

@@ -341,6 +341,49 @@ export function formatCompactTokenNumber(value: number): string {
   return Math.round(num).toLocaleString('zh-CN');
 }
 
+export function computeUncachedInputTokens(
+  inputTokens: number,
+  cachedTokens: number
+): number {
+  const input = toSafeMonitorNumber(inputTokens);
+  const cached = toSafeMonitorNumber(cachedTokens);
+  return Math.max(input - cached, 0);
+}
+
+const MIN_STREAM_OUTPUT_DURATION_MS = 1000;
+
+export function computeEffectiveOutputDurationMs(
+  latencyMs: number,
+  ttftMs: number
+): number {
+  const latency = toSafeMonitorNumber(latencyMs);
+  const ttft = toSafeMonitorNumber(ttftMs);
+  const streamOutputDuration = latency - ttft;
+
+  if (latency <= 0) {
+    return 0;
+  }
+
+  return ttft > 0 && streamOutputDuration >= MIN_STREAM_OUTPUT_DURATION_MS
+    ? streamOutputDuration
+    : latency;
+}
+
+export function formatOutputTokensPerSecond(
+  outputTokens: number,
+  latencyMs: number,
+  ttftMs: number
+): string {
+  const output = toSafeMonitorNumber(outputTokens);
+  const durationMs = computeEffectiveOutputDurationMs(latencyMs, ttftMs);
+
+  if (output <= 0 || durationMs <= 0) {
+    return '-';
+  }
+
+  return (output / (durationMs / 1000)).toFixed(1);
+}
+
 export function formatCacheTokenRatio(
   cachedTokens: number,
   inputTokens: number

@@ -1,6 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  computeUncachedInputTokens,
+  formatOutputTokensPerSecond,
   formatMonitorNumber,
   normalizeMonitorHourlyModelsData,
   normalizeMonitorHourlyTokensData,
@@ -41,6 +43,21 @@ test('监控 KPI 数字格式化接受 undefined 和非数字脏值', () => {
   assert.equal(formatMonitorNumber(undefined), '0');
   assert.equal(formatMonitorNumber(Number.NaN), '0');
   assert.equal(formatMonitorNumber('1234'), '1.23K');
+});
+
+test('监控输入 token 展示扣除缓存命中部分', () => {
+  assert.equal(computeUncachedInputTokens(42504, 36605), 5899);
+  assert.equal(computeUncachedInputTokens(1000, 0), 1000);
+  assert.equal(computeUncachedInputTokens(1000, 1200), 0);
+  assert.equal(computeUncachedInputTokens(Number.NaN, 100), 0);
+});
+
+test('监控 Tok/s 按有效输出耗时计算', () => {
+  assert.equal(formatOutputTokensPerSecond(100, 5000, 2000), '33.3');
+  assert.equal(formatOutputTokensPerSecond(100, 1500, 800), '66.7');
+  assert.equal(formatOutputTokensPerSecond(100, 4000, 0), '25.0');
+  assert.equal(formatOutputTokensPerSecond(0, 4000, 0), '-');
+  assert.equal(formatOutputTokensPerSecond(100, 0, 0), '-');
 });
 
 test('小时图响应缺少数组字段时归一化为空数据', () => {

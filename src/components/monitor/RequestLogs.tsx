@@ -18,6 +18,8 @@ import {
   getProviderDisplayParts,
   buildMonitorTimeRangeParams,
   formatCacheTokenRatio,
+  computeUncachedInputTokens,
+  formatOutputTokensPerSecond,
   type DateRange,
 } from '@/utils/monitor';
 import styles from '@/pages/MonitorPage.module.scss';
@@ -40,6 +42,7 @@ interface LogEntry {
   maskedKey: string;
   failed: boolean;
   inputTokens: number;
+  totalInputTokens: number;
   outputTokens: number;
   cachedTokens: number;
   latencyMs: number;
@@ -100,6 +103,8 @@ export function RequestLogs({
       const source = item.source || 'unknown';
       const { provider, masked } = getProviderDisplayParts(source, providerMap);
       const timestampMs = item.timestamp ? new Date(item.timestamp).getTime() : 0;
+      const totalInputTokens = item.input_tokens || 0;
+      const cachedTokens = item.cached_tokens || 0;
       return {
         id: `${item.timestamp}-${item.api_key}-${item.model}-${index}`,
         timestamp: item.timestamp,
@@ -109,9 +114,10 @@ export function RequestLogs({
         providerName: provider,
         maskedKey: masked,
         failed: item.failed,
-        inputTokens: item.input_tokens || 0,
+        inputTokens: computeUncachedInputTokens(totalInputTokens, cachedTokens),
+        totalInputTokens,
         outputTokens: item.output_tokens || 0,
-        cachedTokens: item.cached_tokens || 0,
+        cachedTokens,
         latencyMs: item.latency_ms || 0,
         ttftMs: item.ttft_ms || 0,
         recentRequests: (item.recent_requests || []).map((req) => ({
@@ -299,10 +305,7 @@ export function RequestLogs({
         );
       }
       case 'toks': {
-        if (entry.latencyMs <= 0 || entry.outputTokens <= 0) {
-          return <td className={`${styles.tokenCell} ${styles.numberCell}`}>-</td>;
-        }
-        const toks = (entry.outputTokens / (entry.latencyMs / 1000)).toFixed(1);
+        const toks = formatOutputTokensPerSecond(entry.outputTokens, entry.latencyMs, entry.ttftMs);
         return <td className={`${styles.tokenCell} ${styles.numberCell}`}>{toks}</td>;
       }
       case 'input':
@@ -327,7 +330,7 @@ export function RequestLogs({
           </td>
         );
       case 'cacheRate': {
-        const cache = formatCacheTokenRatio(entry.cachedTokens, entry.inputTokens);
+        const cache = formatCacheTokenRatio(entry.cachedTokens, entry.totalInputTokens);
         return (
           <td className={`${styles.tokenCell} ${styles.numberCell}`} title={entry.cachedTokens > 0 ? cache.title : ''}>
             {entry.cachedTokens > 0 ? cache.ratio : ''}
