@@ -12,33 +12,19 @@ import { useEdgeSwipeBack } from '@/hooks/useEdgeSwipeBack';
 import { SecondaryScreenShell } from '@/components/common/SecondaryScreenShell';
 import { apiCallApi, getApiCallErrorMessage } from '@/services/api';
 import { useNotificationStore } from '@/stores';
-import { buildHeaderObject } from '@/utils/headers';
-import { buildClaudeMessagesEndpoint, parseTextList } from '@/components/providers/utils';
+import { parseTextList } from '@/components/providers/utils';
+import {
+  buildProviderConnectivityRequest,
+  type ProviderConnectivityFailureReason,
+} from '@/components/providers/providerRequests';
 import type { ClaudeEditOutletContext } from './AiProvidersClaudeEditLayout';
 import styles from './AiProvidersPage.module.scss';
 import layoutStyles from './AiProvidersEditLayout.module.scss';
-
-const CLAUDE_TEST_TIMEOUT_MS = 30_000;
-const DEFAULT_ANTHROPIC_VERSION = '2023-06-01';
 
 const getErrorMessage = (err: unknown) => {
   if (err instanceof Error) return err.message;
   if (typeof err === 'string') return err;
   return '';
-};
-
-const hasHeader = (headers: Record<string, string>, name: string) => {
-  const target = name.toLowerCase();
-  return Object.keys(headers).some((key) => key.toLowerCase() === target);
-};
-
-const resolveBearerTokenFromAuthorization = (headers: Record<string, string>): string => {
-  const entry = Object.entries(headers).find(([key]) => key.toLowerCase() === 'authorization');
-  if (!entry) return '';
-  const value = String(entry[1] ?? '').trim();
-  if (!value) return '';
-  const match = value.match(/^Bearer\s+(.+)$/i);
-  return match?.[1]?.trim() || '';
 };
 
 export function AiProvidersClaudeEditPage() {
@@ -132,12 +118,13 @@ export function AiProvidersClaudeEditPage() {
       .join('|');
     return [
       form.apiKey.trim(),
+      form.authIndex?.trim() ?? '',
       form.baseUrl?.trim() ?? '',
       testModel.trim(),
       headersSignature,
       modelsSignature,
     ].join('||');
-  }, [form.apiKey, form.baseUrl, form.headers, form.modelEntries, testModel]);
+  }, [form.apiKey, form.authIndex, form.baseUrl, form.headers, form.modelEntries, testModel]);
 
   const previousConnectivityConfigRef = useRef(connectivityConfigSignature);
 
@@ -154,58 +141,33 @@ export function AiProvidersClaudeEditPage() {
     navigate('models');
   };
 
+  const getConnectivityFailureMessage = useCallback(
+    (reason: ProviderConnectivityFailureReason) => {
+      if (reason === 'api-key-required') return t('ai_providers.claude_test_key_required');
+      if (reason === 'model-required') return t('ai_providers.claude_test_model_required');
+      return t('ai_providers.claude_test_endpoint_invalid');
+    },
+    [t]
+  );
+
   const runClaudeConnectivityTest = useCallback(async () => {
     if (isTesting) return;
 
-    const modelName = testModel.trim() || availableModels[0] || '';
-    if (!modelName) {
-      const message = t('ai_providers.claude_test_model_required');
+    const built = buildProviderConnectivityRequest({
+      brand: 'claude',
+      baseUrl: form.baseUrl,
+      headers: form.headers,
+      models: form.modelEntries,
+      testModel,
+      apiKey: form.apiKey,
+      authIndex: form.authIndex,
+    });
+    if (!built.ok) {
+      const message = getConnectivityFailureMessage(built.reason);
       setTestStatus('error');
       setTestMessage(message);
       showNotification(message, 'error');
       return;
-    }
-
-    const customHeaders = buildHeaderObject(form.headers);
-    const apiKey = form.apiKey.trim();
-    const hasApiKeyHeader = hasHeader(customHeaders, 'x-api-key');
-    const apiKeyFromAuthorization = resolveBearerTokenFromAuthorization(customHeaders);
-    const resolvedApiKey = apiKey || apiKeyFromAuthorization;
-
-    if (!resolvedApiKey && !hasApiKeyHeader) {
-      const message = t('ai_providers.claude_test_key_required');
-      setTestStatus('error');
-      setTestMessage(message);
-      showNotification(message, 'error');
-      return;
-    }
-
-    const endpoint = buildClaudeMessagesEndpoint(form.baseUrl ?? '');
-    if (!endpoint) {
-      const message = t('ai_providers.claude_test_endpoint_invalid');
-      setTestStatus('error');
-      setTestMessage(message);
-      showNotification(message, 'error');
-      return;
-    }
-
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-      ...customHeaders,
-    };
-
-    if (!hasHeader(headers, 'anthropic-version')) {
-      headers['anthropic-version'] = DEFAULT_ANTHROPIC_VERSION;
-    }
-    if (!Object.prototype.hasOwnProperty.call(headers, 'Anthropic-Version')) {
-      headers['Anthropic-Version'] = headers['anthropic-version'] ?? DEFAULT_ANTHROPIC_VERSION;
-    }
-
-    if (!hasApiKeyHeader && resolvedApiKey) {
-      headers['x-api-key'] = resolvedApiKey;
-    }
-    if (!Object.prototype.hasOwnProperty.call(headers, 'X-Api-Key') && resolvedApiKey) {
-      headers['X-Api-Key'] = resolvedApiKey;
     }
 
     setIsTesting(true);
@@ -213,19 +175,7 @@ export function AiProvidersClaudeEditPage() {
     setTestMessage(t('ai_providers.claude_test_running'));
 
     try {
-      const result = await apiCallApi.request(
-        {
-          method: 'POST',
-          url: endpoint,
-          header: headers,
-          data: JSON.stringify({
-            model: modelName,
-            max_tokens: 8,
-            messages: [{ role: 'user', content: 'Hi' }],
-          }),
-        },
-        { timeout: CLAUDE_TEST_TIMEOUT_MS }
-      );
+      const result = await apiCallApi.request(built.request, { timeout: built.timeoutMs });
 
       if (result.statusCode < 200 || result.statusCode >= 300) {
         throw new Error(getApiCallErrorMessage(result));
@@ -243,7 +193,7 @@ export function AiProvidersClaudeEditPage() {
           : '';
       const isTimeout = errorCode === 'ECONNABORTED' || message.toLowerCase().includes('timeout');
       const resolvedMessage = isTimeout
-        ? t('ai_providers.claude_test_timeout', { seconds: CLAUDE_TEST_TIMEOUT_MS / 1000 })
+        ? t('ai_providers.claude_test_timeout', { seconds: built.timeoutMs / 1000 })
         : `${t('ai_providers.claude_test_failed')}: ${message || t('common.unknown_error')}`;
       setTestStatus('error');
       setTestMessage(resolvedMessage);
@@ -252,10 +202,12 @@ export function AiProvidersClaudeEditPage() {
       setIsTesting(false);
     }
   }, [
-    availableModels,
     form.apiKey,
+    form.authIndex,
     form.baseUrl,
     form.headers,
+    form.modelEntries,
+    getConnectivityFailureMessage,
     isTesting,
     setTestMessage,
     setTestStatus,

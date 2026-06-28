@@ -13,6 +13,7 @@ export interface ModelAlias {
 export interface ApiKeyEntry {
   apiKey: string;
   proxyUrl?: string;
+  authIndex?: string;
 }
 
 export interface CloakConfig {
@@ -23,6 +24,7 @@ export interface CloakConfig {
 
 export interface GeminiKeyConfig {
   apiKey: string;
+  authIndex?: string;
   priority?: number;
   prefix?: string;
   baseUrl?: string;
@@ -34,6 +36,7 @@ export interface GeminiKeyConfig {
 
 export interface ProviderKeyConfig {
   apiKey: string;
+  authIndex?: string;
   priority?: number;
   prefix?: string;
   baseUrl?: string;

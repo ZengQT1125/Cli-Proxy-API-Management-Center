@@ -20,28 +20,22 @@ import { areKeyValueEntriesEqual, areModelEntriesEqual, areStringArraysEqual } f
 import { parseRouteIndexParam } from '@/utils/routeParams';
 import type { ModelInfo } from '@/utils/models';
 import { entriesToModels, modelsToEntries } from '@/components/ui/modelInputListUtils';
+import { excludedModelsToText, parseExcludedModels } from '@/components/providers/utils';
 import {
-  buildGeminiGenerateContentEndpoint,
-  excludedModelsToText,
-  parseExcludedModels,
-} from '@/components/providers/utils';
+  buildProviderConnectivityRequest,
+  buildProviderModelDiscoveryRequest,
+  type ProviderConnectivityFailureReason,
+} from '@/components/providers/providerRequests';
 import type { GeminiFormState } from '@/components/providers';
 import layoutStyles from './AiProvidersEditLayout.module.scss';
 import styles from './AiProvidersPage.module.scss';
 
 type LocationState = { fromAiProviders?: boolean } | null;
 
-const GEMINI_TEST_TIMEOUT_MS = 30_000;
-
 const getErrorMessage = (err: unknown) => {
   if (err instanceof Error) return err.message;
   if (typeof err === 'string') return err;
   return '';
-};
-
-const hasHeader = (headers: Record<string, string>, name: string) => {
-  const target = name.toLowerCase();
-  return Object.keys(headers).some((key) => key.toLowerCase() === target);
 };
 
 const buildEmptyForm = (): GeminiFormState => ({
@@ -282,12 +276,19 @@ export function AiProvidersGeminiEditPage() {
     const requestId = (modelDiscoveryRequestIdRef.current += 1);
     setModelDiscoveryFetching(true);
     setModelDiscoveryError('');
-    const headerObject = buildHeaderObject(form.headers);
+    const request = buildProviderModelDiscoveryRequest({
+      brand: 'gemini',
+      baseUrl: form.baseUrl,
+      headers: form.headers,
+      apiKey: form.apiKey,
+      authIndex: form.authIndex,
+    });
     try {
       const list = await modelsApi.fetchGeminiModelsViaApiCall(
         form.baseUrl ?? '',
-        form.apiKey.trim() || undefined,
-        headerObject
+        request.apiKey,
+        request.headers,
+        request.authIndex
       );
       if (modelDiscoveryRequestIdRef.current !== requestId) return;
       setDiscoveredModels(list);
@@ -295,10 +296,10 @@ export function AiProvidersGeminiEditPage() {
       if (modelDiscoveryRequestIdRef.current !== requestId) return;
       setDiscoveredModels([]);
       const message = err instanceof Error ? err.message : typeof err === 'string' ? err : '';
-      const hasCustomXGoogApiKey = Object.keys(headerObject).some(
+      const hasCustomXGoogApiKey = Object.keys(request.headers).some(
         (key) => key.toLowerCase() === 'x-goog-api-key'
       );
-      const hasAuthorization = Object.keys(headerObject).some(
+      const hasAuthorization = Object.keys(request.headers).some(
         (key) => key.toLowerCase() === 'authorization'
       );
       const shouldAttachDiag = message.toLowerCase().includes('api key') || message.includes('401');
@@ -313,7 +314,7 @@ export function AiProvidersGeminiEditPage() {
         setModelDiscoveryFetching(false);
       }
     }
-  }, [form.apiKey, form.baseUrl, form.headers, t]);
+  }, [form.apiKey, form.authIndex, form.baseUrl, form.headers, t]);
 
   useEffect(() => {
     if (!modelDiscoveryOpen) {
@@ -323,35 +324,42 @@ export function AiProvidersGeminiEditPage() {
       return;
     }
 
-    const nextEndpoint = modelsApi.buildGeminiModelsEndpoint(form.baseUrl ?? '');
+    const request = buildProviderModelDiscoveryRequest({
+      brand: 'gemini',
+      baseUrl: form.baseUrl,
+      headers: form.headers,
+      apiKey: form.apiKey,
+      authIndex: form.authIndex,
+    });
+    const nextEndpoint = request.endpoint;
     setModelDiscoveryEndpoint(nextEndpoint);
     setDiscoveredModels([]);
     setModelDiscoverySearch('');
     setModelDiscoverySelected(new Set());
     setModelDiscoveryError('');
 
-    const headerObject = buildHeaderObject(form.headers);
-    const hasCustomXGoogApiKey = Object.keys(headerObject).some(
+    const hasCustomXGoogApiKey = Object.keys(request.headers).some(
       (key) => key.toLowerCase() === 'x-goog-api-key'
     );
-    const hasAuthorization = Object.keys(headerObject).some(
+    const hasAuthorization = Object.keys(request.headers).some(
       (key) => key.toLowerCase() === 'authorization'
     );
     const hasApiKeyField = Boolean(form.apiKey.trim());
-    const canAutoFetch = hasApiKeyField || hasCustomXGoogApiKey || hasAuthorization;
+    const hasAuthIndex = Boolean(form.authIndex?.trim());
+    const canAutoFetch = hasApiKeyField || hasAuthIndex || hasCustomXGoogApiKey || hasAuthorization;
 
     if (!canAutoFetch) return;
 
-    const headerSignature = Object.entries(headerObject)
+    const headerSignature = Object.entries(request.headers)
       .sort(([a], [b]) => a.toLowerCase().localeCompare(b.toLowerCase()))
       .map(([key, value]) => `${key}:${value}`)
       .join('|');
-    const signature = `${nextEndpoint}||${form.apiKey.trim()}||${headerSignature}`;
+    const signature = `${nextEndpoint}||${form.apiKey.trim()}||${form.authIndex ?? ''}||${headerSignature}`;
     if (autoFetchSignatureRef.current === signature) return;
     autoFetchSignatureRef.current = signature;
 
     void fetchGeminiModelDiscovery();
-  }, [fetchGeminiModelDiscovery, form.apiKey, form.baseUrl, form.headers, modelDiscoveryOpen]);
+  }, [fetchGeminiModelDiscovery, form.apiKey, form.authIndex, form.baseUrl, form.headers, modelDiscoveryOpen]);
 
   useEffect(() => {
     const availableNames = new Set(discoveredModels.map((model) => model.name));
@@ -482,12 +490,13 @@ export function AiProvidersGeminiEditPage() {
       .join('|');
     return [
       form.apiKey.trim(),
+      form.authIndex?.trim() ?? '',
       form.baseUrl?.trim() ?? '',
       testModel.trim(),
       headersSignature,
       modelsSignature,
     ].join('||');
-  }, [form.apiKey, form.baseUrl, form.headers, form.modelEntries, testModel]);
+  }, [form.apiKey, form.authIndex, form.baseUrl, form.headers, form.modelEntries, testModel]);
 
   const previousConnectivityConfigRef = useRef(connectivityConfigSignature);
 
@@ -500,45 +509,33 @@ export function AiProvidersGeminiEditPage() {
     setTestMessage('');
   }, [connectivityConfigSignature]);
 
+  const getConnectivityFailureMessage = useCallback(
+    (reason: ProviderConnectivityFailureReason) => {
+      if (reason === 'api-key-required') return t('ai_providers.gemini_test_key_required');
+      if (reason === 'model-required') return t('ai_providers.gemini_test_model_required');
+      return t('ai_providers.gemini_test_endpoint_invalid');
+    },
+    [t]
+  );
+
   const runGeminiConnectivityTest = useCallback(async () => {
     if (isTesting) return;
 
-    const modelName = testModel.trim() || availableModels[0] || '';
-    if (!modelName) {
-      const message = t('ai_providers.gemini_test_model_required');
+    const built = buildProviderConnectivityRequest({
+      brand: 'gemini',
+      baseUrl: form.baseUrl,
+      headers: form.headers,
+      models: form.modelEntries,
+      testModel,
+      apiKey: form.apiKey,
+      authIndex: form.authIndex,
+    });
+    if (!built.ok) {
+      const message = getConnectivityFailureMessage(built.reason);
       setTestStatus('error');
       setTestMessage(message);
       showNotification(message, 'error');
       return;
-    }
-
-    const customHeaders = buildHeaderObject(form.headers);
-    const apiKey = form.apiKey.trim();
-    const hasApiKeyHeader = hasHeader(customHeaders, 'x-goog-api-key');
-
-    if (!apiKey && !hasApiKeyHeader) {
-      const message = t('ai_providers.gemini_test_key_required');
-      setTestStatus('error');
-      setTestMessage(message);
-      showNotification(message, 'error');
-      return;
-    }
-
-    const endpoint = buildGeminiGenerateContentEndpoint(form.baseUrl ?? '', modelName);
-    if (!endpoint) {
-      const message = t('ai_providers.gemini_test_endpoint_invalid');
-      setTestStatus('error');
-      setTestMessage(message);
-      showNotification(message, 'error');
-      return;
-    }
-
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-      ...customHeaders,
-    };
-    if (!hasApiKeyHeader && apiKey) {
-      headers['x-goog-api-key'] = apiKey;
     }
 
     setIsTesting(true);
@@ -546,18 +543,7 @@ export function AiProvidersGeminiEditPage() {
     setTestMessage(t('ai_providers.gemini_test_running'));
 
     try {
-      const result = await apiCallApi.request(
-        {
-          method: 'POST',
-          url: endpoint,
-          header: headers,
-          data: JSON.stringify({
-            contents: [{ parts: [{ text: 'Hi' }] }],
-            generationConfig: { maxOutputTokens: 8 },
-          }),
-        },
-        { timeout: GEMINI_TEST_TIMEOUT_MS }
-      );
+      const result = await apiCallApi.request(built.request, { timeout: built.timeoutMs });
 
       if (result.statusCode < 200 || result.statusCode >= 300) {
         throw new Error(getApiCallErrorMessage(result));
@@ -575,7 +561,7 @@ export function AiProvidersGeminiEditPage() {
           : '';
       const isTimeout = errorCode === 'ECONNABORTED' || message.toLowerCase().includes('timeout');
       const resolvedMessage = isTimeout
-        ? t('ai_providers.gemini_test_timeout', { seconds: GEMINI_TEST_TIMEOUT_MS / 1000 })
+        ? t('ai_providers.gemini_test_timeout', { seconds: built.timeoutMs / 1000 })
         : `${t('ai_providers.gemini_test_failed')}: ${message || t('common.unknown_error')}`;
       setTestStatus('error');
       setTestMessage(resolvedMessage);
@@ -584,10 +570,12 @@ export function AiProvidersGeminiEditPage() {
       setIsTesting(false);
     }
   }, [
-    availableModels,
     form.apiKey,
+    form.authIndex,
     form.baseUrl,
     form.headers,
+    form.modelEntries,
+    getConnectivityFailureMessage,
     isTesting,
     showNotification,
     t,

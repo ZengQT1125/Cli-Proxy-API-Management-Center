@@ -12,14 +12,15 @@ import { useEdgeSwipeBack } from '@/hooks/useEdgeSwipeBack';
 import { useNotificationStore } from '@/stores';
 import { apiCallApi, getApiCallErrorMessage } from '@/services/api';
 import type { ApiKeyEntry } from '@/types';
-import { buildHeaderObject, hasHeader } from '@/utils/headers';
-import { buildApiKeyEntry, buildOpenAIChatCompletionsEndpoint } from '@/components/providers/utils';
+import { buildApiKeyEntry } from '@/components/providers/utils';
+import {
+  buildProviderConnectivityRequest,
+  type ProviderConnectivityFailureReason,
+} from '@/components/providers/providerRequests';
 import type { OpenAIEditOutletContext } from './AiProvidersOpenAIEditLayout';
 import type { KeyTestStatus } from '@/stores/useOpenAIEditDraftStore';
 import styles from './AiProvidersPage.module.scss';
 import layoutStyles from './AiProvidersEditLayout.module.scss';
-
-const OPENAI_TEST_TIMEOUT_MS = 30_000;
 
 const getErrorMessage = (err: unknown) => {
   if (err instanceof Error) return err.message;
@@ -139,7 +140,9 @@ export function AiProvidersOpenAIEditPage() {
 
   const canSave = !disableControls && !loading && !saving && !invalidIndexParam && !invalidIndex && !isTestingKeys;
   const hasConfiguredModels = form.modelEntries.some((entry) => entry.name.trim());
-  const hasTestableKeys = form.apiKeyEntries.some((entry) => entry.apiKey?.trim());
+  const hasTestableKeys = form.apiKeyEntries.some(
+    (entry) => entry.apiKey?.trim() || entry.authIndex?.trim()
+  );
   const modelSelectOptions = useMemo(() => {
     const seen = new Set<string>();
     return form.modelEntries.reduce<Array<{ value: string; label: string }>>((acc, entry) => {
@@ -161,8 +164,17 @@ export function AiProvidersOpenAIEditPage() {
     const modelsSignature = form.modelEntries
       .map((entry) => `${entry.name.trim()}:${entry.alias.trim()}`)
       .join('|');
-    return [form.baseUrl.trim(), testModel.trim(), headersSignature, modelsSignature].join('||');
-  }, [form.baseUrl, form.headers, form.modelEntries, testModel]);
+    const authIndexSignature = form.apiKeyEntries
+      .map((entry) => entry.authIndex?.trim() ?? '')
+      .join('|');
+    return [
+      form.baseUrl.trim(),
+      testModel.trim(),
+      headersSignature,
+      modelsSignature,
+      authIndexSignature,
+    ].join('||');
+  }, [form.apiKeyEntries, form.baseUrl, form.headers, form.modelEntries, testModel]);
   const previousConnectivityConfigRef = useRef(connectivityConfigSignature);
 
   useEffect(() => {
@@ -181,60 +193,43 @@ export function AiProvidersOpenAIEditPage() {
     setTestMessage,
   ]);
 
+  const getConnectivityFailureMessage = useCallback(
+    (reason: ProviderConnectivityFailureReason) => {
+      if (reason === 'api-key-required') return t('notification.openai_test_key_required');
+      if (reason === 'model-required') return t('notification.openai_test_model_required');
+      return t('notification.openai_test_url_required');
+    },
+    [t]
+  );
+
   // Test a single key by index
   const runSingleKeyTest = useCallback(
     async (keyIndex: number): Promise<boolean> => {
-      const baseUrl = form.baseUrl.trim();
-      if (!baseUrl) {
-        showNotification(t('notification.openai_test_url_required'), 'error');
-        return false;
-      }
-
-      const endpoint = buildOpenAIChatCompletionsEndpoint(baseUrl);
-      if (!endpoint) {
-        showNotification(t('notification.openai_test_url_required'), 'error');
-        return false;
-      }
-
       const keyEntry = form.apiKeyEntries[keyIndex];
-      if (!keyEntry?.apiKey?.trim()) {
-        setDraftKeyTestStatus(keyIndex, { status: 'error', message: t('notification.openai_test_key_required') });
-        return false;
-      }
+      const built = buildProviderConnectivityRequest({
+        brand: 'openai',
+        baseUrl: form.baseUrl,
+        headers: form.headers,
+        models: form.modelEntries,
+        testModel,
+        apiKeyEntry: keyEntry,
+      });
 
-      const modelName = testModel.trim() || availableModels[0] || '';
-      if (!modelName) {
-        showNotification(t('notification.openai_test_model_required'), 'error');
+      if (!built.ok) {
+        const message = getConnectivityFailureMessage(built.reason);
+        if (built.reason === 'api-key-required') {
+          setDraftKeyTestStatus(keyIndex, { status: 'error', message });
+        } else {
+          showNotification(message, 'error');
+        }
         return false;
-      }
-
-      const customHeaders = buildHeaderObject(form.headers);
-      const headers: Record<string, string> = {
-        'Content-Type': 'application/json',
-        ...customHeaders,
-      };
-      if (!hasHeader(headers, 'authorization')) {
-        headers.Authorization = `Bearer ${keyEntry.apiKey.trim()}`;
       }
 
       // Set loading state for this key
       setDraftKeyTestStatus(keyIndex, { status: 'loading', message: '' });
 
       try {
-        const result = await apiCallApi.request(
-          {
-            method: 'POST',
-            url: endpoint,
-            header: Object.keys(headers).length ? headers : undefined,
-            data: JSON.stringify({
-              model: modelName,
-              messages: [{ role: 'user', content: 'Hi' }],
-              stream: false,
-              max_tokens: 5,
-            }),
-          },
-          { timeout: OPENAI_TEST_TIMEOUT_MS }
-        );
+        const result = await apiCallApi.request(built.request, { timeout: built.timeoutMs });
 
         if (result.statusCode < 200 || result.statusCode >= 300) {
           throw new Error(getApiCallErrorMessage(result));
@@ -250,13 +245,23 @@ export function AiProvidersOpenAIEditPage() {
             : '';
         const isTimeout = errorCode === 'ECONNABORTED' || message.toLowerCase().includes('timeout');
         const errorMessage = isTimeout
-          ? t('ai_providers.openai_test_timeout', { seconds: OPENAI_TEST_TIMEOUT_MS / 1000 })
+          ? t('ai_providers.openai_test_timeout', { seconds: built.timeoutMs / 1000 })
           : message;
         setDraftKeyTestStatus(keyIndex, { status: 'error', message: errorMessage });
         return false;
       }
     },
-    [form.baseUrl, form.apiKeyEntries, form.headers, testModel, availableModels, t, setDraftKeyTestStatus, showNotification]
+    [
+      form.apiKeyEntries,
+      form.baseUrl,
+      form.headers,
+      form.modelEntries,
+      getConnectivityFailureMessage,
+      setDraftKeyTestStatus,
+      showNotification,
+      t,
+      testModel,
+    ]
   );
 
   const testSingleKey = useCallback(
@@ -276,38 +281,27 @@ export function AiProvidersOpenAIEditPage() {
   const testAllKeys = useCallback(async () => {
     if (isTestingKeys) return;
 
-    const baseUrl = form.baseUrl.trim();
-    if (!baseUrl) {
-      const message = t('notification.openai_test_url_required');
-      setTestStatus('error');
-      setTestMessage(message);
-      showNotification(message, 'error');
-      return;
-    }
-
-    const endpoint = buildOpenAIChatCompletionsEndpoint(baseUrl);
-    if (!endpoint) {
-      const message = t('notification.openai_test_url_required');
-      setTestStatus('error');
-      setTestMessage(message);
-      showNotification(message, 'error');
-      return;
-    }
-
-    const modelName = testModel.trim() || availableModels[0] || '';
-    if (!modelName) {
-      const message = t('notification.openai_test_model_required');
-      setTestStatus('error');
-      setTestMessage(message);
-      showNotification(message, 'error');
-      return;
-    }
-
     const validKeyIndexes = form.apiKeyEntries
-      .map((entry, index) => (entry.apiKey?.trim() ? index : -1))
+      .map((entry, index) => (entry.apiKey?.trim() || entry.authIndex?.trim() ? index : -1))
       .filter((index) => index >= 0);
     if (validKeyIndexes.length === 0) {
       const message = t('notification.openai_test_key_required');
+      setTestStatus('error');
+      setTestMessage(message);
+      showNotification(message, 'error');
+      return;
+    }
+
+    const preflight = buildProviderConnectivityRequest({
+      brand: 'openai',
+      baseUrl: form.baseUrl,
+      headers: form.headers,
+      models: form.modelEntries,
+      testModel,
+      apiKeyEntry: form.apiKeyEntries[validKeyIndexes[0]],
+    });
+    if (!preflight.ok) {
+      const message = getConnectivityFailureMessage(preflight.reason);
       setTestStatus('error');
       setTestMessage(message);
       showNotification(message, 'error');
@@ -348,14 +342,16 @@ export function AiProvidersOpenAIEditPage() {
     isTestingKeys,
     form.baseUrl,
     form.apiKeyEntries,
+    form.headers,
+    form.modelEntries,
     testModel,
-    availableModels,
     t,
     setTestStatus,
     setTestMessage,
     resetDraftKeyTestStatuses,
     runSingleKeyTest,
     showNotification,
+    getConnectivityFailureMessage,
   ]);
 
   const openOpenaiModelDiscovery = () => {
@@ -426,7 +422,7 @@ export function AiProvidersOpenAIEditPage() {
           {/* 数据行 */}
           {list.map((entry, index) => {
             const keyStatus = keyTestStatuses[index]?.status ?? 'idle';
-            const canTestKey = Boolean(entry.apiKey?.trim()) && hasConfiguredModels;
+            const canTestKey = Boolean(entry.apiKey?.trim() || entry.authIndex?.trim()) && hasConfiguredModels;
 
             return (
               <div key={index} className={styles.keyTableRow}>

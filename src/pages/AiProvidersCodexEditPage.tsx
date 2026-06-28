@@ -20,11 +20,12 @@ import { buildHeaderObject, headersToEntries, normalizeHeaderEntries } from '@/u
 import { areKeyValueEntriesEqual, areModelEntriesEqual, areStringArraysEqual } from '@/utils/compare';
 import { parseRouteIndexParam } from '@/utils/routeParams';
 import { entriesToModels, modelsToEntries } from '@/components/ui/modelInputListUtils';
+import { excludedModelsToText, parseExcludedModels } from '@/components/providers/utils';
 import {
-  buildCodexResponsesEndpoint,
-  excludedModelsToText,
-  parseExcludedModels,
-} from '@/components/providers/utils';
+  buildProviderConnectivityRequest,
+  buildProviderModelDiscoveryRequest,
+  type ProviderConnectivityFailureReason,
+} from '@/components/providers/providerRequests';
 import type { ProviderFormState } from '@/components/providers';
 import type { ModelInfo } from '@/utils/models';
 import layoutStyles from './AiProvidersEditLayout.module.scss';
@@ -46,17 +47,10 @@ const buildEmptyForm = (): ProviderFormState => ({
   excludedText: '',
 });
 
-const CODEX_TEST_TIMEOUT_MS = 30_000;
-
 const getErrorMessage = (err: unknown) => {
   if (err instanceof Error) return err.message;
   if (typeof err === 'string') return err;
   return '';
-};
-
-const hasHeader = (headers: Record<string, string>, name: string) => {
-  const target = name.toLowerCase();
-  return Object.keys(headers).some((key) => key.toLowerCase() === target);
 };
 
 const normalizeModelEntries = (entries: Array<{ name: string; alias: string }>) =>
@@ -333,15 +327,18 @@ export function AiProvidersCodexEditPage() {
     setModelDiscoveryError('');
 
     try {
-      const headerObject = buildHeaderObject(form.headers);
-      const hasCustomAuthorization = Object.keys(headerObject).some(
-        (key) => key.toLowerCase() === 'authorization'
-      );
-      const apiKey = form.apiKey.trim() || undefined;
+      const request = buildProviderModelDiscoveryRequest({
+        brand: 'codex',
+        baseUrl: form.baseUrl,
+        headers: form.headers,
+        apiKey: form.apiKey,
+        authIndex: form.authIndex,
+      });
       const list = await modelsApi.fetchV1ModelsViaApiCall(
         form.baseUrl ?? '',
-        hasCustomAuthorization ? undefined : apiKey,
-        headerObject
+        request.apiKey,
+        request.headers,
+        request.authIndex
       );
       if (modelDiscoveryRequestIdRef.current !== requestId) return;
       setDiscoveredModels(list);
@@ -355,7 +352,7 @@ export function AiProvidersCodexEditPage() {
         setModelDiscoveryFetching(false);
       }
     }
-  }, [form.apiKey, form.baseUrl, form.headers, t]);
+  }, [form.apiKey, form.authIndex, form.baseUrl, form.headers, t]);
 
   useEffect(() => {
     if (!modelDiscoveryOpen) {
@@ -365,7 +362,14 @@ export function AiProvidersCodexEditPage() {
       return;
     }
 
-    const nextEndpoint = modelsApi.buildV1ModelsEndpoint(form.baseUrl ?? '');
+    const request = buildProviderModelDiscoveryRequest({
+      brand: 'codex',
+      baseUrl: form.baseUrl,
+      headers: form.headers,
+      apiKey: form.apiKey,
+      authIndex: form.authIndex,
+    });
+    const nextEndpoint = request.endpoint;
     setModelDiscoveryEndpoint(nextEndpoint);
     setDiscoveredModels([]);
     setModelDiscoverySearch('');
@@ -374,25 +378,25 @@ export function AiProvidersCodexEditPage() {
 
     if (!nextEndpoint) return;
 
-    const headerObject = buildHeaderObject(form.headers);
-    const hasCustomAuthorization = Object.keys(headerObject).some(
+    const hasCustomAuthorization = Object.keys(request.headers).some(
       (key) => key.toLowerCase() === 'authorization'
     );
     const hasApiKeyField = Boolean(form.apiKey.trim());
-    const canAutoFetch = hasApiKeyField || hasCustomAuthorization;
+    const hasAuthIndex = Boolean(form.authIndex?.trim());
+    const canAutoFetch = hasApiKeyField || hasAuthIndex || hasCustomAuthorization;
 
     if (!canAutoFetch) return;
 
-    const headerSignature = Object.entries(headerObject)
+    const headerSignature = Object.entries(request.headers)
       .sort(([a], [b]) => a.toLowerCase().localeCompare(b.toLowerCase()))
       .map(([key, value]) => `${key}:${value}`)
       .join('|');
-    const signature = `${nextEndpoint}||${form.apiKey.trim()}||${headerSignature}`;
+    const signature = `${nextEndpoint}||${form.apiKey.trim()}||${form.authIndex ?? ''}||${headerSignature}`;
     if (autoFetchSignatureRef.current === signature) return;
     autoFetchSignatureRef.current = signature;
 
     void fetchCodexModelDiscovery();
-  }, [fetchCodexModelDiscovery, form.apiKey, form.baseUrl, form.headers, modelDiscoveryOpen]);
+  }, [fetchCodexModelDiscovery, form.apiKey, form.authIndex, form.baseUrl, form.headers, modelDiscoveryOpen]);
 
   useEffect(() => {
     const availableNames = new Set(discoveredModels.map((model) => model.name));
@@ -473,12 +477,13 @@ export function AiProvidersCodexEditPage() {
       .join('|');
     return [
       form.apiKey.trim(),
+      form.authIndex?.trim() ?? '',
       form.baseUrl?.trim() ?? '',
       testModel.trim(),
       headersSignature,
       modelsSignature,
     ].join('||');
-  }, [form.apiKey, form.baseUrl, form.headers, form.modelEntries, testModel]);
+  }, [form.apiKey, form.authIndex, form.baseUrl, form.headers, form.modelEntries, testModel]);
 
   const previousConnectivityConfigRef = useRef(connectivityConfigSignature);
 
@@ -491,45 +496,33 @@ export function AiProvidersCodexEditPage() {
     setTestMessage('');
   }, [connectivityConfigSignature]);
 
+  const getConnectivityFailureMessage = useCallback(
+    (reason: ProviderConnectivityFailureReason) => {
+      if (reason === 'api-key-required') return t('ai_providers.codex_test_key_required');
+      if (reason === 'model-required') return t('ai_providers.codex_test_model_required');
+      return t('ai_providers.codex_test_endpoint_invalid');
+    },
+    [t]
+  );
+
   const runCodexConnectivityTest = useCallback(async () => {
     if (isTesting) return;
 
-    const modelName = testModel.trim() || availableModels[0] || '';
-    if (!modelName) {
-      const message = t('ai_providers.codex_test_model_required');
+    const built = buildProviderConnectivityRequest({
+      brand: 'codex',
+      baseUrl: form.baseUrl,
+      headers: form.headers,
+      models: form.modelEntries,
+      testModel,
+      apiKey: form.apiKey,
+      authIndex: form.authIndex,
+    });
+    if (!built.ok) {
+      const message = getConnectivityFailureMessage(built.reason);
       setTestStatus('error');
       setTestMessage(message);
       showNotification(message, 'error');
       return;
-    }
-
-    const customHeaders = buildHeaderObject(form.headers);
-    const apiKey = form.apiKey.trim();
-    const hasAuthHeader = hasHeader(customHeaders, 'authorization');
-
-    if (!apiKey && !hasAuthHeader) {
-      const message = t('ai_providers.codex_test_key_required');
-      setTestStatus('error');
-      setTestMessage(message);
-      showNotification(message, 'error');
-      return;
-    }
-
-    const endpoint = buildCodexResponsesEndpoint(form.baseUrl ?? '');
-    if (!endpoint) {
-      const message = t('ai_providers.codex_test_endpoint_invalid');
-      setTestStatus('error');
-      setTestMessage(message);
-      showNotification(message, 'error');
-      return;
-    }
-
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-      ...customHeaders,
-    };
-    if (!hasAuthHeader && apiKey) {
-      headers['Authorization'] = `Bearer ${apiKey}`;
     }
 
     setIsTesting(true);
@@ -537,19 +530,7 @@ export function AiProvidersCodexEditPage() {
     setTestMessage(t('ai_providers.codex_test_running'));
 
     try {
-      const result = await apiCallApi.request(
-        {
-          method: 'POST',
-          url: endpoint,
-          header: headers,
-          data: JSON.stringify({
-            model: modelName,
-            input: 'Hi',
-            stream: false,
-          }),
-        },
-        { timeout: CODEX_TEST_TIMEOUT_MS }
-      );
+      const result = await apiCallApi.request(built.request, { timeout: built.timeoutMs });
 
       if (result.statusCode < 200 || result.statusCode >= 300) {
         throw new Error(getApiCallErrorMessage(result));
@@ -567,7 +548,7 @@ export function AiProvidersCodexEditPage() {
           : '';
       const isTimeout = errorCode === 'ECONNABORTED' || message.toLowerCase().includes('timeout');
       const resolvedMessage = isTimeout
-        ? t('ai_providers.codex_test_timeout', { seconds: CODEX_TEST_TIMEOUT_MS / 1000 })
+        ? t('ai_providers.codex_test_timeout', { seconds: built.timeoutMs / 1000 })
         : `${t('ai_providers.codex_test_failed')}: ${message || t('common.unknown_error')}`;
       setTestStatus('error');
       setTestMessage(resolvedMessage);
@@ -576,10 +557,12 @@ export function AiProvidersCodexEditPage() {
       setIsTesting(false);
     }
   }, [
-    availableModels,
     form.apiKey,
+    form.authIndex,
     form.baseUrl,
     form.headers,
+    form.modelEntries,
+    getConnectivityFailureMessage,
     isTesting,
     showNotification,
     t,

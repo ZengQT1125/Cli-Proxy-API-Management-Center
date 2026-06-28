@@ -9,7 +9,7 @@ import { SecondaryScreenShell } from '@/components/common/SecondaryScreenShell';
 import { useEdgeSwipeBack } from '@/hooks/useEdgeSwipeBack';
 import { modelsApi } from '@/services/api';
 import type { ModelInfo } from '@/utils/models';
-import { buildHeaderObject } from '@/utils/headers';
+import { buildProviderModelDiscoveryRequest } from '@/components/providers/providerRequests';
 import type { ClaudeEditOutletContext } from './AiProvidersClaudeEditLayout';
 import styles from './AiProvidersPage.module.scss';
 import layoutStyles from './AiProvidersEditLayout.module.scss';
@@ -61,21 +61,28 @@ export function AiProvidersClaudeModelsPage() {
   const fetchClaudeModelDiscovery = useCallback(async () => {
     setFetching(true);
     setError('');
-    const headerObject = buildHeaderObject(form.headers);
+    const request = buildProviderModelDiscoveryRequest({
+      brand: 'claude',
+      baseUrl: form.baseUrl,
+      headers: form.headers,
+      apiKey: form.apiKey,
+      authIndex: form.authIndex,
+    });
     try {
       const list = await modelsApi.fetchClaudeModelsViaApiCall(
         form.baseUrl ?? '',
-        form.apiKey.trim() || undefined,
-        headerObject
+        request.apiKey,
+        request.headers,
+        request.authIndex
       );
       setModels(list);
     } catch (err: unknown) {
       setModels([]);
       const message = getErrorMessage(err);
-      const hasCustomXApiKey = Object.keys(headerObject).some(
+      const hasCustomXApiKey = Object.keys(request.headers).some(
         (key) => key.toLowerCase() === 'x-api-key'
       );
-      const hasAuthorization = Object.keys(headerObject).some(
+      const hasAuthorization = Object.keys(request.headers).some(
         (key) => key.toLowerCase() === 'authorization'
       );
       const shouldAttachDiag =
@@ -89,23 +96,29 @@ export function AiProvidersClaudeModelsPage() {
     } finally {
       setFetching(false);
     }
-  }, [form.apiKey, form.baseUrl, form.headers, t]);
+  }, [form.apiKey, form.authIndex, form.baseUrl, form.headers, t]);
 
   useEffect(() => {
     if (initialLoading) return;
 
-    const nextEndpoint = modelsApi.buildClaudeModelsEndpoint(form.baseUrl ?? '');
+    const request = buildProviderModelDiscoveryRequest({
+      brand: 'claude',
+      baseUrl: form.baseUrl,
+      headers: form.headers,
+      apiKey: form.apiKey,
+      authIndex: form.authIndex,
+    });
+    const nextEndpoint = request.endpoint;
     setEndpoint(nextEndpoint);
     setModels([]);
     setSearch('');
     setSelected(new Set());
     setError('');
 
-    const headerObject = buildHeaderObject(form.headers);
-    const hasCustomXApiKey = Object.keys(headerObject).some(
+    const hasCustomXApiKey = Object.keys(request.headers).some(
       (key) => key.toLowerCase() === 'x-api-key'
     );
-    const hasAuthorization = Object.keys(headerObject).some(
+    const hasAuthorization = Object.keys(request.headers).some(
       (key) => key.toLowerCase() === 'authorization'
     );
     const hasApiKeyField = Boolean(form.apiKey.trim());
@@ -115,7 +128,7 @@ export function AiProvidersClaudeModelsPage() {
     // initializing), and avoid duplicate auto-fetches (e.g. React StrictMode in dev).
     if (!canAutoFetch) return;
 
-    const headerSignature = Object.entries(headerObject)
+    const headerSignature = Object.entries(request.headers)
       .sort(([a], [b]) => a.toLowerCase().localeCompare(b.toLowerCase()))
       .map(([key, value]) => `${key}:${value}`)
       .join('|');
@@ -124,7 +137,7 @@ export function AiProvidersClaudeModelsPage() {
     autoFetchSignatureRef.current = signature;
 
     void fetchClaudeModelDiscovery();
-  }, [fetchClaudeModelDiscovery, form.apiKey, form.baseUrl, form.headers, initialLoading]);
+  }, [fetchClaudeModelDiscovery, form.apiKey, form.authIndex, form.baseUrl, form.headers, initialLoading]);
 
   useEffect(() => {
     const availableNames = new Set(models.map((model) => model.name));

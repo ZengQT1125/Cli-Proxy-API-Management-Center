@@ -9,8 +9,7 @@ import { SecondaryScreenShell } from '@/components/common/SecondaryScreenShell';
 import { useEdgeSwipeBack } from '@/hooks/useEdgeSwipeBack';
 import { modelsApi } from '@/services/api';
 import type { ModelInfo } from '@/utils/models';
-import { buildHeaderObject, hasHeader } from '@/utils/headers';
-import { buildOpenAIModelsEndpoint } from '@/components/providers/utils';
+import { buildProviderModelDiscoveryRequest } from '@/components/providers/providerRequests';
 import type { OpenAIEditOutletContext } from './AiProvidersOpenAIEditLayout';
 import styles from './AiProvidersPage.module.scss';
 import layoutStyles from './AiProvidersEditLayout.module.scss';
@@ -66,13 +65,17 @@ export function AiProvidersOpenAIModelsPage() {
       setFetching(true);
       setError('');
       try {
-        const headerObject = buildHeaderObject(form.headers);
-        const firstKey = form.apiKeyEntries.find((entry) => entry.apiKey?.trim())?.apiKey?.trim();
-        const hasAuthHeader = hasHeader(headerObject, 'authorization');
+        const request = buildProviderModelDiscoveryRequest({
+          brand: 'openai',
+          baseUrl: trimmedBaseUrl,
+          headers: form.headers,
+          apiKeyEntries: form.apiKeyEntries,
+        });
         const list = await modelsApi.fetchModelsViaApiCall(
           trimmedBaseUrl,
-          hasAuthHeader ? undefined : firstKey,
-          headerObject
+          request.apiKey,
+          request.headers,
+          request.authIndex
         );
         setModels(list);
       } catch (err: unknown) {
@@ -99,13 +102,20 @@ export function AiProvidersOpenAIModelsPage() {
 
   useEffect(() => {
     if (initialLoading) return;
-    setEndpoint(buildOpenAIModelsEndpoint(form.baseUrl));
+    setEndpoint(
+      buildProviderModelDiscoveryRequest({
+        brand: 'openai',
+        baseUrl: form.baseUrl,
+        headers: form.headers,
+        apiKeyEntries: form.apiKeyEntries,
+      }).endpoint
+    );
     setModels([]);
     setSearch('');
     setSelected(new Set());
     setError('');
     void fetchOpenaiModelDiscovery();
-  }, [fetchOpenaiModelDiscovery, form.baseUrl, initialLoading]);
+  }, [fetchOpenaiModelDiscovery, form.apiKeyEntries, form.baseUrl, form.headers, initialLoading]);
 
   useEffect(() => {
     const availableNames = new Set(models.map((model) => model.name));
