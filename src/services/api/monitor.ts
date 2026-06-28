@@ -219,6 +219,13 @@ export interface MonitorKeyStatsResponse {
     duration_ms: number;
     window_start_ms: number;
   };
+  filter?: {
+    auth_index?: string;
+  };
+}
+
+export interface MonitorKeyStatsQuery {
+  auth_index?: string;
 }
 
 export interface MonitorRequestDetailItem {
@@ -297,8 +304,9 @@ export const monitorApi = {
       timeout: MONITOR_TIMEOUT_MS,
     }),
 
-  getKeyStats: () =>
+  getKeyStats: (params: MonitorKeyStatsQuery = {}) =>
     apiClient.get<MonitorKeyStatsResponse>('/custom/monitor/key-stats', {
+      params,
       timeout: MONITOR_TIMEOUT_MS,
     }),
 

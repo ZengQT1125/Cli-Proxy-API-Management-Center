@@ -1,13 +1,20 @@
+import { useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/Button';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { SelectionCheckbox } from '@/components/ui/SelectionCheckbox';
 import { ToggleSwitch } from '@/components/ui/ToggleSwitch';
-import { IconBot, IconDownload, IconSettings, IconTrash2 } from '@/components/ui/icons';
+import {
+  IconBot,
+  IconDownload,
+  IconRefreshCw,
+  IconSettings,
+  IconTrash2,
+} from '@/components/ui/icons';
 import { ProviderStatusBar } from '@/components/providers/ProviderStatusBar';
+import { useQuotaStore } from '@/stores';
 import type { AuthFileItem } from '@/types';
 import { EMPTY_STATUS_BAR, normalizeAuthIndex, type KeyStats } from '@/utils/usage';
-import { formatFileSize } from '@/utils/format';
 import {
   formatModified,
   getAuthFileStatusMessage,
@@ -19,12 +26,17 @@ import {
   type QuotaProviderType,
   type ResolvedTheme,
 } from '@/features/authFiles/constants';
-import { resolveVisibleAuthFileQuotaType } from '@/features/authFiles/quotaDisplay';
+import {
+  canRefreshAuthFileQuota,
+  resolveVisibleAuthFileQuotaType,
+} from '@/features/authFiles/quotaDisplay';
 import type { AuthFileStatusBarData } from '@/features/authFiles/hooks/useAuthFilesStatusBarCache';
+import { useAuthFileQuotaRefresh } from '@/features/authFiles/hooks/useAuthFileQuotaRefresh';
 import { AuthFileQuotaSection } from '@/features/authFiles/components/AuthFileQuotaSection';
 import styles from '@/pages/AuthFilesPage.module.scss';
 
 const HEALTHY_STATUS_MESSAGES = new Set(['ok', 'healthy', 'ready', 'success', 'available']);
+type QuotaState = { status?: string } | undefined;
 
 export type AuthFileCardProps = {
   file: AuthFileItem;
@@ -42,6 +54,7 @@ export type AuthFileCardProps = {
   onDelete: (name: string) => void;
   onToggleStatus: (file: AuthFileItem, enabled: boolean) => void;
   onToggleSelect: (name: string) => void;
+  onRefreshStats: (authIndex: unknown) => Promise<void>;
 };
 
 export function AuthFileCard(props: AuthFileCardProps) {
@@ -62,6 +75,7 @@ export function AuthFileCard(props: AuthFileCardProps) {
     onDelete,
     onToggleStatus,
     onToggleSelect,
+    onRefreshStats,
   } = props;
 
   const fileStats = resolveAuthFileStats(file, keyStats);
@@ -69,10 +83,35 @@ export function AuthFileCard(props: AuthFileCardProps) {
   const isAistudio = (file.type || '').toLowerCase() === 'aistudio';
   const showModelsButton = !isRuntimeOnly || isAistudio;
   const typeColor = getTypeColor(file.type || 'unknown', resolvedTheme);
+  const rawAuthIndex = file['auth_index'] ?? file.authIndex;
+  const authIndexKey = normalizeAuthIndex(rawAuthIndex);
 
   const quotaType = resolveVisibleAuthFileQuotaType(file, quotaFilterType);
+  const quota = useQuotaStore((state) => {
+    if (quotaType === 'antigravity') return state.antigravityQuota[file.name] as QuotaState;
+    if (quotaType === 'claude') return state.claudeQuota[file.name] as QuotaState;
+    if (quotaType === 'codex') return state.codexQuota[file.name] as QuotaState;
+    if (quotaType === 'kimi') return state.kimiQuota[file.name] as QuotaState;
+    if (quotaType === 'xai') return state.xaiQuota[file.name] as QuotaState;
+    if (quotaType === 'gemini-cli') return state.geminiCliQuota[file.name] as QuotaState;
+    return undefined;
+  });
+  const { refreshQuotaForFile } = useAuthFileQuotaRefresh();
 
   const showQuotaLayout = Boolean(quotaType) && !isRuntimeOnly;
+  const quotaRefreshing = quota?.status === 'loading';
+  const canRefreshQuota =
+    Boolean(quotaType) &&
+    !disableControls &&
+    !quotaRefreshing &&
+    canRefreshAuthFileQuota(file, quotaType);
+  const handleRefreshQuota = useCallback(async () => {
+    if (!quotaType) return;
+    const result = await refreshQuotaForFile(file, quotaType);
+    if (result.status !== 'skipped' && authIndexKey) {
+      await onRefreshStats(authIndexKey);
+    }
+  }, [authIndexKey, file, onRefreshStats, quotaType, refreshQuotaForFile]);
 
   const providerCardClass =
     quotaType === 'antigravity'
@@ -89,8 +128,6 @@ export function AuthFileCard(props: AuthFileCardProps) {
                 ? styles.xaiCard
                 : '';
 
-  const rawAuthIndex = file['auth_index'] ?? file.authIndex;
-  const authIndexKey = normalizeAuthIndex(rawAuthIndex);
   const statusData =
     (authIndexKey && statusBarCache.get(authIndexKey)) || EMPTY_STATUS_BAR;
   const rawStatusMessage = getAuthFileStatusMessage(file);
@@ -131,18 +168,17 @@ export function AuthFileCard(props: AuthFileCardProps) {
           </div>
 
           <div className={styles.cardMeta}>
-            <span>
-              {t('auth_files.file_size')}: {file.size ? formatFileSize(file.size) : '-'}
-            </span>
-            <span>
-              {t('auth_files.file_modified')}: {formatModified(file)}
-            </span>
-            {priorityValue !== undefined && (
-              <span className={styles.priorityBadge}>
-                {t('auth_files.priority_display')}:{' '}
-                <span className={styles.priorityValue}>{priorityValue}</span>
+            <div className={styles.cardMetaRow}>
+              <span className={styles.modifiedTime}>
+                {t('auth_files.file_modified')}: {formatModified(file)}
               </span>
-            )}
+              {priorityValue !== undefined && (
+                <span className={styles.priorityBadge}>
+                  {t('auth_files.priority_display')}:{' '}
+                  <span className={styles.priorityValue}>{priorityValue}</span>
+                </span>
+              )}
+            </div>
           </div>
 
           {noteValue && (
@@ -178,6 +214,23 @@ export function AuthFileCard(props: AuthFileCardProps) {
           )}
 
           <div className={styles.cardActions}>
+            {showQuotaLayout && quotaType && (
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => void handleRefreshQuota()}
+                className={styles.iconButton}
+                title={t('auth_files.quota_refresh_button')}
+                aria-label={t('auth_files.quota_refresh_button')}
+                disabled={!canRefreshQuota}
+              >
+                {quotaRefreshing ? (
+                  <LoadingSpinner size={14} />
+                ) : (
+                  <IconRefreshCw className={styles.actionIcon} size={16} />
+                )}
+              </Button>
+            )}
             {showModelsButton && (
               <Button
                 variant="secondary"

@@ -2,6 +2,7 @@ import { useCallback, useRef, useState } from 'react';
 import { monitorApi, type MonitorKeyStatsResponse } from '@/services/api/monitor';
 import {
   blocksToStatusBarData,
+  normalizeAuthIndex,
   type KeyStats,
   type StatusBarData,
 } from '@/utils/usage';
@@ -39,6 +40,7 @@ export type UseAuthFilesStatsResult = {
   statusBarByAuthIndex: Map<string, StatusBarData>;
   loadKeyStats: () => Promise<void>;
   refreshKeyStats: () => Promise<void>;
+  refreshKeyStatsForAuthIndex: (authIndex: unknown) => Promise<void>;
 };
 
 export function useAuthFilesStats(): UseAuthFilesStatsResult {
@@ -75,5 +77,48 @@ export function useAuthFilesStats(): UseAuthFilesStatsResult {
     }
   }, []);
 
-  return { keyStats, statusBarByAuthIndex, loadKeyStats, refreshKeyStats };
+  const refreshKeyStatsForAuthIndex = useCallback(async (authIndex: unknown) => {
+    const normalizedAuthIndex = normalizeAuthIndex(authIndex);
+    if (!normalizedAuthIndex) {
+      return;
+    }
+
+    try {
+      const response = await monitorApi.getKeyStats({ auth_index: normalizedAuthIndex });
+      if (normalizeAuthIndex(response.filter?.auth_index) !== normalizedAuthIndex) {
+        return;
+      }
+
+      const result = processKeyStatsResponse(response);
+      const nextStats = result.keyStats.byAuthIndex[normalizedAuthIndex];
+      const nextStatusBar = result.statusBarByAuthIndex.get(normalizedAuthIndex);
+      const emptyStatusBar = blocksToStatusBarData(
+        Array.from({ length: response.block_config.count }, () => ({ success: 0, failure: 0 })),
+        response.block_config.window_start_ms,
+        response.block_config.duration_ms
+      );
+
+      setKeyStats((prev) => {
+        const byAuthIndex = { ...prev.byAuthIndex };
+        byAuthIndex[normalizedAuthIndex] = nextStats ?? { success: 0, failure: 0 };
+        return { bySource: prev.bySource, byAuthIndex };
+      });
+
+      setStatusBarByAuthIndex((prev) => {
+        const next = new Map(prev);
+        next.set(normalizedAuthIndex, nextStatusBar ?? emptyStatusBar);
+        return next;
+      });
+    } catch {
+      // silent
+    }
+  }, []);
+
+  return {
+    keyStats,
+    statusBarByAuthIndex,
+    loadKeyStats,
+    refreshKeyStats,
+    refreshKeyStatsForAuthIndex,
+  };
 }

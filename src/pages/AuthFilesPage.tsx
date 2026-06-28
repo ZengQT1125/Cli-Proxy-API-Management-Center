@@ -129,7 +129,13 @@ export function AuthFilesPage() {
   const previousSelectionCountRef = useRef(0);
   const selectionCountRef = useRef(0);
 
-  const { keyStats, statusBarByAuthIndex, loadKeyStats, refreshKeyStats } = useAuthFilesStats();
+  const {
+    keyStats,
+    statusBarByAuthIndex,
+    loadKeyStats,
+    refreshKeyStats,
+    refreshKeyStatsForAuthIndex,
+  } = useAuthFilesStats();
   const {
     files,
     selectedFiles,
@@ -857,6 +863,7 @@ export function AuthFilesPage() {
                 onDelete={handleDelete}
                 onToggleStatus={handleStatusToggle}
                 onToggleSelect={toggleSelect}
+                onRefreshStats={refreshKeyStatsForAuthIndex}
               />
             ))}
           </div>

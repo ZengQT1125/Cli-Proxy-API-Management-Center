@@ -664,6 +664,8 @@
     "prefix_proxy_html_challenge": "Скачанное содержимое является HTML-страницей проверки, а не JSON-объектом авторизации. Повторно авторизуйтесь или замените файл перед редактированием полей.",
     "prefix_proxy_saved_success": "Файл авторизации \"{{name}}\" успешно обновлён",
     "card_tools_title": "Инструменты",
+    "quota_refresh_button": "Обновить квоту",
+    "quota_not_loaded": "Квота не обновлена",
     "quota_refresh_single": "Обновить квоту",
     "quota_refresh_hint": "Обновить квоту только для этих учётных данных",
     "quota_refresh_success": "Квота для \"{{name}}\" обновлена",

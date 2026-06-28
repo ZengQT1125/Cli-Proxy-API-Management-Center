@@ -1,5 +1,9 @@
 import type { AuthFileItem } from '../../types/authFile.ts';
-import { resolveAuthProvider } from '../../utils/quota/validators.ts';
+import {
+  isDisabledAuthFile,
+  isRuntimeOnlyAuthFile,
+  resolveAuthProvider,
+} from '../../utils/quota/validators.ts';
 
 export type QuotaProviderType = 'antigravity' | 'claude' | 'codex' | 'gemini-cli' | 'kimi' | 'xai';
 
@@ -27,3 +31,6 @@ export const resolveVisibleAuthFileQuotaType = (
   if (quotaFilterType && fileQuotaType !== quotaFilterType) return null;
   return fileQuotaType;
 };
+
+export const canRefreshAuthFileQuota = (file: AuthFileItem, quotaType: QuotaProviderType | null) =>
+  Boolean(quotaType) && !isRuntimeOnlyAuthFile(file) && !isDisabledAuthFile(file);
