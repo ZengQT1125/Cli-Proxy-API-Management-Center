@@ -199,6 +199,33 @@ SKIP_HASHES=(
   7c18e4c   # fix(forms): prevent browser autofill for API key fields — 计划跳过，依赖 ProviderSheet 表单
   75da303   # refactor(forms): streamline API key state handling — 计划跳过，依赖 ProviderSheet 表单
   657e5a8   # feat(provider-sheet): add mutationDisabled prop — 计划跳过，依赖 ProviderSheet
+  # === 2026-06-28 上游同步评估：只采纳当前 fork 架构可闭合的小修，跳过 ProviderWorkbench/APIKEY.FUN 大重构链 ===
+  ed4124f   # refactor: remove Gemini CLI references — 计划跳过，本地仍保留 Gemini CLI 配额/OAuth/认证文件能力
+  b566884   # feat(quota): show Codex reset credit expiries — 本地 ffc93ae，保留本地重置配额文案并合并过期时间详情
+  6857856   # fix(styles): ensure layout aligns items at the start — 计划跳过，目标 src/features/providers 本地不存在
+  4ebcf51   # feat: add APIKEY.FUN provider support — 计划跳过，依赖本地未采纳的 ProviderWorkbench 架构
+  7bb43db   # feat(provider): enhance APIKEY.FUN link — 计划跳过，依赖 4ebcf51/APIKEY.FUN ProviderWorkbench
+  6861c99   # feat(button): refactor empty action button styles — 计划跳过，依赖 src/features/providers 且 quota builders 仅格式化
+  87a2447   # feat(provider): APIKEY.FUN base URL handling — 计划跳过，依赖 4ebcf51/APIKEY.FUN ProviderWorkbench
+  d2b7049   # feat: enhance sponsor key management and UI — 计划跳过，依赖 4ebcf51/APIKEY.FUN ProviderWorkbench
+  1ab3f0d   # feat: add usage check for APIKEY.FUN — 计划跳过，依赖 4ebcf51/APIKEY.FUN ProviderWorkbench
+  e7e70cc   # feat: provider logo handling for APIKEY.FUN — 计划跳过，依赖 4ebcf51/APIKEY.FUN ProviderWorkbench
+  e3ca3aa   # feat: add plugin OAuth support — 本地 763caa5，按本地 OAuthPage 结构手工合并页面入口
+  3db688b   # feat: APIKEY.FUN quick start panel/routing — 计划跳过，依赖 4ebcf51 且触碰 MainRoutes 本地扩展点
+  88d4d2b   # feat: quick start variant support — 计划跳过，依赖 APIKEY.FUN quick start 系列
+  fdd2f99   # feat: SponsorQuickStartPanel styling/layout — 计划跳过，依赖 APIKEY.FUN quick start 系列
+  e33b756   # feat: dashboard quick start card — 计划跳过，依赖 APIKEY.FUN quick start 系列
+  1d1955f   # feat: SponsorQuickStartPanel empty state — 计划跳过，依赖 APIKEY.FUN quick start 系列
+  76cc3d9   # feat: SponsorQuickStartPanel APIKEY.FUN config — 计划跳过，依赖 APIKEY.FUN quick start 系列
+  d654ec1   # feat: quick start terminology — 计划跳过，依赖 APIKEY.FUN quick start 系列
+  3fc6a49   # feat: register link text — 计划跳过，依赖 APIKEY.FUN quick start 系列
+  0d76721   # feat: Codex reset credits styles for auth files — 本地 fa796c1，补齐 AuthFilesPage styleMap
+  e56edde   # feat: ProviderResourceTable/statusBar styles — 计划跳过，目标 src/features/providers 本地不存在
+  e144cf3   # feat: reset credits expiry label GMT+8 — 净空，本地 ffc93ae 冲突合并时已采用 GMT+8
+  c37b026   # refactor: readability/consistency sweep — 计划跳过，105 文件大重构且引入 AuthFilesStatusFilterCard/ProviderWorkbench 分叉结构
+  2ec1a71   # feat: AuthFiles status filter modes — 计划跳过，依赖 c37b026 引入的 AuthFilesStatusFilterCard
+  213671b   # refactor: AuthFilesStatusFilterCard styling — 计划跳过，依赖 c37b026 引入的 AuthFilesStatusFilterCard
+  acf432b   # feat: trackWrapper thumb positioning — 计划跳过，依赖 c37b026/213671b AuthFilesStatusFilterCard
   # === 2026-06-17 上游同步评估：本地等价或手工应用的小修复 ===
   868c015   # Update OAuthPage.tsx — 本地已应用 normalizeGeminiCliProjectId/projectId 规范化
   f506d33   # refactor(gemini-cli): simplify project id normalization — 本地已应用 polling 时禁用 project id 输入
