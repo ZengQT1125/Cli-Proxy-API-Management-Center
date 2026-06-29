@@ -15,9 +15,12 @@ export type AuthFileModelItem = { id: string; display_name?: string; type?: stri
 
 export { QUOTA_PROVIDER_TYPES } from './quotaDisplay.ts';
 export type { QuotaProviderType } from './quotaDisplay.ts';
+export {
+  MAX_AUTH_FILES_PAGE_SIZE as MAX_CARD_PAGE_SIZE,
+  MIN_AUTH_FILES_PAGE_SIZE as MIN_CARD_PAGE_SIZE,
+  normalizeAuthFilesPageSize as clampCardPageSize,
+} from './uiState.ts';
 
-export const MIN_CARD_PAGE_SIZE = 3;
-export const MAX_CARD_PAGE_SIZE = 30;
 export const AUTH_FILE_REFRESH_WARNING_MS = 24 * 60 * 60 * 1000;
 
 export { INTEGER_STRING_PATTERN, parsePriorityValue } from './priority.ts';
@@ -81,9 +84,6 @@ export const TYPE_COLORS: Record<string, TypeColorSet> = {
     dark: { bg: '#3a3a3a', text: '#aaaaaa', border: '1px dashed #666666' }
   }
 };
-
-export const clampCardPageSize = (value: number) =>
-  Math.min(MAX_CARD_PAGE_SIZE, Math.max(MIN_CARD_PAGE_SIZE, Math.round(value)));
 
 export const resolveQuotaErrorMessage = (
   t: TFunction,

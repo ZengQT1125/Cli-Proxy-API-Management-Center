@@ -2,7 +2,7 @@
  * Quota management page - coordinates the four quota sections.
  */
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useHeaderRefresh } from '@/hooks/useHeaderRefresh';
 import { useAuthStore } from '@/stores';
@@ -16,18 +16,32 @@ import {
   KIMI_CONFIG,
   XAI_CONFIG,
 } from '@/components/quota';
+import {
+  DEFAULT_QUOTA_PAGE_SIZE,
+  normalizeQuotaPageSize,
+  readQuotaUiState,
+  writeQuotaUiState,
+} from '@/components/quota/uiState';
 import type { AuthFileItem } from '@/types';
 import styles from './QuotaPage.module.scss';
 
 export function QuotaPage() {
   const { t } = useTranslation();
   const connectionStatus = useAuthStore((state) => state.connectionStatus);
+  const persistedUiState = useMemo(() => readQuotaUiState(), []);
 
   const [files, setFiles] = useState<AuthFileItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [pageSize, setPageSizeState] = useState(() =>
+    normalizeQuotaPageSize(persistedUiState?.pageSize ?? DEFAULT_QUOTA_PAGE_SIZE)
+  );
 
   const disableControls = connectionStatus !== 'connected';
+
+  const setPageSize = useCallback((size: number) => {
+    setPageSizeState(normalizeQuotaPageSize(size));
+  }, []);
 
   const loadFiles = useCallback(async () => {
     setLoading(true);
@@ -49,6 +63,10 @@ export function QuotaPage() {
     loadFiles();
   }, [loadFiles]);
 
+  useEffect(() => {
+    writeQuotaUiState({ pageSize });
+  }, [pageSize]);
+
   return (
     <div className={styles.container}>
       <div className={styles.pageHeader}>
@@ -63,36 +81,48 @@ export function QuotaPage() {
         files={files}
         loading={loading}
         disabled={disableControls}
+        pageSize={pageSize}
+        onPageSizeChange={setPageSize}
       />
       <QuotaSection
         config={ANTIGRAVITY_CONFIG}
         files={files}
         loading={loading}
         disabled={disableControls}
+        pageSize={pageSize}
+        onPageSizeChange={setPageSize}
       />
       <QuotaSection
         config={CODEX_CONFIG}
         files={files}
         loading={loading}
         disabled={disableControls}
+        pageSize={pageSize}
+        onPageSizeChange={setPageSize}
       />
       <QuotaSection
         config={XAI_CONFIG}
         files={files}
         loading={loading}
         disabled={disableControls}
+        pageSize={pageSize}
+        onPageSizeChange={setPageSize}
       />
       <QuotaSection
         config={GEMINI_CLI_CONFIG}
         files={files}
         loading={loading}
         disabled={disableControls}
+        pageSize={pageSize}
+        onPageSizeChange={setPageSize}
       />
       <QuotaSection
         config={KIMI_CONFIG}
         files={files}
         loading={loading}
         disabled={disableControls}
+        pageSize={pageSize}
+        onPageSizeChange={setPageSize}
       />
     </div>
   );

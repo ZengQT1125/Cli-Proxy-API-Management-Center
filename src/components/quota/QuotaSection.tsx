@@ -17,6 +17,11 @@ import { canRunQuotaResetAction } from './quotaActions';
 import { useQuotaLoader } from './useQuotaLoader';
 import type { QuotaConfig } from './quotaConfigs';
 import { sortQuotaFiles } from './quotaFiles';
+import {
+  MAX_QUOTA_PAGE_SIZE,
+  MIN_QUOTA_PAGE_SIZE,
+  normalizeQuotaPageSize,
+} from './uiState';
 import { IconRefreshCw } from '@/components/ui/icons';
 import styles from '@/pages/QuotaPage.module.scss';
 
@@ -26,15 +31,7 @@ type QuotaSetter<T> = (updater: QuotaUpdater<T>) => void;
 
 type ViewMode = 'paged' | 'all';
 
-const MIN_QUOTA_PAGE_SIZE = 1;
-const DEFAULT_QUOTA_PAGE_SIZE = 12;
-const MAX_SHOW_ALL_THRESHOLD = 30;
-
-const normalizeQuotaPageSize = (value: string | number): number => {
-  const parsed = typeof value === 'number' ? value : Number.parseInt(value, 10);
-  if (!Number.isFinite(parsed)) return DEFAULT_QUOTA_PAGE_SIZE;
-  return Math.min(MAX_SHOW_ALL_THRESHOLD, Math.max(MIN_QUOTA_PAGE_SIZE, parsed));
-};
+const MAX_SHOW_ALL_THRESHOLD = MAX_QUOTA_PAGE_SIZE;
 
 interface QuotaPaginationState<T> {
   pageSize: number;
@@ -51,12 +48,13 @@ interface QuotaPaginationState<T> {
 
 const useQuotaPagination = <T,>(
   items: T[],
-  defaultPageSize = DEFAULT_QUOTA_PAGE_SIZE
+  pageSize: number,
+  onPageSizeChange: (size: number) => void
 ): QuotaPaginationState<T> => {
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSizeState] = useState(defaultPageSize);
+  const [pagination, setPagination] = useState({ page: 1, pageSize });
   const [loading, setLoadingState] = useState(false);
   const [loadingScope, setLoadingScope] = useState<'page' | 'all' | null>(null);
+  const page = pagination.pageSize === pageSize ? pagination.page : 1;
 
   const totalPages = useMemo(
     () => Math.max(1, Math.ceil(items.length / pageSize)),
@@ -70,18 +68,28 @@ const useQuotaPagination = <T,>(
     return items.slice(start, start + pageSize);
   }, [items, currentPage, pageSize]);
 
-  const setPageSize = useCallback((size: number) => {
-    setPageSizeState(size);
-    setPage(1);
-  }, []);
+  const setPageSize = useCallback(
+    (size: number) => {
+      const nextPageSize = normalizeQuotaPageSize(size);
+      setPagination({ page: 1, pageSize: nextPageSize });
+      onPageSizeChange(nextPageSize);
+    },
+    [onPageSizeChange]
+  );
 
   const goToPrev = useCallback(() => {
-    setPage((prev) => Math.max(1, prev - 1));
-  }, []);
+    setPagination((prev) => ({
+      page: Math.max(1, (prev.pageSize === pageSize ? prev.page : 1) - 1),
+      pageSize,
+    }));
+  }, [pageSize]);
 
   const goToNext = useCallback(() => {
-    setPage((prev) => Math.min(totalPages, prev + 1));
-  }, [totalPages]);
+    setPagination((prev) => ({
+      page: Math.min(totalPages, (prev.pageSize === pageSize ? prev.page : 1) + 1),
+      pageSize,
+    }));
+  }, [pageSize, totalPages]);
 
   const setLoading = useCallback((isLoading: boolean, scope?: 'page' | 'all' | null) => {
     setLoadingState(isLoading);
@@ -107,13 +115,17 @@ interface QuotaSectionProps<TState extends QuotaStatusState, TData> {
   files: AuthFileItem[];
   loading: boolean;
   disabled: boolean;
+  pageSize: number;
+  onPageSizeChange: (size: number) => void;
 }
 
 export function QuotaSection<TState extends QuotaStatusState, TData>({
   config,
   files,
   loading,
-  disabled
+  disabled,
+  pageSize: quotaPageSize,
+  onPageSizeChange,
 }: QuotaSectionProps<TState, TData>) {
   const { t } = useTranslation();
   const resolvedTheme: ResolvedTheme = useThemeStore((state) => state.resolvedTheme);
@@ -124,7 +136,7 @@ export function QuotaSection<TState extends QuotaStatusState, TData>({
   >;
 
   const [viewMode, setViewMode] = useState<ViewMode>('paged');
-  const [pageSizeInput, setPageSizeInput] = useState(String(DEFAULT_QUOTA_PAGE_SIZE));
+  const [pageSizeInput, setPageSizeInput] = useState(String(quotaPageSize));
   const [showTooManyWarning, setShowTooManyWarning] = useState(false);
   const [resettingQuotaName, setResettingQuotaName] = useState<string | null>(null);
 
@@ -145,7 +157,7 @@ export function QuotaSection<TState extends QuotaStatusState, TData>({
     goToNext,
     loading: sectionLoading,
     setLoading
-  } = useQuotaPagination(filteredFiles, DEFAULT_QUOTA_PAGE_SIZE);
+  } = useQuotaPagination(filteredFiles, quotaPageSize, onPageSizeChange);
 
   const applyPageSizeInput = useCallback(() => {
     const nextPageSize = normalizeQuotaPageSize(pageSizeInput);
@@ -158,6 +170,10 @@ export function QuotaSection<TState extends QuotaStatusState, TData>({
     setPageSize(MAX_SHOW_ALL_THRESHOLD);
     setPageSizeInput(String(MAX_SHOW_ALL_THRESHOLD));
   }, [setPageSize]);
+
+  useEffect(() => {
+    setPageSizeInput(String(pageSize));
+  }, [pageSize]);
 
   const handlePageSizeInputKeyDown = useCallback(
     (event: React.KeyboardEvent<HTMLInputElement>) => {

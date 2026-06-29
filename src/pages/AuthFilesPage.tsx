@@ -112,17 +112,31 @@ export function AuthFilesPage() {
   const pageTransitionLayer = usePageTransitionLayer();
   const isCurrentLayer = pageTransitionLayer ? pageTransitionLayer.status === 'current' : true;
   const navigate = useNavigate();
+  const persistedUiState = useMemo(() => readAuthFilesUiState(), []);
+  const persistedPageSize =
+    typeof persistedUiState?.pageSize === 'number' && Number.isFinite(persistedUiState.pageSize)
+      ? clampCardPageSize(persistedUiState.pageSize)
+      : 12;
 
-  const [filter, setFilter] = useState<'all' | string>('all');
-  const [problemOnly, setProblemOnly] = useState(false);
-  const [disabledOnly, setDisabledOnly] = useState(false);
-  const [enabledOnly, setEnabledOnly] = useState(false);
-  const [search, setSearch] = useState('');
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(12);
-  const [pageSizeInput, setPageSizeInput] = useState('12');
+  const [filter, setFilter] = useState<'all' | string>(() => {
+    const persistedFilter = persistedUiState?.filter?.trim();
+    return persistedFilter || 'all';
+  });
+  const [problemOnly, setProblemOnly] = useState(() => persistedUiState?.problemOnly ?? false);
+  const [disabledOnly, setDisabledOnly] = useState(() => persistedUiState?.disabledOnly ?? false);
+  const [enabledOnly, setEnabledOnly] = useState(() => persistedUiState?.enabledOnly ?? false);
+  const [search, setSearch] = useState(() => persistedUiState?.search ?? '');
+  const [page, setPage] = useState(() =>
+    typeof persistedUiState?.page === 'number' && Number.isFinite(persistedUiState.page)
+      ? Math.max(1, Math.round(persistedUiState.page))
+      : 1
+  );
+  const [pageSize, setPageSize] = useState(persistedPageSize);
+  const [pageSizeInput, setPageSizeInput] = useState(() => String(persistedPageSize));
   const [viewMode, setViewMode] = useState<'diagram' | 'list'>('list');
-  const [sortMode, setSortMode] = useState<AuthFilesSortMode>('default');
+  const [sortMode, setSortMode] = useState<AuthFilesSortMode>(() =>
+    isAuthFilesSortMode(persistedUiState?.sortMode) ? persistedUiState.sortMode : 'default'
+  );
   const [batchActionBarVisible, setBatchActionBarVisible] = useState(false);
   const floatingBatchActionsRef = useRef<HTMLDivElement>(null);
   const batchActionAnimationRef = useRef<AnimationPlaybackControlsWithThen | null>(null);
@@ -226,37 +240,16 @@ export function AuthFilesPage() {
     : null;
 
   useEffect(() => {
-    const persisted = readAuthFilesUiState();
-    if (!persisted) return;
-
-    if (typeof persisted.filter === 'string' && persisted.filter.trim()) {
-      setFilter(persisted.filter);
-    }
-    if (typeof persisted.problemOnly === 'boolean') {
-      setProblemOnly(persisted.problemOnly);
-    }
-    if (typeof persisted.disabledOnly === 'boolean') {
-      setDisabledOnly(persisted.disabledOnly);
-    }
-    if (typeof persisted.enabledOnly === 'boolean') {
-      setEnabledOnly(persisted.enabledOnly);
-    }
-    if (typeof persisted.search === 'string') {
-      setSearch(persisted.search);
-    }
-    if (typeof persisted.page === 'number' && Number.isFinite(persisted.page)) {
-      setPage(Math.max(1, Math.round(persisted.page)));
-    }
-    if (typeof persisted.pageSize === 'number' && Number.isFinite(persisted.pageSize)) {
-      setPageSize(clampCardPageSize(persisted.pageSize));
-    }
-    if (isAuthFilesSortMode(persisted.sortMode)) {
-      setSortMode(persisted.sortMode);
-    }
-  }, []);
-
-  useEffect(() => {
-    writeAuthFilesUiState({ filter, problemOnly, disabledOnly, enabledOnly, search, page, pageSize, sortMode });
+    writeAuthFilesUiState({
+      filter,
+      problemOnly,
+      disabledOnly,
+      enabledOnly,
+      search,
+      page,
+      pageSize,
+      sortMode,
+    });
   }, [filter, problemOnly, disabledOnly, enabledOnly, search, page, pageSize, sortMode]);
 
   useEffect(() => {
