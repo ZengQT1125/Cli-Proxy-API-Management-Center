@@ -6,12 +6,13 @@ import { useNotificationStore } from '@/stores';
 import { formatFileSize } from '@/utils/format';
 import { MAX_AUTH_FILE_SIZE } from '@/utils/constants';
 import {
-  applyCodexAuthFileWebsockets,
+  applyAuthFileWebsockets,
   normalizeExcludedModels,
   parseDisableCoolingValue,
   parseExcludedModelsText,
   parsePriorityValue,
-  readCodexAuthFileWebsockets,
+  readAuthFileWebsockets,
+  supportsAuthFileWebsockets,
 } from '@/features/authFiles/constants';
 
 type AuthFileHeaders = Record<string, string>;
@@ -39,7 +40,8 @@ export type PrefixProxyEditorFieldValue = string | boolean;
 export type PrefixProxyEditorState = {
   fileName: string;
   fileInfoText: string;
-  isCodexFile: boolean;
+  providerKey: string;
+  supportsWebsockets: boolean;
   loading: boolean;
   saving: boolean;
   error: string | null;
@@ -211,7 +213,7 @@ const buildPrefixProxyUpdatedText = (
   }
 
   return JSON.stringify(
-    editor.isCodexFile ? applyCodexAuthFileWebsockets(next, editor.websockets) : next
+    editor.supportsWebsockets ? applyAuthFileWebsockets(next, editor.websockets) : next
   );
 };
 
@@ -249,7 +251,10 @@ export function useAuthFilesPrefixProxyEditor(
     const normalizedProvider = String(file.provider ?? '')
       .trim()
       .toLowerCase();
-    const isCodexFile = normalizedType === 'codex' || normalizedProvider === 'codex';
+    const providerKey = supportsAuthFileWebsockets(normalizedType)
+      ? normalizedType
+      : normalizedProvider;
+    const supportsWebsockets = supportsAuthFileWebsockets(providerKey);
 
     if (disableControls) return;
     if (prefixProxyEditor?.fileName === name) {
@@ -260,7 +265,8 @@ export function useAuthFilesPrefixProxyEditor(
     setPrefixProxyEditor({
       fileName: name,
       fileInfoText: JSON.stringify(file, null, 2),
-      isCodexFile,
+      providerKey,
+      supportsWebsockets,
       loading: true,
       saving: false,
       error: null,
@@ -311,8 +317,8 @@ export function useAuthFilesPrefixProxyEditor(
       }
 
       const json = { ...(parsed as Record<string, unknown>) };
-      if (isCodexFile) {
-        const normalizedWebsockets = readCodexAuthFileWebsockets(json);
+      if (supportsWebsockets) {
+        const normalizedWebsockets = readAuthFileWebsockets(json);
         delete json.websocket;
         json.websockets = normalizedWebsockets;
       }
@@ -322,7 +328,7 @@ export function useAuthFilesPrefixProxyEditor(
       const priority = parsePriorityValue(json.priority);
       const excludedModels = normalizeExcludedModels(json.excluded_models);
       const disableCoolingValue = parseDisableCoolingValue(json.disable_cooling);
-      const websocketsValue = readCodexAuthFileWebsockets(json);
+      const websocketsValue = supportsWebsockets ? readAuthFileWebsockets(json) : false;
       const note = typeof json.note === 'string' ? json.note : '';
       const headers = json.headers;
       let headersText = '';

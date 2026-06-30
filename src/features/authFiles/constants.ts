@@ -25,10 +25,12 @@ export const AUTH_FILE_REFRESH_WARNING_MS = 24 * 60 * 60 * 1000;
 
 export { INTEGER_STRING_PATTERN, parsePriorityValue } from './priority.ts';
 export {
-  applyCodexAuthFileWebsockets,
+  applyAuthFileWebsockets,
+  AUTH_FILE_WEBSOCKET_PROVIDERS,
   FALSY_TEXT_VALUES,
   parseDisableCoolingValue,
-  readCodexAuthFileWebsockets,
+  readAuthFileWebsockets,
+  supportsAuthFileWebsockets,
   TRUTHY_TEXT_VALUES,
 } from './websockets.ts';
 

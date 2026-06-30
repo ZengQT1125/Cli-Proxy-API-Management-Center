@@ -1,19 +1,20 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  applyCodexAuthFileWebsockets,
-  readCodexAuthFileWebsockets,
+  applyAuthFileWebsockets,
+  readAuthFileWebsockets,
+  supportsAuthFileWebsockets,
 } from '../src/features/authFiles/websockets.ts';
 
 test('Codex 认证文件读取同时兼容 websocket 旧字段和 websockets 新字段', () => {
-  assert.equal(readCodexAuthFileWebsockets({ websocket: true }), true);
-  assert.equal(readCodexAuthFileWebsockets({ websocket: 'false' }), false);
-  assert.equal(readCodexAuthFileWebsockets({ websockets: 'true', websocket: false }), true);
-  assert.equal(readCodexAuthFileWebsockets({}), false);
+  assert.equal(readAuthFileWebsockets({ websocket: true }), true);
+  assert.equal(readAuthFileWebsockets({ websocket: 'false' }), false);
+  assert.equal(readAuthFileWebsockets({ websockets: 'true', websocket: false }), true);
+  assert.equal(readAuthFileWebsockets({}), false);
 });
 
 test('保存 Codex 认证文件时移除 websocket 旧字段，只写 websockets', () => {
-  const next = applyCodexAuthFileWebsockets(
+  const next = applyAuthFileWebsockets(
     {
       websocket: true,
       websockets: false,
@@ -27,4 +28,11 @@ test('保存 Codex 认证文件时移除 websocket 旧字段，只写 websockets
     untouched: 'value',
   });
   assert.equal('websocket' in next, false);
+});
+
+test('仅为需要 Responses API websocket 的认证文件显示开关', () => {
+  assert.equal(supportsAuthFileWebsockets('codex'), true);
+  assert.equal(supportsAuthFileWebsockets('xai'), true);
+  assert.equal(supportsAuthFileWebsockets('XAI'), true);
+  assert.equal(supportsAuthFileWebsockets('claude'), false);
 });
