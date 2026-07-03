@@ -95,8 +95,7 @@ const getFilterTagIcon = (type: string, resolvedTheme: ResolvedTheme): string | 
       : iconEntry.light;
 };
 
-const escapeWildcardSearchSegment = (value: string) =>
-  value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const escapeWildcardSearchSegment = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 const buildWildcardSearch = (value: string): RegExp | null => {
   if (!value.includes('*')) return null;
@@ -157,6 +156,7 @@ export function AuthFilesPage() {
     loading,
     error,
     uploading,
+    uploadProgress,
     deleting,
     deletingAll,
     downloadingAll,
@@ -321,7 +321,10 @@ export function AuthFilesPage() {
       await authFilesApi.codexCleanup((ev: CodexCleanupEvent) => {
         if (ev.type === 'start') {
           setCleanupTotal(ev.total);
-          setCleanupLogs((prev) => [...prev, t('auth_files.codex_cleanup_log_start', { total: ev.total })]);
+          setCleanupLogs((prev) => [
+            ...prev,
+            t('auth_files.codex_cleanup_log_start', { total: ev.total }),
+          ]);
         } else if (ev.type === 'progress') {
           setCleanupCurrent(ev.index);
           const status = ev.deleted
@@ -329,7 +332,10 @@ export function AuthFilesPage() {
             : ev.error
               ? `\u26A0 ${ev.error}`
               : `\u2713 ${t('auth_files.codex_cleanup_log_valid')}`;
-          setCleanupLogs((prev) => [...prev, `[${ev.index}/${ev.total}] ${ev.name} \u2014 ${status}`]);
+          setCleanupLogs((prev) => [
+            ...prev,
+            `[${ev.index}/${ev.total}] ${ev.name} \u2014 ${status}`,
+          ]);
           if (ev.deleted) {
             setCleanupDeleted((prev) => prev + 1);
           }
@@ -650,6 +656,11 @@ export function AuthFilesPage() {
       ? t('auth_files.delete_all_button')
       : `${t('common.delete')} ${getTypeLabel(t, filter)}`;
   })();
+  const uploadProgressLabel = uploadProgress
+    ? uploadProgress.percent !== null
+      ? t('auth_files.upload_progress_percent', { percent: uploadProgress.percent })
+      : t('auth_files.upload_progress_active')
+    : '';
 
   return (
     <div className={styles.container}>
@@ -725,6 +736,21 @@ export function AuthFilesPage() {
         }
       >
         {error && <div className={styles.errorBox}>{error}</div>}
+        {uploading && uploadProgress && (
+          <div className={styles.uploadProgress} role="status" aria-live="polite">
+            <div className={styles.uploadProgressHeader}>
+              <span>{uploadProgressLabel}</span>
+            </div>
+            <div className={styles.uploadProgressTrack}>
+              <div
+                className={styles.uploadProgressBar}
+                style={{
+                  width: uploadProgress.percent !== null ? `${uploadProgress.percent}%` : '100%',
+                }}
+              />
+            </div>
+          </div>
+        )}
 
         <div className={styles.filterSection}>
           {renderFilterTags()}
@@ -956,15 +982,38 @@ export function AuthFilesPage() {
         }
       >
         <div style={{ marginBottom: 12 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6, fontSize: 13 }}>
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              marginBottom: 6,
+              fontSize: 13,
+            }}
+          >
             <span>
               {cleanupDone
-                ? t('auth_files.codex_cleanup_log_done', { total: cleanupTotal, deleted: cleanupDeleted })
-                : t('auth_files.codex_cleanup_progress', { current: cleanupCurrent, total: cleanupTotal })}
+                ? t('auth_files.codex_cleanup_log_done', {
+                    total: cleanupTotal,
+                    deleted: cleanupDeleted,
+                  })
+                : t('auth_files.codex_cleanup_progress', {
+                    current: cleanupCurrent,
+                    total: cleanupTotal,
+                  })}
             </span>
-            <span>{cleanupTotal > 0 ? `${Math.round((cleanupCurrent / cleanupTotal) * 100)}%` : '0%'}</span>
+            <span>
+              {cleanupTotal > 0 ? `${Math.round((cleanupCurrent / cleanupTotal) * 100)}%` : '0%'}
+            </span>
           </div>
-          <div style={{ width: '100%', height: 6, borderRadius: 3, background: 'var(--border-color)', overflow: 'hidden' }}>
+          <div
+            style={{
+              width: '100%',
+              height: 6,
+              borderRadius: 3,
+              background: 'var(--border-color)',
+              overflow: 'hidden',
+            }}
+          >
             <div
               style={{
                 width: cleanupTotal > 0 ? `${(cleanupCurrent / cleanupTotal) * 100}%` : '0%',

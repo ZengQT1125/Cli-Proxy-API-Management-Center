@@ -5,7 +5,9 @@
   display: flex;
   flex-direction: column;
   gap: $spacing-lg;
-  padding-bottom: calc(var(--auth-files-action-bar-height, 0px) + 16px + env(safe-area-inset-bottom));
+  padding-bottom: calc(
+    var(--auth-files-action-bar-height, 0px) + 16px + env(safe-area-inset-bottom)
+  );
 }
 
 .pageHeader {
@@ -63,6 +65,42 @@
   color: var(--danger-color);
   font-size: 14px;
   margin-bottom: $spacing-md;
+}
+
+.uploadProgress {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 14px;
+  margin-bottom: $spacing-md;
+  border: 1px solid var(--border-color);
+  border-radius: $radius-md;
+  background: var(--bg-secondary);
+}
+
+.uploadProgressHeader {
+  display: flex;
+  justify-content: space-between;
+  gap: $spacing-sm;
+  color: var(--text-secondary);
+  font-size: 13px;
+  line-height: 18px;
+}
+
+.uploadProgressTrack {
+  width: 100%;
+  height: 8px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--bg-tertiary);
+}
+
+.uploadProgressBar {
+  height: 100%;
+  min-width: 8px;
+  border-radius: inherit;
+  background: var(--primary-color);
+  transition: width $transition-normal;
 }
 
 // 筛选区域
@@ -620,12 +658,14 @@
   text-transform: capitalize;
 
   @media (dynamic-range: high) {
-    background: linear-gradient(135deg,
+    background: linear-gradient(
+      135deg,
       color(display-p3 0.99 0.95 0.82),
-      color(display-p3 0.97 0.82 0.28));
-    border-color: color(display-p3 0.90 0.73 0.12);
-    box-shadow: 0 1px 8px color(display-p3 1.0 0.84 0.0 / 0.25);
-    color: color(display-p3 0.50 0.38 0.0);
+      color(display-p3 0.97 0.82 0.28)
+    );
+    border-color: color(display-p3 0.9 0.73 0.12);
+    box-shadow: 0 1px 8px color(display-p3 1 0.84 0 / 0.25);
+    color: color(display-p3 0.5 0.38 0);
   }
 }
 
@@ -636,11 +676,13 @@
   color: #e8c84c;
 
   @media (dynamic-range: high) {
-    background: linear-gradient(135deg,
-      color(display-p3 0.24 0.20 0.06),
-      color(display-p3 0.38 0.30 0.08));
+    background: linear-gradient(
+      135deg,
+      color(display-p3 0.24 0.2 0.06),
+      color(display-p3 0.38 0.3 0.08)
+    );
     border-color: color(display-p3 0.58 0.46 0.15);
-    box-shadow: 0 1px 12px color(display-p3 0.80 0.65 0.0 / 0.2);
+    box-shadow: 0 1px 12px color(display-p3 0.8 0.65 0 / 0.2);
     color: color(display-p3 0.95 0.82 0.25);
   }
 }
@@ -872,7 +914,9 @@
   width: 100%;
   height: 8px;
   border-radius: 2px;
-  transition: transform 0.15s ease, opacity 0.15s ease;
+  transition:
+    transform 0.15s ease,
+    opacity 0.15s ease;
 
   .statusBlockWrapper:hover &,
   .statusBlockWrapper.statusBlockActive & {
@@ -1574,7 +1618,7 @@
     background-color: var(--bg-hover);
   }
 
-  input[type="checkbox"] {
+  input[type='checkbox'] {
     width: 16px;
     height: 16px;
     cursor: pointer;

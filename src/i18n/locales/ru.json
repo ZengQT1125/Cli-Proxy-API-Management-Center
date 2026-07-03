@@ -512,6 +512,8 @@
     "title_section": "Файлы авторизации",
     "description": "Управляйте всеми JSON-файлами авторизации CLI Proxy (например, Qwen, Gemini, Vertex). Загрузка учётных данных сразу включает соответствующую интеграцию AI.",
     "upload_button": "Загрузить файл",
+    "upload_progress_active": "Загрузка...",
+    "upload_progress_percent": "Загрузка {{percent}}%",
     "delete_all_button": "Удалить всё",
     "empty_title": "Файлы авторизации отсутствуют",
     "empty_desc": "Нажмите кнопку выше, чтобы загрузить первый файл",

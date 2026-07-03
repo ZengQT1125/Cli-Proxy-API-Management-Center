@@ -7,6 +7,7 @@ export * from './apiKeys';
 export * from './ampcode';
 export * from './providers';
 export * from './authFiles';
+export * from './authFilesUpload';
 export * from './oauth';
 export * from './logs';
 export * from './version';

@@ -487,6 +487,8 @@
     "title_section": "驗證檔案",
     "description": "這裡集中管理 CLI Proxy 支援的所有 JSON 驗證檔案（如 Qwen、Gemini、Vertex 等），上傳後即可在執行時啟用對應的 AI 服務。",
     "upload_button": "上傳檔案",
+    "upload_progress_active": "正在上傳...",
+    "upload_progress_percent": "正在上傳 {{percent}}%",
     "delete_all_button": "刪除全部",
     "empty_title": "暫無驗證檔案",
     "empty_desc": "點擊上方按鈕上傳第一個檔案",

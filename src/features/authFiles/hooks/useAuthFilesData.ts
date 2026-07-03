@@ -3,6 +3,10 @@ import { useTranslation } from 'react-i18next';
 import { authFilesApi } from '@/services/api';
 import { useNotificationStore } from '@/stores';
 import type { AuthFileItem } from '@/types';
+import type {
+  AuthFilesUploadProgress,
+  AuthFilesUploadResult,
+} from '@/services/api/authFilesUpload';
 import { formatFileSize } from '@/utils/format';
 import { MAX_AUTH_FILE_SIZE } from '@/utils/constants';
 import { downloadBlob } from '@/utils/download';
@@ -34,6 +38,7 @@ export type UseAuthFilesDataResult = {
   loading: boolean;
   error: string;
   uploading: boolean;
+  uploadProgress: AuthFilesUploadProgress | null;
   deleting: string | null;
   deletingAll: boolean;
   downloadingAll: boolean;
@@ -69,6 +74,7 @@ export function useAuthFilesData(options: UseAuthFilesDataOptions): UseAuthFiles
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<AuthFilesUploadProgress | null>(null);
   const [deleting, setDeleting] = useState<string | null>(null);
   const [deletingAll, setDeletingAll] = useState(false);
   const [downloadingAll, setDownloadingAll] = useState(false);
@@ -172,19 +178,22 @@ export function useAuthFilesData(options: UseAuthFilesDataOptions): UseAuthFiles
       }
 
       setUploading(true);
-      let successCount = 0;
-      const failed: { name: string; message: string }[] = [];
+      setUploadProgress({ loaded: 0, total: null, percent: null });
 
       try {
-        for (const file of validFiles) {
-          try {
-            await authFilesApi.upload(file);
-            successCount++;
-          } catch (err: unknown) {
-            const errorMessage = err instanceof Error ? err.message : 'Unknown error';
-            failed.push({ name: file.name, message: errorMessage });
-          }
+        let uploadResult: AuthFilesUploadResult;
+        try {
+          uploadResult = await authFilesApi.uploadBatch(validFiles, {
+            onProgress: setUploadProgress,
+          });
+        } catch (err: unknown) {
+          const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+          showNotification(`${t('notification.upload_failed')}: ${errorMessage}`, 'error');
+          return false;
         }
+
+        const successCount = uploadResult.uploaded;
+        const failed = uploadResult.failed;
 
         if (successCount > 0) {
           const suffix = validFiles.length > 1 ? ` (${successCount}/${validFiles.length})` : '';
@@ -204,6 +213,7 @@ export function useAuthFilesData(options: UseAuthFilesDataOptions): UseAuthFiles
         return successCount > 0 && failed.length === 0;
       } finally {
         setUploading(false);
+        setUploadProgress(null);
       }
     },
     [loadFiles, refreshKeyStats, showNotification, t]
@@ -245,7 +255,7 @@ export function useAuthFilesData(options: UseAuthFilesDataOptions): UseAuthFiles
           } finally {
             setDeleting(null);
           }
-        }
+        },
       });
     },
     [showConfirmation, showNotification, t]
@@ -408,7 +418,7 @@ export function useAuthFilesData(options: UseAuthFilesDataOptions): UseAuthFiles
           } finally {
             setDeletingAll(false);
           }
-        }
+        },
       });
     },
     [deselectAll, files, showConfirmation, showNotification, t]
@@ -548,7 +558,10 @@ export function useAuthFilesData(options: UseAuthFilesDataOptions): UseAuthFiles
         );
 
         if (failCount === 0) {
-          showNotification(t('auth_files.batch_status_success', { count: successCount }), 'success');
+          showNotification(
+            t('auth_files.batch_status_success', { count: successCount }),
+            'success'
+          );
         } else {
           showNotification(
             t('auth_files.batch_status_partial', { success: successCount, failed: failCount }),
@@ -618,18 +631,21 @@ export function useAuthFilesData(options: UseAuthFilesDataOptions): UseAuthFiles
           });
 
           if (failCount === 0) {
-            showNotification(`${t('auth_files.delete_all_success')} (${deleted.length})`, 'success');
+            showNotification(
+              `${t('auth_files.delete_all_success')} (${deleted.length})`,
+              'success'
+            );
           } else {
             showNotification(
               t('auth_files.delete_filtered_partial', {
                 success: deleted.length,
                 failed: failCount,
-                type: t('auth_files.filter_all')
+                type: t('auth_files.filter_all'),
               }),
               'warning'
             );
           }
-        }
+        },
       });
     },
     [showConfirmation, showNotification, t]
@@ -642,6 +658,7 @@ export function useAuthFilesData(options: UseAuthFilesDataOptions): UseAuthFiles
     loading,
     error,
     uploading,
+    uploadProgress,
     deleting,
     deletingAll,
     downloadingAll,
@@ -661,6 +678,6 @@ export function useAuthFilesData(options: UseAuthFilesDataOptions): UseAuthFiles
     selectAllVisible,
     deselectAll,
     batchSetStatus,
-    batchDelete
+    batchDelete,
   };
 }
