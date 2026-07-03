@@ -350,6 +350,8 @@ SKIP_HASHES=(
   96e41f5   # fix(config): jump correctly across horizontally snapped sections — #321 配套，依赖 section 导航
   a1d2e11   # feat(search): keyboard navigation and highlight for search results — #321 配套
   1a8e059   # fix(config): jump request handling + Collapsible state — #321 配套
+  # === 2026-07-04 上游同步评估：小修已摘取，patch-id 漂移需跳过 ===
+  88d60bf   # add xai pay-as-you-go quota progress — 本地 45015f94，cherry-pick 已应用但 git cherry 仍显示未应用
 )
 
 is_skip() {
