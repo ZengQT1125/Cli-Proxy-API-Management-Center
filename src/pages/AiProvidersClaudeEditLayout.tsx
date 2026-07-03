@@ -14,8 +14,9 @@ import { excludedModelsToText, parseExcludedModels } from '@/components/provider
 import { modelsToEntries } from '@/components/ui/modelInputListUtils';
 import type { ClaudeEditBaseline } from '@/stores/useClaudeEditDraftStore';
 import { parseRouteIndexParam } from '@/utils/routeParams';
+import { CODE0_CLAUDE_BASE_URL } from '@/components/providers/code0';
 
-type LocationState = { fromAiProviders?: boolean } | null;
+type LocationState = { fromAiProviders?: boolean; providerPreset?: 'code0' } | null;
 
 type TestStatus = 'idle' | 'loading' | 'success' | 'error';
 
@@ -41,11 +42,11 @@ export type ClaudeEditOutletContext = {
   mergeDiscoveredModels: (selectedModels: ModelInfo[]) => void;
 };
 
-const buildEmptyForm = (): ProviderFormState => ({
+const buildEmptyForm = (preset?: 'code0'): ProviderFormState => ({
   apiKey: '',
   priority: undefined,
   prefix: '',
-  baseUrl: '',
+  baseUrl: preset === 'code0' ? CODE0_CLAUDE_BASE_URL : '',
   proxyUrl: '',
   headers: [],
   models: [],
@@ -114,6 +115,8 @@ export function AiProvidersClaudeEditLayout() {
   const navigate = useNavigate();
   const location = useLocation();
   const { showNotification } = useNotificationStore();
+  const locationState = location.state as LocationState;
+  const providerPreset = locationState?.providerPreset === 'code0' ? 'code0' : undefined;
 
   const params = useParams<{ index?: string }>();
   const hasIndexParam = typeof params.index === 'string';
@@ -135,9 +138,9 @@ export function AiProvidersClaudeEditLayout() {
 
   const draftKey = useMemo(() => {
     if (invalidIndexParam) return `claude:invalid:${params.index ?? 'unknown'}`;
-    if (editIndex === null) return 'claude:new';
+    if (editIndex === null) return providerPreset === 'code0' ? 'claude:new:code0' : 'claude:new';
     return `claude:${editIndex}`;
-  }, [editIndex, invalidIndexParam, params.index]);
+  }, [editIndex, invalidIndexParam, params.index, providerPreset]);
 
   const draft = useClaudeEditDraftStore((state) => state.drafts[draftKey]);
   const acquireDraft = useClaudeEditDraftStore((state) => state.acquireDraft);
@@ -200,13 +203,12 @@ export function AiProvidersClaudeEditLayout() {
   }, [acquireDraft, draftKey, releaseDraft]);
 
   const handleBack = useCallback(() => {
-    const state = location.state as LocationState;
-    if (state?.fromAiProviders) {
+    if (locationState?.fromAiProviders) {
       navigate(-1);
       return;
     }
     navigate('/ai-providers', { replace: true });
-  }, [location.state, navigate]);
+  }, [locationState?.fromAiProviders, navigate]);
 
   useEffect(() => {
     let cancelled = false;
@@ -258,7 +260,7 @@ export function AiProvidersClaudeEditLayout() {
       return;
     }
 
-    const emptyForm = buildEmptyForm();
+    const emptyForm = buildEmptyForm(providerPreset);
     initDraft(draftKey, {
       baseline: buildClaudeBaseline(emptyForm),
       form: emptyForm,
@@ -266,7 +268,7 @@ export function AiProvidersClaudeEditLayout() {
       testStatus: 'idle',
       testMessage: '',
     });
-  }, [draft?.initialized, draftKey, initDraft, initialData, loading]);
+  }, [draft?.initialized, draftKey, initDraft, initialData, loading, providerPreset]);
 
   const resolvedLoading = !draft?.initialized;
   const baseline = draft?.baseline ?? null;

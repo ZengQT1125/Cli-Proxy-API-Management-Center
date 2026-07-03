@@ -12,10 +12,11 @@ import { buildHeaderObject, headersToEntries, normalizeHeaderEntries } from '@/u
 import { areKeyValueEntriesEqual, areModelEntriesEqual } from '@/utils/compare';
 import { parseRouteIndexParam } from '@/utils/routeParams';
 import { buildApiKeyEntry } from '@/components/providers/utils';
+import { CODE0_OPENAI_BASE_URL, CODE0_PROVIDER_NAME } from '@/components/providers/code0';
 import type { ModelEntry, OpenAIFormState } from '@/components/providers/types';
 import type { KeyTestStatus, OpenAIEditBaseline } from '@/stores/useOpenAIEditDraftStore';
 
-type LocationState = { fromAiProviders?: boolean } | null;
+type LocationState = { fromAiProviders?: boolean; providerPreset?: 'code0' } | null;
 
 export type OpenAIEditOutletContext = {
   hasIndexParam: boolean;
@@ -42,11 +43,11 @@ export type OpenAIEditOutletContext = {
   mergeDiscoveredModels: (selectedModels: ModelInfo[]) => void;
 };
 
-const buildEmptyForm = (): OpenAIFormState => ({
-  name: '',
+const buildEmptyForm = (preset?: 'code0'): OpenAIFormState => ({
+  name: preset === 'code0' ? CODE0_PROVIDER_NAME : '',
   priority: undefined,
   prefix: '',
-  baseUrl: '',
+  baseUrl: preset === 'code0' ? CODE0_OPENAI_BASE_URL : '',
   headers: [],
   apiKeyEntries: [buildApiKeyEntry()],
   modelEntries: [{ name: '', alias: '' }],
@@ -117,6 +118,8 @@ export function AiProvidersOpenAIEditLayout() {
   const navigate = useNavigate();
   const location = useLocation();
   const { showNotification } = useNotificationStore();
+  const locationState = location.state as LocationState;
+  const providerPreset = locationState?.providerPreset === 'code0' ? 'code0' : undefined;
 
   const params = useParams<{ index?: string }>();
   const hasIndexParam = typeof params.index === 'string';
@@ -140,9 +143,9 @@ export function AiProvidersOpenAIEditLayout() {
 
   const draftKey = useMemo(() => {
     if (invalidIndexParam) return `openai:invalid:${params.index ?? 'unknown'}`;
-    if (editIndex === null) return 'openai:new';
+    if (editIndex === null) return providerPreset === 'code0' ? 'openai:new:code0' : 'openai:new';
     return `openai:${editIndex}`;
-  }, [editIndex, invalidIndexParam, params.index]);
+  }, [editIndex, invalidIndexParam, params.index, providerPreset]);
 
   const draft = useOpenAIEditDraftStore((state) => state.drafts[draftKey]);
   const acquireDraft = useOpenAIEditDraftStore((state) => state.acquireDraft);
@@ -223,13 +226,12 @@ export function AiProvidersOpenAIEditLayout() {
   }, [acquireDraft, draftKey, releaseDraft]);
 
   const handleBack = useCallback(() => {
-    const state = location.state as LocationState;
-    if (state?.fromAiProviders) {
+    if (locationState?.fromAiProviders) {
       navigate(-1);
       return;
     }
     navigate('/ai-providers', { replace: true });
-  }, [location.state, navigate]);
+  }, [locationState?.fromAiProviders, navigate]);
 
   useEffect(() => {
     let cancelled = false;
@@ -292,7 +294,7 @@ export function AiProvidersOpenAIEditLayout() {
         keyTestStatuses: [],
       });
     } else {
-      const emptyForm = buildEmptyForm();
+      const emptyForm = buildEmptyForm(providerPreset);
       initDraft(draftKey, {
         baseline: buildOpenAIBaseline(emptyForm, ''),
         form: emptyForm,
@@ -302,7 +304,7 @@ export function AiProvidersOpenAIEditLayout() {
         keyTestStatuses: [],
       });
     }
-  }, [draft?.initialized, draftKey, initDraft, initialData, loading]);
+  }, [draft?.initialized, draftKey, initDraft, initialData, loading, providerPreset]);
 
   useEffect(() => {
     if (loading) return;
