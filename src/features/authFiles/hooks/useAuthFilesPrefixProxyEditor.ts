@@ -6,13 +6,16 @@ import { useNotificationStore } from '@/stores';
 import { formatFileSize } from '@/utils/format';
 import { MAX_AUTH_FILE_SIZE } from '@/utils/constants';
 import {
+  applyAuthFileUsingApi,
   applyAuthFileWebsockets,
   normalizeExcludedModels,
   parseDisableCoolingValue,
   parseExcludedModelsText,
   parsePriorityValue,
   readAuthFileWebsockets,
+  readAuthFileUsingApi,
   supportsAuthFileWebsockets,
+  supportsAuthFileUsingApi,
 } from '@/features/authFiles/constants';
 
 type AuthFileHeaders = Record<string, string>;
@@ -28,6 +31,7 @@ export type PrefixProxyEditorField =
   | 'excludedModelsText'
   | 'disableCooling'
   | 'websockets'
+  | 'usingApi'
   | 'note'
   | 'headersText';
 
@@ -42,6 +46,7 @@ export type PrefixProxyEditorState = {
   fileInfoText: string;
   providerKey: string;
   supportsWebsockets: boolean;
+  supportsUsingApi: boolean;
   loading: boolean;
   saving: boolean;
   error: string | null;
@@ -55,6 +60,8 @@ export type PrefixProxyEditorState = {
   excludedModelsText: string;
   disableCooling: string;
   websockets: boolean;
+  usingApi: boolean;
+  usingApiTouched: boolean;
   note: string;
   noteTouched: boolean;
   headersText: string;
@@ -212,9 +219,13 @@ const buildPrefixProxyUpdatedText = (
     }
   }
 
-  return JSON.stringify(
-    editor.supportsWebsockets ? applyAuthFileWebsockets(next, editor.websockets) : next
-  );
+  let updated = editor.supportsWebsockets
+    ? applyAuthFileWebsockets(next, editor.websockets)
+    : next;
+  if (editor.supportsUsingApi && editor.usingApiTouched) {
+    updated = applyAuthFileUsingApi(updated, editor.usingApi);
+  }
+  return JSON.stringify(updated);
 };
 
 export function useAuthFilesPrefixProxyEditor(
@@ -251,10 +262,12 @@ export function useAuthFilesPrefixProxyEditor(
     const normalizedProvider = String(file.provider ?? '')
       .trim()
       .toLowerCase();
-    const providerKey = supportsAuthFileWebsockets(normalizedType)
+    const providerKey =
+      supportsAuthFileWebsockets(normalizedType) || supportsAuthFileUsingApi(normalizedType)
       ? normalizedType
       : normalizedProvider;
     const supportsWebsockets = supportsAuthFileWebsockets(providerKey);
+    const supportsUsingApi = supportsAuthFileUsingApi(providerKey);
 
     if (disableControls) return;
     if (prefixProxyEditor?.fileName === name) {
@@ -267,6 +280,7 @@ export function useAuthFilesPrefixProxyEditor(
       fileInfoText: JSON.stringify(file, null, 2),
       providerKey,
       supportsWebsockets,
+      supportsUsingApi,
       loading: true,
       saving: false,
       error: null,
@@ -280,6 +294,8 @@ export function useAuthFilesPrefixProxyEditor(
       excludedModelsText: '',
       disableCooling: '',
       websockets: false,
+      usingApi: false,
+      usingApiTouched: false,
       note: '',
       noteTouched: false,
       headersText: '',
@@ -329,6 +345,7 @@ export function useAuthFilesPrefixProxyEditor(
       const excludedModels = normalizeExcludedModels(json.excluded_models);
       const disableCoolingValue = parseDisableCoolingValue(json.disable_cooling);
       const websocketsValue = supportsWebsockets ? readAuthFileWebsockets(json) : false;
+      const usingApi = supportsUsingApi ? readAuthFileUsingApi(json) : false;
       const note = typeof json.note === 'string' ? json.note : '';
       const headers = json.headers;
       let headersText = '';
@@ -355,6 +372,8 @@ export function useAuthFilesPrefixProxyEditor(
           disableCooling:
             disableCoolingValue === undefined ? '' : disableCoolingValue ? 'true' : 'false',
           websockets: websocketsValue,
+          usingApi,
+          usingApiTouched: false,
           note,
           noteTouched: false,
           headersText,
@@ -384,6 +403,9 @@ export function useAuthFilesPrefixProxyEditor(
       if (field === 'priority') return { ...prev, priority: String(value) };
       if (field === 'excludedModelsText') return { ...prev, excludedModelsText: String(value) };
       if (field === 'disableCooling') return { ...prev, disableCooling: String(value) };
+      if (field === 'usingApi') {
+        return { ...prev, usingApi: Boolean(value), usingApiTouched: true };
+      }
       if (field === 'note') return { ...prev, note: String(value), noteTouched: true };
       if (field === 'headersText') {
         const headersText = String(value);

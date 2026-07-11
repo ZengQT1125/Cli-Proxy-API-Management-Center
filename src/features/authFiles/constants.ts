@@ -33,6 +33,12 @@ export {
   supportsAuthFileWebsockets,
   TRUTHY_TEXT_VALUES,
 } from './websockets.ts';
+export {
+  applyAuthFileUsingApi,
+  AUTH_FILE_USING_API_PROVIDERS,
+  readAuthFileUsingApi,
+  supportsAuthFileUsingApi,
+} from './usingApi.ts';
 
 // 标签类型颜色配置（对齐重构前 styles.css 的 file-type-badge 颜色）
 export const TYPE_COLORS: Record<string, TypeColorSet> = {

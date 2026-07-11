@@ -199,6 +199,18 @@ export function AuthFilesPrefixProxyEditorModal(props: AuthFilesPrefixProxyEdito
                       <div className="hint">{t('auth_files.websockets_hint')}</div>
                     </div>
                   )}
+                  {editor.supportsUsingApi && (
+                    <div className="form-group">
+                      <label>{t('auth_files.using_api_label')}</label>
+                      <ToggleSwitch
+                        checked={editor.usingApi}
+                        disabled={disableControls || editor.saving || !editor.json}
+                        ariaLabel={t('auth_files.using_api_label')}
+                        onChange={(value) => onChange('usingApi', value)}
+                      />
+                      <div className="hint">{t('auth_files.using_api_hint')}</div>
+                    </div>
+                  )}
                 </div>
               )}
             </>
