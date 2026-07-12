@@ -18,6 +18,17 @@ type StatusError = { status?: number };
 type AuthFileStatusResponse = { status: string; disabled: boolean };
 type DownloadedAuthFile = { blob: Blob; filename: string };
 type AuthFilesUploadOptions = { onProgress?: AuthFilesUploadProgressHandler };
+export type AuthFileFieldsPatch = {
+  prefix?: string;
+  proxy_url?: string;
+  headers?: Record<string, string>;
+  priority?: number;
+  excluded_models?: string[];
+  disable_cooling?: boolean;
+  websockets?: boolean;
+  using_api?: boolean;
+  note?: string;
+};
 
 export type CodexCleanupEvent =
   | { type: 'start'; total: number }
@@ -205,6 +216,9 @@ export const authFilesApi = {
 
   setStatus: (name: string, disabled: boolean) =>
     apiClient.patch<AuthFileStatusResponse>('/auth-files/status', { name, disabled }),
+
+  patchFields: (name: string, fields: AuthFileFieldsPatch) =>
+    apiClient.patch('/auth-files/fields', { name, ...fields }),
 
   upload: (file: File, options?: AuthFilesUploadOptions): Promise<AuthFilesUploadResult> =>
     authFilesApi.uploadBatch([file], options),

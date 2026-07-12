@@ -1,9 +1,11 @@
-import { describe, expect, test } from 'bun:test';
+import { describe, expect, spyOn, test } from 'bun:test';
 import {
   applyAuthFileUsingApi,
   readAuthFileUsingApi,
   supportsAuthFileUsingApi,
 } from '@/features/authFiles/constants';
+import { authFilesApi } from '@/services/api/authFiles';
+import { apiClient } from '@/services/api/client';
 
 describe('xAI auth-file using_api', () => {
   test('is only exposed for xAI credentials', () => {
@@ -28,5 +30,21 @@ describe('xAI auth-file using_api', () => {
       type: 'xai',
       using_api: false,
     });
+  });
+
+  test('sends only changed metadata through the auth-file fields endpoint', async () => {
+    const patchSpy = spyOn(apiClient, 'patch').mockResolvedValue(undefined);
+
+    try {
+      await authFilesApi.patchFields('grok.json', { using_api: true });
+
+      expect(patchSpy).toHaveBeenCalledTimes(1);
+      expect(patchSpy).toHaveBeenCalledWith('/auth-files/fields', {
+        name: 'grok.json',
+        using_api: true,
+      });
+    } finally {
+      patchSpy.mockRestore();
+    }
   });
 });
