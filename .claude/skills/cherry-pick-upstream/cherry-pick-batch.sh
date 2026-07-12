@@ -372,6 +372,8 @@ SKIP_HASHES=(
   a4f7bb2   # chore: update dependencies — 计划跳过，包含 bun.lock 且本地继续使用 npm/Vite 7/TypeScript 5
   2201fe1   # fix: ESLint async loading and provider sorting — 计划跳过，混合 Provider Workbench 分叉与低价值重排
   4af4cf4   # ci: add Bun test verification — 计划跳过，本地使用 npm 且仓库 AGENTS/README 已分叉
+  2818921   # fix(config): validate Redis retention range — 计划跳过，本地未采纳 redisUsageQueueRetentionSeconds 视觉配置字段
+  7958915   # feat(config): disable image generation passthrough — 计划跳过，本地未采纳 disable-image-generation 视觉配置链
 )
 
 is_skip() {
