@@ -374,6 +374,19 @@ SKIP_HASHES=(
   4af4cf4   # ci: add Bun test verification — 计划跳过，本地使用 npm 且仓库 AGENTS/README 已分叉
   2818921   # fix(config): validate Redis retention range — 计划跳过，本地未采纳 redisUsageQueueRetentionSeconds 视觉配置字段
   7958915   # feat(config): disable image generation passthrough — 计划跳过，本地未采纳 disable-image-generation 视觉配置链
+  # === 2026-07-12 已摘取但因冲突适配/上下文差异导致 patch-id 漂移 ===
+  550169c   # feat(quota): weekly billing support — 本地 30fd8cc，保留 Gemini CLI quota builder
+  fe24d78   # feat(plugin): GitHub release version selection — 本地 b378c28，保留本地插件认证与安装门禁
+  637f399   # fix(config): preserve concurrent visual updates — 本地 477f8fa，仅对本 fork 实际视觉字段应用 dirty 写入
+  878abca   # fix(auth-files): preserve alias force mapping — 本地 40951d9，保留本地 alias 去重语义与 Codex cleanup
+  6c64e25   # fix(plugin-store): verify official source identity — 本地 9616499
+  c69e5fd   # fix(dashboard): distinguish model load failures — 本地 abfc4d0，保留本地 Dashboard provider 数据链
+  4afba52   # fix(auth-files): validate aliases case-insensitively — 本地 4399e3d，适配本地 ModelMappingDiagram
+  5694b10   # fix(auth-files): guard unsaved OAuth edits — 本地 88a77b4，保留本地 OAuth 页面结构
+  ad366ef   # fix(auth-files): custom excluded model rules — 本地 147df20
+  47f7a9e   # fix(plugins): preserve untouched config fields — 本地 0e286c0，移除已无调用的全量 PUT
+  5754ecf   # fix(quota): isolate cache across connections — 本地 824c276，保留 Gemini CLI quota store 与 local 导出
+  07562b7   # feat(auth-files): xAI official API toggle — 本地 58216b0，适配本地 JSON 编辑器并保留 Codex cleanup
 )
 
 is_skip() {
