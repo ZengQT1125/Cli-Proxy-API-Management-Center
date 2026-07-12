@@ -12,6 +12,7 @@ import {
 } from '@/stores';
 import { getStatusFromError } from '@/utils/quota';
 import type { QuotaConfig } from './quotaConfigs';
+import { QuotaLoadCoordinator } from './quotaLoadCoordinator';
 
 type QuotaScope = 'page' | 'all';
 
@@ -34,8 +35,7 @@ export function useQuotaLoader<TState, TData>(config: QuotaConfig<TState, TData>
     Record<string, TState>
   >;
 
-  const loadingRef = useRef(false);
-  const requestIdRef = useRef(0);
+  const loadCoordinatorRef = useRef(new QuotaLoadCoordinator());
 
   const loadQuota = useCallback(
     async (
@@ -43,10 +43,9 @@ export function useQuotaLoader<TState, TData>(config: QuotaConfig<TState, TData>
       scope: QuotaScope,
       setLoading: (loading: boolean, scope?: QuotaScope | null) => void
     ) => {
-      if (loadingRef.current) return;
-      loadingRef.current = true;
-      const requestId = ++requestIdRef.current;
       const cacheGeneration = captureQuotaCacheGeneration();
+      const requestId = loadCoordinatorRef.current.begin(cacheGeneration);
+      if (requestId === null) return;
       setLoading(true, scope);
 
       try {
@@ -73,7 +72,7 @@ export function useQuotaLoader<TState, TData>(config: QuotaConfig<TState, TData>
           })
         );
 
-        if (requestId !== requestIdRef.current) return;
+        if (!loadCoordinatorRef.current.isCurrent(requestId)) return;
 
         commitIfQuotaCacheCurrent(cacheGeneration, () => {
           setQuota((prev) => {
@@ -92,9 +91,8 @@ export function useQuotaLoader<TState, TData>(config: QuotaConfig<TState, TData>
           });
         });
       } finally {
-        if (requestId === requestIdRef.current) {
+        if (loadCoordinatorRef.current.finish(requestId)) {
           setLoading(false);
-          loadingRef.current = false;
         }
       }
     },
