@@ -52,6 +52,7 @@ export interface MonitorRequestLogItem {
   output_tokens: number;
   reasoning_tokens: number;
   cached_tokens: number;
+  cache_write_tokens: number;
   total_tokens: number;
   latency_ms: number;
   ttft_ms: number;
@@ -94,6 +95,7 @@ export interface MonitorModelStatsItem {
   input_tokens: number;
   output_tokens: number;
   cached_tokens: number;
+  cache_write_tokens: number;
   success_rate: number;
   last_request_at?: string;
   recent_requests: MonitorRecentRequest[];
@@ -107,6 +109,7 @@ export interface MonitorChannelStatsItem {
   input_tokens: number;
   output_tokens: number;
   cached_tokens: number;
+  cache_write_tokens: number;
   success_rate: number;
   last_request_at?: string;
   recent_requests: MonitorRecentRequest[];
@@ -152,6 +155,7 @@ export interface MonitorKpiData {
   output_tokens: number;
   reasoning_tokens: number;
   cached_tokens: number;
+  cache_write_tokens: number;
   avg_tpm: number;
   avg_rpm: number;
   avg_rpd: number;
@@ -166,6 +170,7 @@ export interface MonitorDailyTrendItem {
   output_tokens: number;
   reasoning_tokens: number;
   cached_tokens: number;
+  cache_write_tokens: number;
 }
 
 export interface MonitorHourlyModelsData {
@@ -182,6 +187,7 @@ export interface MonitorHourlyTokensData {
   output_tokens: number[];
   reasoning_tokens: number[];
   cached_tokens: number[];
+  cache_write_tokens: number[];
 }
 
 export interface MonitorServiceHealthBlock {
@@ -272,9 +278,14 @@ export const monitorApi = {
   },
 
   getDailyTrend: (params: MonitorTimeRangeQuery = {}) =>
-    apiClient.get<{ items: MonitorDailyTrendItem[] }>('/custom/monitor/daily-trend', { params, timeout: MONITOR_TIMEOUT_MS }),
+    apiClient.get<{ items: MonitorDailyTrendItem[] }>('/custom/monitor/daily-trend', {
+      params,
+      timeout: MONITOR_TIMEOUT_MS,
+    }),
 
-  getHourlyModels: async (params: MonitorTimeRangeQuery & { hours?: number; limit?: number } = {}) => {
+  getHourlyModels: async (
+    params: MonitorTimeRangeQuery & { hours?: number; limit?: number } = {}
+  ) => {
     const data = await apiClient.get('/custom/monitor/hourly-models', {
       params,
       timeout: MONITOR_TIMEOUT_MS,
