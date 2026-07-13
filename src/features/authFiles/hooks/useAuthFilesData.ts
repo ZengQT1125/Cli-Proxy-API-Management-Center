@@ -79,6 +79,7 @@ export type UseAuthFilesDataResult = {
   handleStatusToggle: (item: AuthFileItem, enabled: boolean) => Promise<void>;
   toggleSelect: (file: AuthFileItem) => void;
   selectAllVisible: (visibleFiles: AuthFileItem[]) => void;
+  removeFromSelection: (names: Iterable<string>) => void;
   deselectAll: () => void;
   batchSetStatus: (names: string[], enabled: boolean) => Promise<void>;
   batchDelete: (names: string[]) => void;
@@ -86,11 +87,12 @@ export type UseAuthFilesDataResult = {
 
 export type UseAuthFilesDataOptions = {
   query: AuthFilesListQuery;
+  resetKeyStats: () => void;
   loadKeyStatsForFiles: (files: AuthFileItem[]) => Promise<void>;
 };
 
 export function useAuthFilesData(options: UseAuthFilesDataOptions): UseAuthFilesDataResult {
-  const { query, loadKeyStatsForFiles } = options;
+  const { query, resetKeyStats, loadKeyStatsForFiles } = options;
   const { t } = useTranslation();
   const { showNotification, showConfirmation } = useNotificationStore();
 
@@ -112,8 +114,12 @@ export function useAuthFilesData(options: UseAuthFilesDataOptions): UseAuthFiles
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const batchStatusPendingRef = useRef(false);
+  const mountedRef = useRef(true);
   const loadControllerRef = useRef<AbortController | null>(null);
   const loadRequestIdRef = useRef(0);
+  const queryRef = useRef(query);
+  const loadedQueryRef = useRef<AuthFilesListQuery | null>(null);
+  queryRef.current = query;
   const selectedFiles = useMemo(() => new Set(selection.keys()), [selection]);
   const selectionCount = selection.size;
   const toggleSelect = useCallback((file: AuthFileItem) => {
@@ -133,20 +139,41 @@ export function useAuthFilesData(options: UseAuthFilesDataOptions): UseAuthFiles
     setSelection(new Map());
   }, []);
 
+  const removeFromSelection = useCallback((names: Iterable<string>) => {
+    setSelection((prev) => removeSelectedAuthFiles(prev, names));
+  }, []);
+
   useEffect(() => {
-    return () => loadControllerRef.current?.abort();
+    return () => {
+      mountedRef.current = false;
+      loadControllerRef.current?.abort();
+    };
   }, []);
 
   const loadFiles = useCallback(async () => {
+    const requestQuery = queryRef.current;
     loadControllerRef.current?.abort();
     const controller = new AbortController();
     const requestId = ++loadRequestIdRef.current;
     loadControllerRef.current = controller;
+    if (loadedQueryRef.current !== requestQuery) {
+      loadedQueryRef.current = requestQuery;
+      setFiles([]);
+      setTotal(0);
+      setTypeCounts({ all: 0 });
+      resetKeyStats();
+    }
     setLoading(true);
     setError('');
     try {
-      const data = await authFilesApi.listPage(query, controller.signal);
-      if (requestId !== loadRequestIdRef.current) return [];
+      const data = await authFilesApi.listPage(requestQuery, controller.signal);
+      if (
+        !mountedRef.current ||
+        requestId !== loadRequestIdRef.current ||
+        queryRef.current !== requestQuery
+      ) {
+        return [];
+      }
       const nextFiles = data?.files || [];
       setFiles(nextFiles);
       setTotal(data?.total ?? 0);
@@ -158,16 +185,24 @@ export function useAuthFilesData(options: UseAuthFilesDataOptions): UseAuthFiles
     } catch (err: unknown) {
       if (isCanceledRequest(err)) return [];
       const errorMessage = err instanceof Error ? err.message : t('notification.refresh_failed');
-      if (requestId === loadRequestIdRef.current) {
+      if (
+        mountedRef.current &&
+        requestId === loadRequestIdRef.current &&
+        queryRef.current === requestQuery
+      ) {
         setError(errorMessage);
       }
       return [];
     } finally {
-      if (requestId === loadRequestIdRef.current) {
+      if (
+        mountedRef.current &&
+        requestId === loadRequestIdRef.current &&
+        queryRef.current === requestQuery
+      ) {
         setLoading(false);
       }
     }
-  }, [loadKeyStatsForFiles, query, t]);
+  }, [loadKeyStatsForFiles, resetKeyStats, t]);
 
   const handleUploadClick = useCallback(() => {
     fileInputRef.current?.click();
@@ -667,6 +702,7 @@ export function useAuthFilesData(options: UseAuthFilesDataOptions): UseAuthFiles
     handleStatusToggle,
     toggleSelect,
     selectAllVisible,
+    removeFromSelection,
     deselectAll,
     batchSetStatus,
     batchDelete,

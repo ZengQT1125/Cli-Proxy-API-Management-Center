@@ -151,6 +151,7 @@ export function AuthFilesPage() {
   const {
     keyStats,
     statusBarByAuthIndex,
+    resetKeyStats,
     loadKeyStatsForFiles,
     refreshKeyStatsForFiles,
     refreshKeyStatsForAuthIndex,
@@ -183,10 +184,11 @@ export function AuthFilesPage() {
     handleStatusToggle,
     toggleSelect,
     selectAllVisible,
+    removeFromSelection,
     deselectAll,
     batchSetStatus,
     batchDelete,
-  } = useAuthFilesData({ query: listQuery, loadKeyStatsForFiles });
+  } = useAuthFilesData({ query: listQuery, resetKeyStats, loadKeyStatsForFiles });
 
   const statusBarCache = useAuthFilesStatusBarCache(files, statusBarByAuthIndex);
 
@@ -327,6 +329,7 @@ export function AuthFilesPage() {
     setCleanupDone(false);
 
     const abort = new AbortController();
+    const deletedNames = new Set<string>();
     cleanupAbortRef.current = abort;
 
     try {
@@ -349,6 +352,7 @@ export function AuthFilesPage() {
             `[${ev.index}/${ev.total}] ${ev.name} \u2014 ${status}`,
           ]);
           if (ev.deleted) {
+            deletedNames.add(ev.name);
             setCleanupDeleted((prev) => prev + 1);
           }
         } else if (ev.type === 'done') {
@@ -359,16 +363,17 @@ export function AuthFilesPage() {
           ]);
         }
       }, abort.signal);
-      await loadFiles();
     } catch {
       if (!abort.signal.aborted) {
         showNotification(t('auth_files.codex_cleanup_failed'), 'error');
       }
     } finally {
+      removeFromSelection(deletedNames);
+      await loadFiles();
       setCodexCleaning(false);
       cleanupAbortRef.current = null;
     }
-  }, [loadFiles, showNotification, t]);
+  }, [loadFiles, removeFromSelection, showNotification, t]);
 
   const handleCleanupModalClose = useCallback(() => {
     if (codexCleaning && cleanupAbortRef.current) {
@@ -383,10 +388,10 @@ export function AuthFilesPage() {
 
   useHeaderRefresh(handleHeaderRefresh);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!isCurrentLayer) return;
     loadFiles();
-  }, [isCurrentLayer, loadFiles]);
+  }, [isCurrentLayer, listQuery, loadFiles]);
 
   useEffect(() => {
     if (!isCurrentLayer) return;

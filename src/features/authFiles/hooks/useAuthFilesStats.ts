@@ -48,6 +48,7 @@ const getAuthIndexes = (files: AuthFileItem[]): string[] => {
 export type UseAuthFilesStatsResult = {
   keyStats: KeyStats;
   statusBarByAuthIndex: Map<string, StatusBarData>;
+  resetKeyStats: () => void;
   loadKeyStatsForFiles: (files: AuthFileItem[]) => Promise<void>;
   refreshKeyStatsForFiles: (files: AuthFileItem[]) => Promise<void>;
   refreshKeyStatsForAuthIndex: (authIndex: unknown) => Promise<void>;
@@ -60,6 +61,15 @@ export function useAuthFilesStats(): UseAuthFilesStatsResult {
   );
   const lastRequestRef = useRef<{ signature: string; refreshedAt: number } | null>(null);
   const batchRequestIdRef = useRef(0);
+  const pageGenerationRef = useRef(0);
+
+  const resetKeyStats = useCallback(() => {
+    pageGenerationRef.current++;
+    batchRequestIdRef.current++;
+    lastRequestRef.current = null;
+    setKeyStats(EMPTY_KEY_STATS);
+    setStatusBarByAuthIndex(new Map());
+  }, []);
 
   const requestKeyStatsForFiles = useCallback(async (files: AuthFileItem[], force: boolean) => {
     const authIndexes = getAuthIndexes(files);
@@ -74,6 +84,7 @@ export function useAuthFilesStats(): UseAuthFilesStatsResult {
     }
 
     const requestId = ++batchRequestIdRef.current;
+    const pageGeneration = pageGenerationRef.current;
     if (lastRequest?.signature !== signature) {
       setKeyStats(EMPTY_KEY_STATS);
       setStatusBarByAuthIndex(new Map());
@@ -86,7 +97,9 @@ export function useAuthFilesStats(): UseAuthFilesStatsResult {
 
     try {
       const response = await monitorApi.getKeyStats(authIndexes);
-      if (requestId !== batchRequestIdRef.current) return;
+      if (requestId !== batchRequestIdRef.current || pageGeneration !== pageGenerationRef.current) {
+        return;
+      }
       const result = processKeyStatsResponse(response);
       setKeyStats(result.keyStats);
       setStatusBarByAuthIndex(result.statusBarByAuthIndex);
@@ -111,9 +124,11 @@ export function useAuthFilesStats(): UseAuthFilesStatsResult {
     if (!normalizedAuthIndex) {
       return;
     }
+    const pageGeneration = pageGenerationRef.current;
 
     try {
       const response = await monitorApi.getKeyStats({ auth_index: normalizedAuthIndex });
+      if (pageGeneration !== pageGenerationRef.current) return;
       if (normalizeAuthIndex(response.filter?.auth_index) !== normalizedAuthIndex) {
         return;
       }
@@ -146,6 +161,7 @@ export function useAuthFilesStats(): UseAuthFilesStatsResult {
   return {
     keyStats,
     statusBarByAuthIndex,
+    resetKeyStats,
     loadKeyStatsForFiles,
     refreshKeyStatsForFiles,
     refreshKeyStatsForAuthIndex,
