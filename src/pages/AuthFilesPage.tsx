@@ -619,15 +619,6 @@ export function AuthFilesPage() {
   const deleteCandidateCount = typeCounts[filter] ?? 0;
 
   const deleteAllButtonLabel = (() => {
-    if (deletingAll && deleteAllProgress && deleteAllProgress.total > 0) {
-      return t('auth_files.delete_all_progress', {
-        current: deleteAllProgress.current,
-        total: deleteAllProgress.total,
-      });
-    }
-    if (deletingAll) {
-      return t('auth_files.delete_all_progress_active');
-    }
     if (disabledOnly) {
       return t('auth_files.delete_filtered_result_button');
     }
@@ -644,6 +635,15 @@ export function AuthFilesPage() {
     ? uploadProgress.percent !== null
       ? t('auth_files.upload_progress_percent', { percent: uploadProgress.percent })
       : t('auth_files.upload_progress_active')
+    : '';
+  const deleteAllProgressPercent =
+    deleteAllProgress && deleteAllProgress.total > 0
+      ? Math.min(100, Math.max(0, Math.round((deleteAllProgress.current / deleteAllProgress.total) * 100)))
+      : null;
+  const deleteAllProgressLabel = deletingAll
+    ? deleteAllProgressPercent !== null
+      ? t('auth_files.delete_all_progress_percent', { percent: deleteAllProgressPercent })
+      : t('auth_files.delete_all_progress_active')
     : '';
 
   return (
@@ -730,6 +730,21 @@ export function AuthFilesPage() {
                 className={styles.uploadProgressBar}
                 style={{
                   width: uploadProgress.percent !== null ? `${uploadProgress.percent}%` : '100%',
+                }}
+              />
+            </div>
+          </div>
+        )}
+        {deletingAll && (
+          <div className={styles.uploadProgress} role="status" aria-live="polite">
+            <div className={styles.uploadProgressHeader}>
+              <span>{deleteAllProgressLabel}</span>
+            </div>
+            <div className={styles.uploadProgressTrack}>
+              <div
+                className={styles.uploadProgressBar}
+                style={{
+                  width: deleteAllProgressPercent !== null ? `${deleteAllProgressPercent}%` : '100%',
                 }}
               />
             </div>
