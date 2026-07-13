@@ -211,7 +211,15 @@ export interface MonitorKeyStatsEntry {
   blocks: Array<{ success: number; failure: number }>;
 }
 
-export interface MonitorKeyStatsResponse {
+export interface MonitorKeyStatsWireFilter {
+  auth_indexes?: string[];
+}
+
+export interface MonitorKeyStatsResponseFilter extends MonitorKeyStatsWireFilter {
+  auth_index?: string;
+}
+
+export interface MonitorKeyStatsWireResponse {
   by_source: Record<string, MonitorKeyStatsEntry>;
   by_auth_index: Record<string, MonitorKeyStatsEntry>;
   block_config: {
@@ -219,14 +227,14 @@ export interface MonitorKeyStatsResponse {
     duration_ms: number;
     window_start_ms: number;
   };
-  filter?: {
-    auth_index?: string;
-  };
+  filter?: MonitorKeyStatsWireFilter;
 }
 
-export interface MonitorKeyStatsQuery {
-  auth_index?: string;
-}
+export type MonitorKeyStatsResponse = Omit<MonitorKeyStatsWireResponse, 'filter'> & {
+  filter?: MonitorKeyStatsResponseFilter;
+};
+
+export type MonitorKeyStatsQuery = { auth_index?: string } | string[];
 
 export interface MonitorRequestDetailItem {
   timestamp: string;
@@ -306,11 +314,26 @@ export const monitorApi = {
       timeout: MONITOR_TIMEOUT_MS,
     }),
 
-  getKeyStats: (params: MonitorKeyStatsQuery = {}) =>
-    apiClient.get<MonitorKeyStatsResponse>('/custom/monitor/key-stats', {
-      params,
+  getKeyStats: async (query: MonitorKeyStatsQuery = []): Promise<MonitorKeyStatsResponse> => {
+    const authIndexes = Array.isArray(query) ? query : query.auth_index ? [query.auth_index] : [];
+    const response = await apiClient.get<MonitorKeyStatsWireResponse>('/custom/monitor/key-stats', {
+      params: { auth_index: authIndexes },
+      paramsSerializer: { indexes: null },
       timeout: MONITOR_TIMEOUT_MS,
-    }),
+    });
+
+    if (!Array.isArray(query) && response.filter?.auth_indexes?.length === 1) {
+      return {
+        ...response,
+        filter: {
+          ...response.filter,
+          auth_index: response.filter.auth_indexes[0],
+        },
+      };
+    }
+
+    return response;
+  },
 
   getRequestDetails: (params: MonitorRequestDetailsQuery = {}) =>
     apiClient.get<MonitorRequestDetailsResponse>('/custom/monitor/request-details', {

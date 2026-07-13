@@ -38,3 +38,12 @@ export interface AuthFilesResponse {
   files: AuthFileItem[];
   total?: number;
 }
+
+export interface AuthFilesPageResponse extends AuthFilesResponse {
+  total: number;
+  page: number;
+  page_size: number;
+  types: string[];
+  type_counts: Record<string, number>;
+  enabled_type_counts: Record<string, number>;
+}

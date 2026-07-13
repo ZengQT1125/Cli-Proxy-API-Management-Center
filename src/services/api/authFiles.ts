@@ -11,7 +11,8 @@ import {
   type AuthFilesUploadProgressHandler,
   type AuthFilesUploadResult,
 } from './authFilesUpload';
-import type { AuthFilesResponse } from '@/types/authFile';
+import { buildAuthFilesListParams, type AuthFilesListQuery } from '@/features/authFiles/listQuery';
+import type { AuthFilesPageResponse, AuthFilesResponse } from '@/types/authFile';
 import type { OAuthModelAliasEntry } from '@/types';
 
 type StatusError = { status?: number };
@@ -214,6 +215,12 @@ const downloadAuthFileBlob = async (url: string, fallback: string): Promise<Down
 export const authFilesApi = {
   list: () => apiClient.get<AuthFilesResponse>('/auth-files'),
 
+  listPage: (query: AuthFilesListQuery, signal?: AbortSignal) =>
+    apiClient.get<AuthFilesPageResponse>('/auth-files', {
+      params: buildAuthFilesListParams(query),
+      signal,
+    }),
+
   setStatus: (name: string, disabled: boolean) =>
     apiClient.patch<AuthFileStatusResponse>('/auth-files/status', { name, disabled }),
 
@@ -241,6 +248,19 @@ export const authFilesApi = {
   deleteFile: (name: string) => apiClient.delete(`/auth-files?name=${encodeURIComponent(name)}`),
 
   deleteAll: () => apiClient.delete('/auth-files', { params: { all: true } }),
+
+  deleteFiltered: (query: AuthFilesListQuery) => {
+    const { type, problem_only, disabled_only, enabled_only } = buildAuthFilesListParams(query);
+    return apiClient.delete('/auth-files', {
+      params: {
+        all: true,
+        ...(type ? { type } : {}),
+        ...(problem_only ? { problem_only } : {}),
+        ...(disabled_only ? { disabled_only } : {}),
+        ...(enabled_only ? { enabled_only } : {}),
+      },
+    });
+  },
 
   downloadFile: (name: string) =>
     downloadAuthFileBlob(`/auth-files/download?name=${encodeURIComponent(name)}`, name),
