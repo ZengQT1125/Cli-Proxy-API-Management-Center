@@ -1,7 +1,7 @@
 import axios from 'axios';
 import {
   useCallback,
-  useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -119,7 +119,6 @@ export function useAuthFilesData(options: UseAuthFilesDataOptions): UseAuthFiles
   const loadRequestIdRef = useRef(0);
   const queryRef = useRef(query);
   const loadedQueryRef = useRef<AuthFilesListQuery | null>(null);
-  queryRef.current = query;
   const selectedFiles = useMemo(() => new Set(selection.keys()), [selection]);
   const selectionCount = selection.size;
   const toggleSelect = useCallback((file: AuthFileItem) => {
@@ -143,7 +142,12 @@ export function useAuthFilesData(options: UseAuthFilesDataOptions): UseAuthFiles
     setSelection((prev) => removeSelectedAuthFiles(prev, names));
   }, []);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
+    queryRef.current = query;
+  }, [query]);
+
+  useLayoutEffect(() => {
+    mountedRef.current = true;
     return () => {
       mountedRef.current = false;
       loadControllerRef.current?.abort();
