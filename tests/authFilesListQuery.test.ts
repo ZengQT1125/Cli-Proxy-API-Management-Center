@@ -61,21 +61,58 @@ describe('auth-file list query contracts', () => {
   });
 
   test('deletes all matching files without forwarding client-only search or pagination', async () => {
-    const deleteSpy = spyOn(apiClient, 'delete').mockResolvedValue(undefined);
+    const fetchContext = {
+      baseUrl: 'http://localhost/v0/management',
+      managementKey: 'test-key',
+    };
+    const getFetchContextSpy = spyOn(apiClient, 'getFetchContext').mockReturnValue(fetchContext);
+    const originalFetch = globalThis.fetch;
+    const fetchMock = async (input: RequestInfo | URL) => {
+      const url = String(input);
+      expect(url).toBe(
+        'http://localhost/v0/management/auth-files?all=true&type=codex&problem_only=true&enabled_only=true'
+      );
+      expect(url).not.toContain('page=');
+      expect(url).not.toContain('search=');
+      return new Response(
+        [
+          JSON.stringify({ type: 'start', total: 1 }),
+          JSON.stringify({
+            type: 'progress',
+            index: 1,
+            total: 1,
+            name: 'codex-a.json',
+            deleted: true,
+          }),
+          JSON.stringify({
+            type: 'done',
+            total: 1,
+            deleted: 1,
+            failed: 0,
+            files: ['codex-a.json'],
+            failed_items: [],
+          }),
+        ].join('\n') + '\n',
+        {
+          status: 200,
+          headers: { 'Content-Type': 'application/x-ndjson' },
+        }
+      );
+    };
+    globalThis.fetch = fetchMock as typeof fetch;
 
     try {
-      await authFilesApi.deleteFiltered(query);
-
-      expect(deleteSpy).toHaveBeenCalledWith('/auth-files', {
-        params: {
-          all: true,
-          type: 'codex',
-          problem_only: true,
-          enabled_only: true,
-        },
+      const result = await authFilesApi.deleteFiltered(query);
+      expect(result).toEqual({
+        status: 'ok',
+        deleted: 1,
+        files: ['codex-a.json'],
+        failed: [],
       });
+      expect(getFetchContextSpy).toHaveBeenCalled();
     } finally {
-      deleteSpy.mockRestore();
+      globalThis.fetch = originalFetch;
+      getFetchContextSpy.mockRestore();
     }
   });
 

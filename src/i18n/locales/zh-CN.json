@@ -512,6 +512,8 @@
     "upload_progress_active": "正在上传...",
     "upload_progress_percent": "正在上传 {{percent}}%",
     "delete_all_button": "删除全部",
+    "delete_all_progress": "删除中 {{current}}/{{total}}",
+    "delete_all_progress_active": "删除中...",
     "empty_title": "暂无认证文件",
     "empty_desc": "点击上方按钮上传第一个文件",
     "search_empty_title": "没有匹配的配置文件",

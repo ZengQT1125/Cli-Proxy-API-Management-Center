@@ -170,6 +170,7 @@ export function AuthFilesPage() {
     uploadProgress,
     deleting,
     deletingAll,
+    deleteAllProgress,
     downloadingAll,
     statusUpdating,
     batchStatusUpdating,
@@ -618,6 +619,15 @@ export function AuthFilesPage() {
   const deleteCandidateCount = typeCounts[filter] ?? 0;
 
   const deleteAllButtonLabel = (() => {
+    if (deletingAll && deleteAllProgress && deleteAllProgress.total > 0) {
+      return t('auth_files.delete_all_progress', {
+        current: deleteAllProgress.current,
+        total: deleteAllProgress.total,
+      });
+    }
+    if (deletingAll) {
+      return t('auth_files.delete_all_progress_active');
+    }
     if (disabledOnly) {
       return t('auth_files.delete_filtered_result_button');
     }

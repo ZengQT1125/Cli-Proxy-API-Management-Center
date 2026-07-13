@@ -10,6 +10,7 @@ import {
 } from 'react';
 import { useTranslation } from 'react-i18next';
 import { authFilesApi } from '@/services/api';
+import type { AuthFilesDeleteProgressEvent } from '@/services/api/authFiles';
 import { useNotificationStore } from '@/stores';
 import type { AuthFileItem } from '@/types';
 import type {
@@ -64,6 +65,7 @@ export type UseAuthFilesDataResult = {
   uploadProgress: AuthFilesUploadProgress | null;
   deleting: string | null;
   deletingAll: boolean;
+  deleteAllProgress: { current: number; total: number } | null;
   downloadingAll: boolean;
   statusUpdating: Record<string, boolean>;
   batchStatusUpdating: boolean;
@@ -107,6 +109,10 @@ export function useAuthFilesData(options: UseAuthFilesDataOptions): UseAuthFiles
   const [uploadProgress, setUploadProgress] = useState<AuthFilesUploadProgress | null>(null);
   const [deleting, setDeleting] = useState<string | null>(null);
   const [deletingAll, setDeletingAll] = useState(false);
+  const [deleteAllProgress, setDeleteAllProgress] = useState<{
+    current: number;
+    total: number;
+  } | null>(null);
   const [downloadingAll, setDownloadingAll] = useState(false);
   const [statusUpdating, setStatusUpdating] = useState<Record<string, boolean>>({});
   const [batchStatusUpdating, setBatchStatusUpdating] = useState(false);
@@ -359,14 +365,46 @@ export function useAuthFilesData(options: UseAuthFilesDataOptions): UseAuthFiles
         confirmText: t('common.confirm'),
         onConfirm: async () => {
           setDeletingAll(true);
+          setDeleteAllProgress({ current: 0, total: 0 });
+          const streamOptions = {
+            onProgress: (event: AuthFilesDeleteProgressEvent) => {
+              if (event.type === 'start') {
+                setDeleteAllProgress({ current: 0, total: event.total });
+              } else if (event.type === 'progress') {
+                setDeleteAllProgress({
+                  current: event.index,
+                  total: event.total,
+                });
+              } else if (event.type === 'done') {
+                setDeleteAllProgress({
+                  current: event.total,
+                  total: event.total,
+                });
+              }
+            },
+          };
           try {
             if (!isFiltered && !isProblemOnly && !isDisabledOnly && !isEnabledOnly) {
-              await authFilesApi.deleteAll();
-              showNotification(t('auth_files.delete_all_success'), 'success');
+              const result = await authFilesApi.deleteAll(streamOptions);
+              const success = result.deleted ?? result.files?.length ?? 0;
+              const failed = result.failed?.length ?? 0;
+              if (failed === 0) {
+                showNotification(
+                  success > 0
+                    ? `${t('auth_files.delete_all_success')} (${success})`
+                    : t('auth_files.delete_all_success'),
+                  'success'
+                );
+              } else {
+                showNotification(
+                  t('auth_files.delete_filtered_result_partial', { success, failed }),
+                  'warning'
+                );
+              }
               deselectAll();
               await loadFiles();
             } else {
-              const result = await authFilesApi.deleteFiltered(query);
+              const result = await authFilesApi.deleteFiltered(query, streamOptions);
               const success = result.deleted ?? result.files?.length ?? 0;
               const failed = result.failed?.length ?? 0;
               const deletedNames = result.files ?? [];
@@ -447,6 +485,7 @@ export function useAuthFilesData(options: UseAuthFilesDataOptions): UseAuthFiles
             showNotification(`${t('notification.delete_failed')}: ${errorMessage}`, 'error');
           } finally {
             setDeletingAll(false);
+            setDeleteAllProgress(null);
           }
         },
       });
@@ -691,6 +730,7 @@ export function useAuthFilesData(options: UseAuthFilesDataOptions): UseAuthFiles
     uploadProgress,
     deleting,
     deletingAll,
+    deleteAllProgress,
     downloadingAll,
     statusUpdating,
     batchStatusUpdating,

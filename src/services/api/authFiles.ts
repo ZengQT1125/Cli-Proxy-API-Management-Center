@@ -25,6 +25,115 @@ export type AuthFilesDeleteResult = {
   files?: string[];
   failed?: Array<{ name?: string; error?: string }>;
 };
+
+export type AuthFilesDeleteProgressEvent =
+  | { type: 'start'; total: number }
+  | {
+      type: 'progress';
+      index: number;
+      total: number;
+      name: string;
+      deleted?: boolean;
+      error?: string;
+    }
+  | {
+      type: 'done';
+      total: number;
+      deleted: number;
+      failed: number;
+      files: string[];
+      failed_items: Array<{ name?: string; error?: string }>;
+    };
+
+export type AuthFilesDeleteProgressHandler = (event: AuthFilesDeleteProgressEvent) => void;
+
+type AuthFilesDeleteStreamOptions = {
+  onProgress?: AuthFilesDeleteProgressHandler;
+  signal?: AbortSignal;
+};
+
+const buildAuthFilesDeleteQuery = (params: Record<string, string | boolean | undefined>) => {
+  const search = new URLSearchParams();
+  Object.entries(params).forEach(([key, value]) => {
+    if (value === undefined || value === false || value === '') return;
+    search.set(key, String(value));
+  });
+  const query = search.toString();
+  return query ? `?${query}` : '';
+};
+
+const readAuthFilesDeleteStream = async (
+  pathWithQuery: string,
+  options: AuthFilesDeleteStreamOptions = {}
+): Promise<AuthFilesDeleteResult> => {
+  const { baseUrl, managementKey } = apiClient.getFetchContext();
+  const resp = await fetch(`${baseUrl}${pathWithQuery}`, {
+    method: 'DELETE',
+    headers: {
+      Authorization: `Bearer ${managementKey}`,
+      Accept: 'application/x-ndjson',
+    },
+    signal: options.signal,
+  });
+
+  if (!resp.ok) {
+    let message = `delete auth files failed: ${resp.status}`;
+    try {
+      const payload = (await resp.json()) as { error?: unknown; message?: unknown };
+      if (typeof payload.error === 'string' && payload.error.trim()) {
+        message = payload.error;
+      } else if (typeof payload.message === 'string' && payload.message.trim()) {
+        message = payload.message;
+      }
+    } catch {
+      /* keep status message */
+    }
+    throw new Error(message);
+  }
+
+  if (!resp.body) {
+    throw new Error('delete auth files stream unavailable');
+  }
+
+  const reader = resp.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+  let result: AuthFilesDeleteResult = { status: 'ok', deleted: 0, files: [], failed: [] };
+
+  const handleEvent = (raw: string) => {
+    const trimmed = raw.trim();
+    if (!trimmed) return;
+    let event: AuthFilesDeleteProgressEvent;
+    try {
+      event = JSON.parse(trimmed) as AuthFilesDeleteProgressEvent;
+    } catch {
+      return;
+    }
+    options.onProgress?.(event);
+    if (event.type === 'done') {
+      result = {
+        status: event.failed > 0 ? 'partial' : 'ok',
+        deleted: event.deleted,
+        files: event.files ?? [],
+        failed: event.failed_items ?? [],
+      };
+    }
+  };
+
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split('\n');
+    buffer = lines.pop() ?? '';
+    lines.forEach(handleEvent);
+  }
+  if (buffer.trim()) {
+    handleEvent(buffer);
+  }
+
+  return result;
+};
 export type AuthFileFieldsPatch = {
   prefix?: string;
   proxy_url?: string;
@@ -253,20 +362,21 @@ export const authFilesApi = {
 
   deleteFile: (name: string) => apiClient.delete(`/auth-files?name=${encodeURIComponent(name)}`),
 
-  deleteAll: () =>
-    apiClient.delete<AuthFilesDeleteResult>('/auth-files', { params: { all: true } }),
+  deleteAll: (options: AuthFilesDeleteStreamOptions = {}) =>
+    readAuthFilesDeleteStream(`/auth-files${buildAuthFilesDeleteQuery({ all: true })}`, options),
 
-  deleteFiltered: (query: AuthFilesListQuery) => {
+  deleteFiltered: (query: AuthFilesListQuery, options: AuthFilesDeleteStreamOptions = {}) => {
     const { type, problem_only, disabled_only, enabled_only } = buildAuthFilesListParams(query);
-    return apiClient.delete<AuthFilesDeleteResult>('/auth-files', {
-      params: {
+    return readAuthFilesDeleteStream(
+      `/auth-files${buildAuthFilesDeleteQuery({
         all: true,
-        ...(type ? { type } : {}),
-        ...(problem_only ? { problem_only } : {}),
-        ...(disabled_only ? { disabled_only } : {}),
-        ...(enabled_only ? { enabled_only } : {}),
-      },
-    });
+        type,
+        problem_only,
+        disabled_only,
+        enabled_only,
+      })}`,
+      options
+    );
   },
 
   downloadFile: (name: string) =>

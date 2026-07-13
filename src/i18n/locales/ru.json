@@ -515,6 +515,8 @@
     "upload_progress_active": "Загрузка...",
     "upload_progress_percent": "Загрузка {{percent}}%",
     "delete_all_button": "Удалить всё",
+    "delete_all_progress": "Удаление {{current}}/{{total}}",
+    "delete_all_progress_active": "Удаление...",
     "empty_title": "Файлы авторизации отсутствуют",
     "empty_desc": "Нажмите кнопку выше, чтобы загрузить первый файл",
     "search_empty_title": "Файлы не найдены",
