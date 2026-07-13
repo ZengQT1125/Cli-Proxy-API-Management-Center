@@ -78,7 +78,12 @@ function buildBlockDetails(data: MonitorServiceHealthData): BlockDetail[] {
   });
 }
 
-export function ServiceHealthCard() {
+interface ServiceHealthCardProps {
+  preloaded?: MonitorServiceHealthData | null;
+  preloadedReady?: boolean;
+}
+
+export function ServiceHealthCard({ preloaded, preloadedReady = false }: ServiceHealthCardProps = {}) {
   const { t } = useTranslation();
   const [data, setData] = useState<MonitorServiceHealthData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -87,7 +92,14 @@ export function ServiceHealthCard() {
   const gridRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    if (preloadedReady) {
+      setData(preloaded ?? null);
+      setError(!preloaded);
+      setLoading(false);
+      return;
+    }
     let cancelled = false;
+    setLoading(true);
     monitorApi
       .getServiceHealth()
       .then((res) => {
@@ -100,7 +112,7 @@ export function ServiceHealthCard() {
         if (!cancelled) setLoading(false);
       });
     return () => { cancelled = true; };
-  }, []);
+  }, [preloaded, preloadedReady]);
 
   useEffect(() => {
     if (activeTooltip === null) return;

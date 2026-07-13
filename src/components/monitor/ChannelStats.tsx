@@ -235,6 +235,8 @@ export function ChannelStats({
   ]);
 
   useEffect(() => {
+    // refreshKey=0 表示 provider map 尚未就绪；跳过首屏空跑，避免与 loadData 完成后再打一次形成双请求。
+    if (refreshKey === 0) return;
     loadChannelStats();
   }, [loadChannelStats, refreshKey]);
 

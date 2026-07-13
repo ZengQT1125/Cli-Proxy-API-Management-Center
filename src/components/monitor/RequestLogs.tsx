@@ -220,6 +220,8 @@ export function RequestLogs({ refreshKey, loading, providerMap, apiFilter }: Req
   }, [autoRefresh]);
 
   useEffect(() => {
+    // 首屏等 refreshKey 就绪，避免与 provider 加载结束时的二次刷新叠打 request-logs。
+    if (refreshKey === 0) return;
     fetchLogData();
   }, [fetchLogData, refreshKey]);
 

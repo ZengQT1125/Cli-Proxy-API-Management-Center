@@ -19,7 +19,9 @@ import { Button } from '@/components/ui/Button';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { useHeaderRefresh } from '@/hooks/useHeaderRefresh';
 import { useThemeStore } from '@/stores';
-import { providersApi, authFilesApi } from '@/services/api';
+import { monitorApi } from '@/services/api';
+import type { MonitorDashboardResponse } from '@/services/api/monitor';
+import { buildMonitorTimeRangeParams } from '@/utils/monitor';
 import { KpiCards } from '@/components/monitor/KpiCards';
 import { ModelDistributionChart } from '@/components/monitor/ModelDistributionChart';
 import { DailyTrendChart } from '@/components/monitor/DailyTrendChart';
@@ -65,135 +67,31 @@ export function MonitorPage() {
   const [activeStatsTab, setActiveStatsTab] = useState<StatsTab>('channel');
   const [providerMap, setProviderMap] = useState<Record<string, string>>({});
   const [providerModels, setProviderModels] = useState<Record<string, Set<string>>>({});
+  // 首屏 overview 合并包：kpi/趋势/小时图/分布/健康一次拉齐，避免 6+ 路齐射 SQLite
+  const [dashboard, setDashboard] = useState<{
+    key: string;
+    data: MonitorDashboardResponse | null;
+  } | null>(null);
 
-  // 加载渠道名称映射（支持所有提供商类型）
+  const overviewKey = `${timeRange}\0${apiFilter}`;
+  const hourlyPreloadKey = `${timeRange}\0${apiFilter}\0${12}`;
+
+  // 渠道展示名 / 模型归属：后端一次合成，不再打 auth-files / *-api-key
   const loadProviderMap = useCallback(async () => {
     try {
-      const map: Record<string, string> = {};
+      const data = await monitorApi.getProviderMap();
       const modelsMap: Record<string, Set<string>> = {};
-
-      // 并行加载所有提供商配置
-      const [openaiProviders, geminiKeys, claudeConfigs, codexConfigs, vertexConfigs, authFilesRes] = await Promise.all([
-        providersApi.getOpenAIProviders().catch(() => []),
-        providersApi.getGeminiKeys().catch(() => []),
-        providersApi.getClaudeConfigs().catch(() => []),
-        providersApi.getCodexConfigs().catch(() => []),
-        providersApi.getVertexConfigs().catch(() => []),
-        authFilesApi.list().catch(() => ({ files: [] })),
-      ]);
-
-      // 处理 OpenAI 兼容提供商
-      openaiProviders.forEach((provider) => {
-        const providerName = provider.headers?.['X-Provider'] || provider.name || 'unknown';
-        const modelSet = new Set<string>();
-        (provider.models || []).forEach((m) => {
-          if (m.alias) modelSet.add(m.alias);
-          if (m.name) modelSet.add(m.name);
-        });
-        const apiKeyEntries = provider.apiKeyEntries || [];
-        apiKeyEntries.forEach((entry) => {
-          const apiKey = entry.apiKey;
-          if (apiKey) {
-            map[apiKey] = providerName;
-            modelsMap[apiKey] = modelSet;
-          }
-        });
-        if (provider.name) {
-          map[provider.name] = providerName;
-          modelsMap[provider.name] = modelSet;
-        }
+      Object.entries(data.models || {}).forEach(([key, names]) => {
+        modelsMap[key] = new Set((names || []).filter(Boolean));
       });
-
-      // 处理 Gemini 提供商
-      geminiKeys.forEach((config) => {
-        const apiKey = config.apiKey;
-        if (apiKey) {
-          const providerName = config.prefix?.trim() || 'Gemini';
-          map[apiKey] = providerName;
-        }
-      });
-
-      // 处理 Claude 提供商
-      claudeConfigs.forEach((config) => {
-        const apiKey = config.apiKey;
-        if (apiKey) {
-          const providerName = config.prefix?.trim() || 'Claude';
-          map[apiKey] = providerName;
-          // 存储模型集合
-          if (config.models && config.models.length > 0) {
-            const modelSet = new Set<string>();
-            config.models.forEach((m) => {
-              if (m.alias) modelSet.add(m.alias);
-              if (m.name) modelSet.add(m.name);
-            });
-            modelsMap[apiKey] = modelSet;
-          }
-        }
-      });
-
-      // 处理 Codex 提供商
-      codexConfigs.forEach((config) => {
-        const apiKey = config.apiKey;
-        if (apiKey) {
-          const providerName = config.prefix?.trim() || 'Codex';
-          map[apiKey] = providerName;
-          if (config.models && config.models.length > 0) {
-            const modelSet = new Set<string>();
-            config.models.forEach((m) => {
-              if (m.alias) modelSet.add(m.alias);
-              if (m.name) modelSet.add(m.name);
-            });
-            modelsMap[apiKey] = modelSet;
-          }
-        }
-      });
-
-      // 处理 Vertex 提供商
-      vertexConfigs.forEach((config) => {
-        const apiKey = config.apiKey;
-        if (apiKey) {
-          const providerName = config.prefix?.trim() || 'Vertex';
-          map[apiKey] = providerName;
-          if (config.models && config.models.length > 0) {
-            const modelSet = new Set<string>();
-            config.models.forEach((m) => {
-              if (m.alias) modelSet.add(m.alias);
-              if (m.name) modelSet.add(m.name);
-            });
-            modelsMap[apiKey] = modelSet;
-          }
-        }
-      });
-
-      // 处理 OAuth 认证文件
-      const authTypeToProvider: Record<string, string> = {
-        claude: 'Claude',
-        gemini: 'Gemini',
-        'gemini-cli': 'Gemini',
-        codex: 'Codex',
-        vertex: 'Vertex',
-        aistudio: 'AI Studio',
-        qwen: 'Qwen',
-        antigravity: 'Antigravity',
-        iflow: 'iFlow',
-      };
-      const authFiles = authFilesRes?.files || [];
-      authFiles.forEach((file) => {
-        const name = file.name;
-        if (!name) return;
-        const fileType = file.type || 'unknown';
-        const providerName = authTypeToProvider[fileType] || fileType;
-        map[name] = providerName;
-      });
-
-      setProviderMap(map);
+      setProviderMap(data.providers || {});
       setProviderModels(modelsMap);
     } catch (err) {
       console.warn('Monitor: Failed to load provider map:', err);
     }
   }, []);
 
-  // 加载数据
+  // 加载数据：provider map + 触发底表 refreshKey；overview 由独立 effect 拉取
   const loadData = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -216,6 +114,30 @@ export function MonitorPage() {
 
   // 响应头部刷新
   useHeaderRefresh(loadData);
+
+  // overview 合并包：跟随页面时间范围 / API 过滤；与 provider map 解耦
+  useEffect(() => {
+    let cancelled = false;
+    const key = overviewKey;
+    (async () => {
+      try {
+        const data = await monitorApi.getDashboard({
+          ...buildMonitorTimeRangeParams(timeRange),
+          ...(apiFilter ? { api_filter: apiFilter } : {}),
+          hours: 12,
+          hourly_model_limit: 6,
+          channel_limit: 100,
+        });
+        if (!cancelled) setDashboard({ key, data });
+      } catch (err) {
+        console.error('Monitor: dashboard load failed:', err);
+        if (!cancelled) setDashboard({ key, data: null });
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [overviewKey, timeRange, apiFilter, refreshKey]);
 
   // 处理时间范围变化
   const handleTimeRangeChange = (range: TimeRange) => {
@@ -300,20 +222,61 @@ export function MonitorPage() {
       </div>
 
       {/* KPI 卡片 */}
-      <KpiCards timeRange={timeRange} apiFilter={apiFilter} />
+      <KpiCards
+        timeRange={timeRange}
+        apiFilter={apiFilter}
+        preloaded={dashboard?.key === overviewKey ? dashboard.data?.kpi ?? null : undefined}
+        preloadedKey={overviewKey}
+      />
 
       {/* 图表区域 */}
       <div className={styles.chartsGrid}>
-        <ModelDistributionChart timeRange={timeRange} apiFilter={apiFilter} isDark={isDark} providerMap={providerMap} />
-        <DailyTrendChart timeRange={timeRange} apiFilter={apiFilter} isDark={isDark} />
+        <ModelDistributionChart
+          timeRange={timeRange}
+          apiFilter={apiFilter}
+          isDark={isDark}
+          providerMap={providerMap}
+          preloadedChannelStats={
+            dashboard?.key === overviewKey ? dashboard.data?.channel_stats.items ?? [] : undefined
+          }
+          preloadedKey={overviewKey}
+        />
+        <DailyTrendChart
+          timeRange={timeRange}
+          apiFilter={apiFilter}
+          isDark={isDark}
+          preloadedItems={
+            dashboard?.key === overviewKey ? dashboard.data?.daily_trend.items ?? [] : undefined
+          }
+          preloadedKey={overviewKey}
+        />
       </div>
 
-      {/* 小时级图表 */}
-      <HourlyModelChart timeRange={timeRange} apiFilter={apiFilter} isDark={isDark} />
-      <HourlyTokenChart timeRange={timeRange} apiFilter={apiFilter} isDark={isDark} />
+      {/* 小时级图表（默认 12h 吃 dashboard；切 6/24 时组件自行请求） */}
+      <HourlyModelChart
+        timeRange={timeRange}
+        apiFilter={apiFilter}
+        isDark={isDark}
+        preloaded={
+          dashboard?.key === overviewKey ? dashboard.data?.hourly_models : undefined
+        }
+        preloadedKey={hourlyPreloadKey}
+      />
+      <HourlyTokenChart
+        timeRange={timeRange}
+        apiFilter={apiFilter}
+        isDark={isDark}
+        preloaded={
+          dashboard?.key === overviewKey ? dashboard.data?.hourly_tokens : undefined
+        }
+        preloadedKey={hourlyPreloadKey}
+      />
 
       {/* 服务健康热力图 */}
-      <ServiceHealthCard />
+      <ServiceHealthCard
+        preloaded={dashboard?.key === overviewKey ? dashboard.data?.service_health ?? null : undefined}
+        preloadedReady={dashboard?.key === overviewKey}
+      />
 
       {/* 统计表格 */}
       <div className={styles.statsSection}>

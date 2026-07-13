@@ -10,6 +10,8 @@ interface HourlyTokenChartProps {
   timeRange: TimeRange;
   apiFilter: string;
   isDark: boolean;
+  preloaded?: MonitorHourlyTokensData;
+  preloadedKey?: string;
 }
 
 type HourRange = 6 | 12 | 24;
@@ -24,7 +26,7 @@ const EMPTY_DATA: MonitorHourlyTokensData = {
   cache_write_tokens: [],
 };
 
-export function HourlyTokenChart({ timeRange, apiFilter, isDark }: HourlyTokenChartProps) {
+export function HourlyTokenChart({ timeRange, apiFilter, isDark, preloaded, preloadedKey }: HourlyTokenChartProps) {
   const { t } = useTranslation();
   const [hourRange, setHourRange] = useState<HourRange>(12);
   const requestKey = `${timeRange}\0${apiFilter}\0${hourRange}`;
@@ -32,10 +34,12 @@ export function HourlyTokenChart({ timeRange, apiFilter, isDark }: HourlyTokenCh
     requestKey: string;
     data: MonitorHourlyTokensData;
   } | null>(null);
-  const loading = hourlyState?.requestKey !== requestKey;
-  const hourlyData = hourlyState?.data ?? EMPTY_DATA;
+  const parentOwned = preloadedKey === requestKey;
+  const loading = parentOwned ? preloaded === undefined : hourlyState?.requestKey !== requestKey;
+  const hourlyData = parentOwned ? (preloaded ?? EMPTY_DATA) : (hourlyState?.data ?? EMPTY_DATA);
 
   useEffect(() => {
+    if (parentOwned) return;
     let cancelled = false;
 
     const params = {
@@ -61,7 +65,7 @@ export function HourlyTokenChart({ timeRange, apiFilter, isDark }: HourlyTokenCh
     return () => {
       cancelled = true;
     };
-  }, [timeRange, apiFilter, hourRange, requestKey]);
+  }, [timeRange, apiFilter, hourRange, requestKey, parentOwned]);
 
   // 获取时间范围标签
   const hourRangeLabel = useMemo(() => {
