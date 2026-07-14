@@ -53,7 +53,7 @@ export function Sheet({
   const descId = useId();
   const [isVisible, setIsVisible] = useState(false);
   const [isClosing, setIsClosing] = useState(false);
-  const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const closeTimerRef = useRef<number | null>(null);
   const sheetRef = useRef<HTMLDivElement | null>(null);
   const closeBtnRef = useRef<HTMLButtonElement | null>(null);
   const previouslyFocusedRef = useRef<HTMLElement | null>(null);

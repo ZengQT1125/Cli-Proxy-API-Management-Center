@@ -11,6 +11,10 @@ export const REQUEST_LOG_TABLE_COLUMN_KEYS = [
   'cacheRate',
   'cost',
   'time',
+  'auth',
+  'rate',
+  'count',
+  'actions',
 ] as const;
 
 export const REQUEST_LOG_FILTER_KEYS = ['model', 'source', 'status'] as const;
@@ -31,6 +35,10 @@ export const REQUEST_LOG_TABLE_COLUMN_WIDTHS: Record<RequestLogTableColumnKey, n
   cacheRate: 88,
   cost: 88,
   time: 180,
+  auth: 120,
+  rate: 80,
+  count: 70,
+  actions: 100,
 };
 
 export const REQUEST_LOG_TABLE_MIN_WIDTH = Object.values(REQUEST_LOG_TABLE_COLUMN_WIDTHS).reduce(
@@ -51,4 +59,8 @@ export const REQUEST_LOG_TABLE_HEADER_KEYS: Record<RequestLogTableColumnKey, str
   cacheRate: 'monitor.logs.header_cache_ratio',
   cost: 'monitor.logs.header_cost',
   time: 'monitor.logs.header_time',
+  auth: 'monitor.logs.header_auth',
+  rate: 'monitor.logs.header_rate',
+  count: 'monitor.logs.header_count',
+  actions: 'monitor.logs.header_actions',
 };

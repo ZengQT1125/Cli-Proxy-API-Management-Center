@@ -73,7 +73,7 @@ export function AiProvidersClaudeModelsPage() {
         form.baseUrl ?? '',
         request.apiKey,
         request.headers,
-        request.authIndex
+        
       );
       setModels(list);
     } catch (err: unknown) {

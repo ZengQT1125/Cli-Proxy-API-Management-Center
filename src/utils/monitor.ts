@@ -419,7 +419,7 @@ export interface DisableState {
  * @param key API Key 字符串
  * @returns 脱敏后的字符串
  */
-function maskSecret(key: string): string {
+export function maskSecret(key: string): string {
   if (!key || key === '-' || key === 'unknown') return key || '-';
   if (key.length <= 8) {
     return `${key.slice(0, 4)}***`;

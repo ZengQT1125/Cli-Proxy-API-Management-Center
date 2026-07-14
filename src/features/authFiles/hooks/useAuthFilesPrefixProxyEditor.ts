@@ -4,16 +4,20 @@ import { authFilesApi, type AuthFileFieldsPatch } from '@/services/api';
 import type { AuthFileItem } from '@/types';
 import { useNotificationStore } from '@/stores';
 import {
-  applyAuthFileUsingApi,
   applyAuthFileWebsockets,
-  normalizeExcludedModels,
   parseDisableCoolingValue,
+  readAuthFileWebsockets,
+  supportsAuthFileWebsockets,
+} from '@/features/authFiles/websockets';
+import {
+  applyAuthFileUsingApi,
+  readAuthFileUsingApi,
+  supportsAuthFileUsingApi,
+} from '@/features/authFiles/usingApi';
+import {
+  normalizeExcludedModels,
   parseExcludedModelsText,
   parsePriorityValue,
-  readAuthFileWebsockets,
-  readAuthFileUsingApi,
-  supportsAuthFileWebsockets,
-  supportsAuthFileUsingApi,
 } from '@/features/authFiles/constants';
 
 type AuthFileHeaders = Record<string, string>;
@@ -624,3 +628,4 @@ export function useAuthFilesPrefixProxyEditor(
     handlePrefixProxySave,
   };
 }
+

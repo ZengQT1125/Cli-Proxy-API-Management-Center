@@ -338,7 +338,7 @@ export function AiProvidersCodexEditPage() {
         form.baseUrl ?? '',
         request.apiKey,
         request.headers,
-        request.authIndex
+        
       );
       if (modelDiscoveryRequestIdRef.current !== requestId) return;
       setDiscoveredModels(list);

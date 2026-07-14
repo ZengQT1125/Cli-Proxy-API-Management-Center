@@ -75,7 +75,7 @@ export function AiProvidersOpenAIModelsPage() {
           trimmedBaseUrl,
           request.apiKey,
           request.headers,
-          request.authIndex
+          
         );
         setModels(list);
       } catch (err: unknown) {

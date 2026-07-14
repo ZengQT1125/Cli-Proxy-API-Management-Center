@@ -213,11 +213,6 @@ export function OAuthPage() {
   };
 
   const startAuth = async (provider: OAuthProvider) => {
-    const projectId = provider === 'gemini-cli' ? (states[provider]?.projectId || '').trim() : undefined;
-    // 项目 ID 现在是可选的，如果不输入将自动选择第一个可用项目
-    if (provider === 'gemini-cli') {
-      updateProviderState(provider, { projectIdError: undefined });
-    }
     updateProviderState(provider, {
       status: 'waiting',
       polling: true,
@@ -227,11 +222,7 @@ export function OAuthPage() {
       callbackUrl: ''
     });
     try {
-      const res = await oauthApi.startAuth(
-        provider,
-        provider === 'gemini-cli' ? { projectId: projectId || undefined } : undefined
-      );
-      updateProviderState(provider, { url: res.url, state: res.state, status: 'waiting', polling: true });
+      const res = await oauthApi.startAuth(provider);
       if (res.state) {
         startPolling(provider, res.state);
       }
