@@ -71,17 +71,31 @@ const normalizeModelEntries = (entries: ModelEntry[]) =>
     return acc;
   }, []);
 
+const normalizeKeyHeaders = (headers: ApiKeyEntry['headers']) => {
+  if (!headers || typeof headers !== 'object') return [];
+  return Object.entries(headers)
+    .map(([key, value]) => ({ key: String(key ?? '').trim(), value: String(value ?? '').trim() }))
+    .filter((entry) => entry.key || entry.value)
+    .sort((a, b) => {
+      const byKey = a.key.toLowerCase().localeCompare(b.key.toLowerCase());
+      if (byKey !== 0) return byKey;
+      return a.value.localeCompare(b.value);
+    });
+};
+
 const normalizeApiKeyEntries = (entries: ApiKeyEntry[]) =>
   (entries ?? []).reduce<
     Array<{
       apiKey: string;
       proxyUrl: string;
+      headers: Array<{ key: string; value: string }>;
     }>
   >((acc, entry) => {
     const apiKey = String(entry?.apiKey ?? '').trim();
     const proxyUrl = String(entry?.proxyUrl ?? '').trim();
-    if (!apiKey && !proxyUrl) return acc;
-    acc.push({ apiKey, proxyUrl });
+    const headers = normalizeKeyHeaders(entry?.headers);
+    if (!apiKey && !proxyUrl && headers.length === 0) return acc;
+    acc.push({ apiKey, proxyUrl, headers });
     return acc;
   }, []);
 
@@ -108,6 +122,7 @@ const areNormalizedApiKeyEntriesEqual = (
     const right = b[i];
     if (!left || !right) return false;
     if (left.apiKey !== right.apiKey || left.proxyUrl !== right.proxyUrl) return false;
+    if (!areKeyValueEntriesEqual(left.headers, right.headers)) return false;
   }
   return true;
 };
@@ -441,6 +456,7 @@ export function AiProvidersOpenAIEditLayout() {
         apiKeyEntries: form.apiKeyEntries.map((entry: ApiKeyEntry) => ({
           apiKey: entry.apiKey.trim(),
           proxyUrl: entry.proxyUrl?.trim() || undefined,
+          headers: entry.headers,
         })),
       };
       if (form.priority !== undefined && Number.isFinite(form.priority)) {

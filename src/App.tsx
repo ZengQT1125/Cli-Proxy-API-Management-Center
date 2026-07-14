@@ -53,6 +53,38 @@ function App() {
     document.documentElement.lang = language;
   }, [language]);
 
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      return;
+    }
+
+    let ticking = false;
+    let nextX = 50;
+    let nextY = 20;
+
+    const applyGlow = () => {
+      document.documentElement.style.setProperty('--mouse-x', nextX + '%');
+      document.documentElement.style.setProperty('--mouse-y', nextY + '%');
+      ticking = false;
+    };
+
+    const handlePointerMove = (event: PointerEvent) => {
+      nextX = Math.round((event.clientX / Math.max(window.innerWidth, 1)) * 100);
+      nextY = Math.round((event.clientY / Math.max(window.innerHeight, 1)) * 100);
+
+      if (!ticking) {
+        window.requestAnimationFrame(applyGlow);
+        ticking = true;
+      }
+    };
+
+    window.addEventListener('pointermove', handlePointerMove, { passive: true });
+    return () => {
+      window.removeEventListener('pointermove', handlePointerMove);
+    };
+  }, []);
+
   return <RouterProvider router={router} />;
 }
 

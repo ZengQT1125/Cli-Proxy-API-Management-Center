@@ -52,9 +52,37 @@ export interface MonitorRequestLogsQuery extends MonitorTimeRangeQuery {
 
 export interface MonitorRequestLogItem {
   timestamp: string;
+  api?: string;
   api_key: string;
   model: string;
+  raw_model?: string;
+  rawModel?: string;
+  request_model?: string;
+  requestModel?: string;
+  requested_model?: string;
+  requestedModel?: string;
+  original_model?: string;
+  originalModel?: string;
+  source_model?: string;
+  sourceModel?: string;
   source: string;
+  channel?: string;
+  channel_name?: string;
+  channelName?: string;
+  provider?: string;
+  provider_name?: string;
+  providerName?: string;
+  api_name?: string;
+  apiName?: string;
+  api_channel?: string;
+  apiChannel?: string;
+  matched_api?: string;
+  matchedApi?: string;
+  target_api?: string;
+  targetApi?: string;
+  route?: string;
+  route_name?: string;
+  routeName?: string;
   auth_index: string;
   failed: boolean;
   input_tokens: number;

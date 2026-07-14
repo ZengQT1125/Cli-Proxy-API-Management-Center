@@ -295,8 +295,10 @@
   align-items: center;
   gap: $spacing-md;
   padding: $spacing-md $spacing-lg;
-  background-color: var(--bg-secondary);
-  border: 1px solid var(--border-color);
+  background-color: var(--glass-bg-secondary, var(--bg-secondary));
+  border: 1px solid var(--glass-border, var(--border-color));
+  backdrop-filter: var(--glass-backdrop-filter, none);
+  -webkit-backdrop-filter: var(--glass-backdrop-filter, none);
   border-radius: $radius-lg;
   text-decoration: none;
   color: inherit;

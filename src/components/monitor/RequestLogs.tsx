@@ -1,8 +1,18 @@
-import { Fragment, useState, useEffect, useRef, useCallback } from 'react';
+import { Fragment, useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Card } from '@/components/ui/Card';
 import { monitorApi, type MonitorRequestLogItem } from '@/services/api';
+import { useDisableModel } from '@/hooks';
 import { TimeRangeSelector, formatTimeRangeCaption, type TimeRange } from './TimeRangeSelector';
+import { DisableModelModal } from './DisableModelModal';
+import { UnsupportedDisableModal } from './UnsupportedDisableModal';
+import {
+  buildRequestLogSourceFilterParams,
+  CHANNEL_OPTION_SEPARATOR,
+  filterRequestLogEntriesByChannel,
+  parseRequestLogSourceFilterValue,
+  resolveRequestLogChannel,
+} from './requestLogFilters';
 import {
   REQUEST_LOG_FILTER_KEYS,
   REQUEST_LOG_TABLE_COLUMN_KEYS,
@@ -13,24 +23,33 @@ import {
   type RequestLogTableColumnKey,
 } from './requestLogColumns';
 import {
-  formatProviderDisplay,
   formatTimestamp,
+  getRateClassName,
   getProviderDisplayParts,
   buildMonitorTimeRangeParams,
-  formatCacheTokenRatio,
-  computeUncachedInputTokens,
-  formatOutputTokensPerSecond,
-  calculateMonitorRequestCost,
-  formatMonitorCost,
+  formatCompactTokenNumber,
+  maskSecret,
+  matchModel,
   type DateRange,
 } from '@/utils/monitor';
 import styles from '@/pages/MonitorPage.module.scss';
+
+function hasMultipleProviderCandidates(source: string, providerMap: Record<string, string>): boolean {
+  return (providerMap[source] || '')
+    .split(',')
+    .map((candidate) => candidate.trim())
+    .filter(Boolean).length > 1;
+}
 
 interface RequestLogsProps {
   refreshKey: number;
   loading: boolean;
   providerMap: Record<string, string>;
+  providerTypeMap: Record<string, string>;
+  providerModels: Record<string, Set<string>>;
   apiFilter: string;
+  authIndexMap: Record<string, string>;
+  authIndexProviderMap: Record<string, string>;
 }
 
 interface LogEntry {
@@ -39,33 +58,35 @@ interface LogEntry {
   timestampMs: number;
   model: string;
   source: string;
+  actionSource: string;
   providerName: string | null;
   maskedKey: string;
   failed: boolean;
   inputTokens: number;
-  totalInputTokens: number;
   outputTokens: number;
   cachedTokens: number;
-  cacheWriteTokens: number;
-  cost: number;
+  requestCount: number;
+  successRate: number;
   latencyMs: number;
   ttftMs: number;
   recentRequests: { failed: boolean; timestamp: number }[];
+  authIndex: string;
 }
 
-const REQUEST_LOG_NUMERIC_COLUMN_KEYS = new Set<RequestLogTableColumnKey>([
-  'toks',
-  'input',
-  'output',
-  'cache',
-  'cacheRate',
-  'cost',
-]);
-
-export function RequestLogs({ refreshKey, loading, providerMap, apiFilter }: RequestLogsProps) {
+export function RequestLogs({
+  refreshKey,
+  loading,
+  providerMap,
+  providerTypeMap,
+  providerModels,
+  apiFilter,
+  authIndexMap,
+  authIndexProviderMap,
+}: RequestLogsProps) {
   const { t } = useTranslation();
   const [filterModel, setFilterModel] = useState('');
   const [filterSource, setFilterSource] = useState('');
+  const [filterChannel, setFilterChannel] = useState('');
   const [filterStatus, setFilterStatus] = useState<'' | 'success' | 'failed'>('');
   const [autoRefresh, setAutoRefresh] = useState(10);
   const [countdown, setCountdown] = useState(0);
@@ -89,6 +110,18 @@ export function RequestLogs({ refreshKey, loading, providerMap, apiFilter }: Req
     sources: [],
   });
 
+  // 使用禁用模型 Hook
+  const {
+    disableState,
+    unsupportedState,
+    disabling,
+    isModelDisabled,
+    handleDisableClick,
+    handleConfirmDisable,
+    handleCancelDisable,
+    handleCloseUnsupported,
+  } = useDisableModel({ providerMap, providerTypeMap, providerModels });
+
   const handleTimeRangeChange = useCallback((range: TimeRange, custom?: DateRange) => {
     setTimeRange(range);
     setCustomRange(custom);
@@ -98,42 +131,42 @@ export function RequestLogs({ refreshKey, loading, providerMap, apiFilter }: Req
   const toLogEntry = useCallback(
     (item: MonitorRequestLogItem, index: number): LogEntry => {
       const source = item.source || 'unknown';
-      const { provider, masked } = getProviderDisplayParts(source, providerMap);
+      const channel = resolveRequestLogChannel(
+        item as unknown as Record<string, unknown>,
+        source,
+        providerMap,
+        authIndexProviderMap
+      );
+      const { provider, masked } = getProviderDisplayParts(source, providerMap, item.model, providerModels, channel);
+      const ambiguousWithoutChannel = !channel && hasMultipleProviderCandidates(source, providerMap);
+      const providerName = ambiguousWithoutChannel ? null : provider;
+      const displayMasked = ambiguousWithoutChannel ? '-' : masked;
       const timestampMs = item.timestamp ? new Date(item.timestamp).getTime() : 0;
-      const totalInputTokens = item.input_tokens || 0;
-      const cachedTokens = item.cached_tokens || 0;
-      const cacheWriteTokens = item.cache_write_tokens || 0;
-      const outputTokens = item.output_tokens || 0;
       return {
-        id: `${item.timestamp}-${item.api_key}-${item.model}-${index}`,
+        id: `${item.timestamp}-${item.api_key}-${channel || source}-${item.model}-${index}`,
         timestamp: item.timestamp,
         timestampMs,
         model: item.model,
         source,
-        providerName: provider,
-        maskedKey: masked,
+        actionSource: channel || source,
+        providerName,
+        maskedKey: displayMasked,
         failed: item.failed,
-        inputTokens: computeUncachedInputTokens(totalInputTokens, cachedTokens, cacheWriteTokens),
-        totalInputTokens,
-        outputTokens,
-        cachedTokens,
-        cacheWriteTokens,
-        cost: calculateMonitorRequestCost(
-          item.model,
-          totalInputTokens,
-          outputTokens,
-          cachedTokens,
-          cacheWriteTokens
-        ),
+        inputTokens: item.input_tokens || 0,
+        outputTokens: item.output_tokens || 0,
+        cachedTokens: item.cached_tokens || 0,
+        requestCount: item.request_count || 0,
+        successRate: item.success_rate || 0,
         latencyMs: item.latency_ms || 0,
         ttftMs: item.ttft_ms || 0,
         recentRequests: (item.recent_requests || []).map((req) => ({
           failed: !!req.failed,
           timestamp: req.timestamp ? new Date(req.timestamp).getTime() : 0,
         })),
+        authIndex: item.auth_index || '',
       };
     },
-    [providerMap]
+    [authIndexProviderMap, providerMap, providerModels]
   );
 
   // 独立获取日志数据
@@ -145,19 +178,19 @@ export function RequestLogs({ refreshKey, loading, providerMap, apiFilter }: Req
         page_size: pageSize,
         api_filter: apiFilter || undefined,
         model: filterModel || undefined,
-        source: filterSource || undefined,
+        ...buildRequestLogSourceFilterParams(filterSource, filterChannel),
         status: filterStatus || undefined,
         ...buildMonitorTimeRangeParams(timeRange, customRange),
       };
 
       const response = await monitorApi.getRequestLogs(params);
-      const items = (response.items || []).map(toLogEntry);
+      const items = filterRequestLogEntriesByChannel((response.items || []).map(toLogEntry), filterChannel);
       setLogEntries(items);
       setTotal(response.total || 0);
       setTotalPages(response.total_pages || 0);
       setFilterOptions((prev) => ({
-        models: filterModel ? prev.models : response.filters?.models || [],
-        sources: filterSource ? prev.sources : response.filters?.sources || [],
+        models: (filterModel || filterSource || filterChannel) ? prev.models : (response.filters?.models || []),
+        sources: (filterSource || filterChannel) ? prev.sources : (response.filters?.sources || []),
       }));
 
       const safePage = response.page || page;
@@ -178,6 +211,7 @@ export function RequestLogs({ refreshKey, loading, providerMap, apiFilter }: Req
     apiFilter,
     filterModel,
     filterSource,
+    filterChannel,
     filterStatus,
     timeRange,
     customRange,
@@ -220,8 +254,6 @@ export function RequestLogs({ refreshKey, loading, providerMap, apiFilter }: Req
   }, [autoRefresh]);
 
   useEffect(() => {
-    // 首屏等 refreshKey 就绪，避免与 provider 加载结束时的二次刷新叠打 request-logs。
-    if (refreshKey === 0) return;
     fetchLogData();
   }, [fetchLogData, refreshKey]);
 
@@ -249,7 +281,16 @@ export function RequestLogs({ refreshKey, loading, providerMap, apiFilter }: Req
   };
 
   const renderCell = (entry: LogEntry, column: RequestLogTableColumnKey) => {
+    const disabled = isModelDisabled(entry.actionSource, entry.model);
+    const authDisplayName = entry.authIndex
+      ? authIndexMap[entry.authIndex] || entry.authIndex
+      : '-';
+
     switch (column) {
+      case 'auth':
+        return (
+          <td title={authDisplayName}>{authDisplayName}</td>
+        );
       case 'model':
         return <td title={entry.model}>{entry.model}</td>;
       case 'source':
@@ -268,9 +309,7 @@ export function RequestLogs({ refreshKey, loading, providerMap, apiFilter }: Req
       case 'status':
         return (
           <td>
-            <span
-              className={`${styles.statusPill} ${entry.failed ? styles.failed : styles.success}`}
-            >
+            <span className={`${styles.statusPill} ${entry.failed ? styles.failed : styles.success}`}>
               {entry.failed ? t('monitor.logs.failed') : t('monitor.logs.success')}
             </span>
           </td>
@@ -288,6 +327,14 @@ export function RequestLogs({ refreshKey, loading, providerMap, apiFilter }: Req
             </div>
           </td>
         );
+      case 'rate':
+        return (
+          <td className={getRateClassName(entry.successRate, styles)}>
+            {entry.successRate.toFixed(1)}%
+          </td>
+        );
+      case 'count':
+        return <td>{formatNumber(entry.requestCount)}</td>;
       case 'timing': {
         const ttft = entry.ttftMs > 0 ? (entry.ttftMs / 1000).toFixed(2) : '-';
         const latency = entry.latencyMs > 0 ? (entry.latencyMs / 1000).toFixed(2) : '-';
@@ -296,9 +343,7 @@ export function RequestLogs({ refreshKey, loading, providerMap, apiFilter }: Req
         if (entry.latencyMs > 0) titleParts.push(`Latency: ${formatNumber(entry.latencyMs)}ms`);
         return (
           <td className={styles.tokenCell} title={titleParts.join(' / ') || '-'}>
-            {ttft === '-' && latency === '-' ? (
-              '-'
-            ) : (
+            {ttft === '-' && latency === '-' ? '-' : (
               <>
                 <span style={{ color: 'var(--text-secondary)' }}>{ttft}</span>
                 {' / '}
@@ -309,58 +354,50 @@ export function RequestLogs({ refreshKey, loading, providerMap, apiFilter }: Req
         );
       }
       case 'toks': {
-        const toks = formatOutputTokensPerSecond(entry.outputTokens, entry.latencyMs, entry.ttftMs);
-        return <td className={`${styles.tokenCell} ${styles.numberCell}`}>{toks}</td>;
+        if (entry.latencyMs <= 0 || entry.outputTokens <= 0) return <td className={styles.tokenCell}>-</td>;
+        const toks = (entry.outputTokens / (entry.latencyMs / 1000)).toFixed(1);
+        return <td className={styles.tokenCell}>{toks}</td>;
       }
       case 'input':
         return (
-          <td
-            className={`${styles.tokenCell} ${styles.numberCell}`}
-            title={formatNumber(entry.inputTokens)}
-          >
-            {formatNumber(entry.inputTokens)}
+          <td className={styles.tokenCell} title={formatNumber(entry.inputTokens)}>
+            {formatCompactTokenNumber(entry.inputTokens)}
           </td>
         );
       case 'output':
         return (
-          <td
-            className={`${styles.tokenCell} ${styles.numberCell}`}
-            title={formatNumber(entry.outputTokens)}
-          >
-            {formatNumber(entry.outputTokens)}
+          <td className={styles.tokenCell} title={formatNumber(entry.outputTokens)}>
+            {formatCompactTokenNumber(entry.outputTokens)}
           </td>
         );
       case 'cache':
         return (
-          <td
-            className={`${styles.tokenCell} ${styles.numberCell}`}
-            title={entry.cachedTokens > 0 ? formatNumber(entry.cachedTokens) : ''}
-          >
-            {entry.cachedTokens > 0 ? formatNumber(entry.cachedTokens) : ''}
-          </td>
-        );
-      case 'cacheRate': {
-        const cache = formatCacheTokenRatio(entry.cachedTokens, entry.totalInputTokens);
-        return (
-          <td
-            className={`${styles.tokenCell} ${styles.numberCell}`}
-            title={entry.cachedTokens > 0 ? cache.title : ''}
-          >
-            {entry.cachedTokens > 0 ? cache.ratio : ''}
-          </td>
-        );
-      }
-      case 'cost':
-        return (
-          <td
-            className={`${styles.tokenCell} ${styles.numberCell}`}
-            title={formatMonitorCost(entry.cost)}
-          >
-            {formatMonitorCost(entry.cost)}
+          <td className={styles.tokenCell} title={formatNumber(entry.cachedTokens)}>
+            {formatCompactTokenNumber(entry.cachedTokens)}
           </td>
         );
       case 'time':
         return <td>{formatTimestamp(entry.timestamp)}</td>;
+      case 'actions':
+        return (
+          <td>
+            {entry.actionSource && entry.actionSource !== '-' && entry.actionSource !== 'unknown' ? (
+              disabled ? (
+                <span className={styles.disabledLabel}>{t('monitor.logs.disabled')}</span>
+              ) : (
+                <button
+                  className={styles.disableBtn}
+                  title={t('monitor.logs.disable_model')}
+                  onClick={() => handleDisableClick(entry.actionSource, entry.model)}
+                >
+                  {t('monitor.logs.disable')}
+                </button>
+              )
+            ) : (
+              '-'
+            )}
+          </td>
+        );
     }
   };
 
@@ -373,6 +410,101 @@ export function RequestLogs({ refreshKey, loading, providerMap, apiFilter }: Req
       </>
     );
   };
+
+  // 生成渠道选择下拉菜单选项（解决相同 API Key 时的渠道分拆，且仅显示当前时间范围内有调用记录的渠道）
+  const sourceOptions = useMemo(() => {
+    const options: { value: string; label: string }[] = [];
+    filterOptions.sources.forEach((source) => {
+      const resolved = providerMap[source];
+      const masked = maskSecret(source);
+      if (resolved) {
+        const candidates = resolved.split(',');
+        if (candidates.length <= 1) {
+          options.push({
+            value: source,
+            label: `${resolved} (${masked})`,
+          });
+        } else {
+          // 如果有多个候选渠道，我们根据当前时间范围内的 models 过滤出有调用记录的渠道
+          const activeModels = filterOptions.models || [];
+          if (activeModels.length === 0) {
+            // 如果没有活跃模型（例如无日志），默认显示所有候选渠道供用户选择
+            candidates.forEach((candidate) => {
+              options.push({
+                value: `${source}${CHANNEL_OPTION_SEPARATOR}${candidate}`,
+                label: `${candidate} (${masked})`,
+              });
+            });
+          } else {
+            // 找出每个活跃模型匹配的候选渠道
+            const activeCandidates = new Set<string>();
+            activeModels.forEach((activeModel) => {
+              let matchedExplicitly = false;
+              // 1. 尝试显式匹配
+              candidates.forEach((candidate) => {
+                const models = providerModels[candidate];
+                if (models) {
+                  for (const m of models) {
+                    if (matchModel(activeModel, m)) {
+                      activeCandidates.add(candidate);
+                      matchedExplicitly = true;
+                      break;
+                    }
+                  }
+                }
+              });
+              
+              // 2. 如果没有任何渠道显式匹配该活跃模型，归入空配置（catch-all）的渠道
+              if (!matchedExplicitly) {
+                candidates.forEach((candidate) => {
+                  const models = providerModels[candidate];
+                  if (!models || models.size === 0) {
+                    activeCandidates.add(candidate);
+                  }
+                });
+              }
+            });
+            
+            // 将过滤后活跃的候选渠道加入选项
+            if (activeCandidates.size > 0) {
+              activeCandidates.forEach((candidate) => {
+                options.push({
+                  value: `${source}${CHANNEL_OPTION_SEPARATOR}${candidate}`,
+                  label: `${candidate} (${masked})`,
+                });
+              });
+            } else {
+              // 兜底：如果没有匹配的活跃渠道，显示所有候选渠道
+              candidates.forEach((candidate) => {
+                options.push({
+                  value: `${source}${CHANNEL_OPTION_SEPARATOR}${candidate}`,
+                  label: `${candidate} (${masked})`,
+                });
+              });
+            }
+          }
+        }
+      } else {
+        options.push({
+          value: source,
+          label: masked,
+        });
+      }
+    });
+    // 去重，以防有重复 durable value
+    const seen = new Set<string>();
+    return options.filter((opt) => {
+      if (seen.has(opt.value)) return false;
+      seen.add(opt.value);
+      return true;
+    });
+  }, [filterOptions.sources, filterOptions.models, providerMap, providerModels]);
+
+  const currentSelectValue = useMemo(() => {
+    if (!filterSource) return '';
+    if (filterChannel) return `${filterSource}${CHANNEL_OPTION_SEPARATOR}${filterChannel}`;
+    return filterSource;
+  }, [filterSource, filterChannel]);
 
   const renderFilterSelect = (filterKey: RequestLogFilterKey) => {
     switch (filterKey) {
@@ -400,16 +532,24 @@ export function RequestLogs({ refreshKey, loading, providerMap, apiFilter }: Req
           <select
             key={filterKey}
             className={styles.logSelect}
-            value={filterSource}
+            value={currentSelectValue}
             onChange={(e) => {
-              setFilterSource(e.target.value);
+              const val = e.target.value;
+              if (!val) {
+                setFilterSource('');
+                setFilterChannel('');
+              } else {
+                const { source, channel } = parseRequestLogSourceFilterValue(val);
+                setFilterSource(source);
+                setFilterChannel(channel);
+              }
               setPage(1);
             }}
           >
             <option value="">{t('monitor.logs.all_sources')}</option>
-            {filterOptions.sources.map((source) => (
-              <option key={source} value={source}>
-                {formatProviderDisplay(source, providerMap)}
+            {sourceOptions.map((opt) => (
+              <option key={opt.value} value={opt.value}>
+                {opt.label}
               </option>
             ))}
           </select>
@@ -508,14 +648,7 @@ export function RequestLogs({ refreshKey, loading, providerMap, apiFilter }: Req
               <thead>
                 <tr>
                   {REQUEST_LOG_TABLE_COLUMN_KEYS.map((column) => (
-                    <th
-                      key={column}
-                      className={
-                        REQUEST_LOG_NUMERIC_COLUMN_KEYS.has(column) ? styles.numberCell : undefined
-                      }
-                    >
-                      {t(REQUEST_LOG_TABLE_HEADER_KEYS[column])}
-                    </th>
+                    <th key={column}>{t(REQUEST_LOG_TABLE_HEADER_KEYS[column])}</th>
                   ))}
                 </tr>
               </thead>
@@ -573,6 +706,15 @@ export function RequestLogs({ refreshKey, loading, providerMap, apiFilter }: Req
           </div>
         )}
       </Card>
+
+      <DisableModelModal
+        disableState={disableState}
+        disabling={disabling}
+        onConfirm={handleConfirmDisable}
+        onCancel={handleCancelDisable}
+      />
+
+      <UnsupportedDisableModal state={unsupportedState} onClose={handleCloseUnsupported} />
     </>
   );
 }

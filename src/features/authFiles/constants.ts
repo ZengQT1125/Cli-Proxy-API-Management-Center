@@ -15,30 +15,14 @@ export type AuthFileModelItem = { id: string; display_name?: string; type?: stri
 
 export { QUOTA_PROVIDER_TYPES } from './quotaDisplay.ts';
 export type { QuotaProviderType } from './quotaDisplay.ts';
-export {
-  MAX_AUTH_FILES_PAGE_SIZE as MAX_CARD_PAGE_SIZE,
-  MIN_AUTH_FILES_PAGE_SIZE as MIN_CARD_PAGE_SIZE,
-  normalizeAuthFilesPageSize as clampCardPageSize,
-} from './uiState.ts';
 
+export const MIN_CARD_PAGE_SIZE = 3;
+export const MAX_CARD_PAGE_SIZE = 30;
 export const AUTH_FILE_REFRESH_WARNING_MS = 24 * 60 * 60 * 1000;
 
 export { INTEGER_STRING_PATTERN, parsePriorityValue } from './priority.ts';
-export {
-  applyAuthFileWebsockets,
-  AUTH_FILE_WEBSOCKET_PROVIDERS,
-  FALSY_TEXT_VALUES,
-  parseDisableCoolingValue,
-  readAuthFileWebsockets,
-  supportsAuthFileWebsockets,
-  TRUTHY_TEXT_VALUES,
-} from './websockets.ts';
-export {
-  applyAuthFileUsingApi,
-  AUTH_FILE_USING_API_PROVIDERS,
-  readAuthFileUsingApi,
-  supportsAuthFileUsingApi,
-} from './usingApi.ts';
+export const TRUTHY_TEXT_VALUES = new Set(['true', '1', 'yes', 'y', 'on']);
+export const FALSY_TEXT_VALUES = new Set(['false', '0', 'no', 'n', 'off']);
 
 // 标签类型颜色配置（对齐重构前 styles.css 的 file-type-badge 颜色）
 export const TYPE_COLORS: Record<string, TypeColorSet> = {
@@ -92,6 +76,9 @@ export const TYPE_COLORS: Record<string, TypeColorSet> = {
     dark: { bg: '#3a3a3a', text: '#aaaaaa', border: '1px dashed #666666' }
   }
 };
+
+export const clampCardPageSize = (value: number) =>
+  Math.min(MAX_CARD_PAGE_SIZE, Math.max(MIN_CARD_PAGE_SIZE, Math.round(value)));
 
 export const resolveQuotaErrorMessage = (
   t: TFunction,
@@ -147,6 +134,31 @@ export const normalizeExcludedModels = (value: unknown): string[] => {
 
 export const parseExcludedModelsText = (value: string): string[] =>
   normalizeExcludedModels(value.split(/[\n,]+/));
+
+export const parseDisableCoolingValue = (value: unknown): boolean | undefined => {
+  if (typeof value === 'boolean') return value;
+  if (typeof value === 'number' && Number.isFinite(value)) return value !== 0;
+  if (typeof value !== 'string') return undefined;
+
+  const normalized = value.trim().toLowerCase();
+  if (!normalized) return undefined;
+  if (TRUTHY_TEXT_VALUES.has(normalized)) return true;
+  if (FALSY_TEXT_VALUES.has(normalized)) return false;
+  return undefined;
+};
+
+export const readCodexAuthFileWebsockets = (value: Record<string, unknown>): boolean =>
+  parseDisableCoolingValue(value.websockets) ?? false;
+
+export const applyCodexAuthFileWebsockets = (
+  value: Record<string, unknown>,
+  websockets: boolean
+): Record<string, unknown> => {
+  const next = { ...value };
+  delete next.websocket;
+  next.websockets = websockets;
+  return next;
+};
 
 export function isRuntimeOnlyAuthFile(file: AuthFileItem): boolean {
   const raw = file['runtime_only'] ?? file.runtimeOnly;

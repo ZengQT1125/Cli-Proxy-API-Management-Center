@@ -76,13 +76,13 @@ export function FailureAnalysis({ refreshKey, loading, providerMap, providerMode
 
   const formatChannelLabel = useCallback((source: string): string => {
     const normalizedSource = source || 'unknown';
-    const { provider, masked } = getProviderDisplayParts(normalizedSource, providerMap);
+    const { provider, masked } = getProviderDisplayParts(normalizedSource, providerMap, undefined, providerModels);
     return provider ? `${provider} (${masked})` : masked;
-  }, [providerMap]);
+  }, [providerMap, providerModels]);
 
   const mapFailureStat = useCallback((item: MonitorFailureStatsItem): FailureStat => {
     const source = item.source || 'unknown';
-    const { provider, masked } = getProviderDisplayParts(source, providerMap);
+    const { provider, masked } = getProviderDisplayParts(source, providerMap, undefined, providerModels);
     const displayName = provider ? `${provider} (${masked})` : masked;
 
     const models: Record<string, ModelFailureStat> = {};
@@ -109,7 +109,7 @@ export function FailureAnalysis({ refreshKey, loading, providerMap, providerMode
       lastFailTime: item.last_failed_at ? new Date(item.last_failed_at).getTime() : 0,
       models,
     };
-  }, [providerMap]);
+  }, [providerMap, providerModels]);
 
   const loadFailureAnalysis = useCallback(async () => {
     setAnalysisLoading(true);

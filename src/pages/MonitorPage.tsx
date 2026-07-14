@@ -19,9 +19,7 @@ import { Button } from '@/components/ui/Button';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { useHeaderRefresh } from '@/hooks/useHeaderRefresh';
 import { useThemeStore } from '@/stores';
-import { monitorApi } from '@/services/api';
-import type { MonitorDashboardResponse } from '@/services/api/monitor';
-import { buildMonitorTimeRangeParams } from '@/utils/monitor';
+import { providersApi, authFilesApi } from '@/services/api';
 import { KpiCards } from '@/components/monitor/KpiCards';
 import { ModelDistributionChart } from '@/components/monitor/ModelDistributionChart';
 import { DailyTrendChart } from '@/components/monitor/DailyTrendChart';
@@ -51,7 +49,6 @@ ChartJS.register(
 
 // 时间范围选项
 export type TimeRange = 'yesterday' | 'dayBeforeYesterday' | 1 | 7 | 14 | 30;
-type StatsTab = 'channel' | 'failure';
 
 export function MonitorPage() {
   const { t } = useTranslation();
@@ -64,34 +61,332 @@ export function MonitorPage() {
   const [timeRange, setTimeRange] = useState<TimeRange>(7);
   const [apiFilter, setApiFilter] = useState('');
   const [refreshKey, setRefreshKey] = useState(0);
-  const [activeStatsTab, setActiveStatsTab] = useState<StatsTab>('channel');
   const [providerMap, setProviderMap] = useState<Record<string, string>>({});
   const [providerModels, setProviderModels] = useState<Record<string, Set<string>>>({});
-  // 首屏 overview 合并包：kpi/趋势/小时图/分布/健康一次拉齐，避免 6+ 路齐射 SQLite
-  const [dashboard, setDashboard] = useState<{
-    key: string;
-    data: MonitorDashboardResponse | null;
-  } | null>(null);
+  const [providerTypeMap, setProviderTypeMap] = useState<Record<string, string>>({});
+  const [authIndexMap, setAuthIndexMap] = useState<Record<string, string>>({});
+  const [authIndexProviderMap, setAuthIndexProviderMap] = useState<Record<string, string>>({});
 
-  const overviewKey = `${timeRange}\0${apiFilter}`;
-  const hourlyPreloadKey = `${timeRange}\0${apiFilter}\0${12}`;
-
-  // 渠道展示名 / 模型归属：后端一次合成，不再打 auth-files / *-api-key
+  // 加载渠道名称映射（支持所有提供商类型）
   const loadProviderMap = useCallback(async () => {
     try {
-      const data = await monitorApi.getProviderMap();
+      const map: Record<string, string> = {};
       const modelsMap: Record<string, Set<string>> = {};
-      Object.entries(data.models || {}).forEach(([key, names]) => {
-        modelsMap[key] = new Set((names || []).filter(Boolean));
+      const typeMap: Record<string, string> = {};
+      const authProviderMap: Record<string, string> = {};
+
+      // 并行加载所有提供商配置
+      const [openaiProviders, geminiKeys, claudeConfigs, codexConfigs, vertexConfigs, authFilesRes] = await Promise.all([
+        providersApi.getOpenAIProviders().catch(() => []),
+        providersApi.getGeminiKeys().catch(() => []),
+        providersApi.getClaudeConfigs().catch(() => []),
+        providersApi.getCodexConfigs().catch(() => []),
+        providersApi.getVertexConfigs().catch(() => []),
+        authFilesApi.list().catch(() => ({ files: [] })),
+      ]);
+
+      // 处理 OpenAI 兼容提供商
+      openaiProviders.forEach((provider) => {
+        const providerName = provider.headers?.['X-Provider'] || provider.name || 'unknown';
+        const modelSet = new Set<string>();
+        (provider.models || []).forEach((m) => {
+          if (m.alias) modelSet.add(m.alias);
+          if (m.name) modelSet.add(m.name);
+        });
+        
+        // 存储以 providerName 索引的模型集合与提供商类型
+        modelsMap[providerName] = modelSet;
+        typeMap[providerName] = 'OpenAI';
+
+        const apiKeyEntries = provider.apiKeyEntries || [];
+        apiKeyEntries.forEach((entry) => {
+          const apiKey = entry.apiKey;
+          if (apiKey) {
+            if (map[apiKey]) {
+              const existing = map[apiKey].split(',');
+              if (!existing.includes(providerName)) {
+                map[apiKey] = `${map[apiKey]},${providerName}`;
+              }
+            } else {
+              map[apiKey] = providerName;
+            }
+            
+            // 归并所有共享该 apiKey 的渠道模型集合
+            if (!modelsMap[apiKey]) {
+              modelsMap[apiKey] = new Set<string>();
+            }
+            modelSet.forEach((m) => modelsMap[apiKey].add(m));
+            typeMap[apiKey] = 'OpenAI';
+          }
+          if (entry.authIndex) {
+            authProviderMap[entry.authIndex] = providerName;
+          }
+        });
+        
+        if (provider.name) {
+          if (map[provider.name]) {
+            const existing = map[provider.name].split(',');
+            if (!existing.includes(providerName)) {
+              map[provider.name] = `${map[provider.name]},${providerName}`;
+            }
+          } else {
+            map[provider.name] = providerName;
+          }
+          modelsMap[provider.name] = modelSet;
+          typeMap[provider.name] = 'OpenAI';
+        }
+        
+        const prefix = provider.prefix?.trim();
+        if (prefix) {
+          if (map[prefix]) {
+            const existing = map[prefix].split(',');
+            if (!existing.includes(providerName)) {
+              map[prefix] = `${map[prefix]},${providerName}`;
+            }
+          } else {
+            map[prefix] = providerName;
+          }
+          modelsMap[prefix] = modelSet;
+          typeMap[prefix] = 'OpenAI';
+        }
       });
-      setProviderMap(data.providers || {});
+
+      // 处理 Gemini 提供商
+      geminiKeys.forEach((config) => {
+        const apiKey = config.apiKey;
+        if (apiKey) {
+          const providerName = config.prefix?.trim() || 'Gemini';
+          
+          if (map[apiKey]) {
+            const existing = map[apiKey].split(',');
+            if (!existing.includes(providerName)) {
+              map[apiKey] = `${map[apiKey]},${providerName}`;
+            }
+          } else {
+            map[apiKey] = providerName;
+          }
+          
+          typeMap[apiKey] = 'Gemini';
+          modelsMap[providerName] = new Set<string>();
+          typeMap[providerName] = 'Gemini';
+          if (config.authIndex) {
+            authProviderMap[config.authIndex] = providerName;
+          }
+
+          const prefix = config.prefix?.trim();
+          if (prefix) {
+            if (map[prefix]) {
+              const existing = map[prefix].split(',');
+              if (!existing.includes(providerName)) {
+                map[prefix] = `${map[prefix]},${providerName}`;
+              }
+            } else {
+              map[prefix] = providerName;
+            }
+            typeMap[prefix] = 'Gemini';
+          }
+        }
+      });
+
+      // 处理 Claude 提供商
+      claudeConfigs.forEach((config) => {
+        const apiKey = config.apiKey;
+        if (apiKey) {
+          const providerName = config.prefix?.trim() || 'Claude';
+          
+          if (map[apiKey]) {
+            const existing = map[apiKey].split(',');
+            if (!existing.includes(providerName)) {
+              map[apiKey] = `${map[apiKey]},${providerName}`;
+            }
+          } else {
+            map[apiKey] = providerName;
+          }
+          
+          typeMap[apiKey] = 'Claude';
+          typeMap[providerName] = 'Claude';
+          if (config.authIndex) {
+            authProviderMap[config.authIndex] = providerName;
+          }
+
+          // 存储模型集合
+          if (config.models && config.models.length > 0) {
+            const modelSet = new Set<string>();
+            config.models.forEach((m) => {
+              if (m.alias) modelSet.add(m.alias);
+              if (m.name) modelSet.add(m.name);
+            });
+            
+            modelsMap[providerName] = modelSet;
+
+            if (!modelsMap[apiKey]) {
+              modelsMap[apiKey] = new Set<string>();
+            }
+            modelSet.forEach((m) => modelsMap[apiKey].add(m));
+
+            const prefix = config.prefix?.trim();
+            if (prefix) {
+              if (map[prefix]) {
+                const existing = map[prefix].split(',');
+                if (!existing.includes(providerName)) {
+                  map[prefix] = `${map[prefix]},${providerName}`;
+                }
+              } else {
+                map[prefix] = providerName;
+              }
+              typeMap[prefix] = 'Claude';
+              modelsMap[prefix] = modelSet;
+            }
+          }
+        }
+      });
+
+      // 处理 Codex 提供商
+      codexConfigs.forEach((config) => {
+        const apiKey = config.apiKey;
+        if (apiKey) {
+          const providerName = config.prefix?.trim() || 'Codex';
+          
+          if (map[apiKey]) {
+            const existing = map[apiKey].split(',');
+            if (!existing.includes(providerName)) {
+              map[apiKey] = `${map[apiKey]},${providerName}`;
+            }
+          } else {
+            map[apiKey] = providerName;
+          }
+          
+          typeMap[apiKey] = 'Codex';
+          typeMap[providerName] = 'Codex';
+          if (config.authIndex) {
+            authProviderMap[config.authIndex] = providerName;
+          }
+
+          if (config.models && config.models.length > 0) {
+            const modelSet = new Set<string>();
+            config.models.forEach((m) => {
+              if (m.alias) modelSet.add(m.alias);
+              if (m.name) modelSet.add(m.name);
+            });
+            
+            modelsMap[providerName] = modelSet;
+
+            if (!modelsMap[apiKey]) {
+              modelsMap[apiKey] = new Set<string>();
+            }
+            modelSet.forEach((m) => modelsMap[apiKey].add(m));
+
+            const prefix = config.prefix?.trim();
+            if (prefix) {
+              if (map[prefix]) {
+                const existing = map[prefix].split(',');
+                if (!existing.includes(providerName)) {
+                  map[prefix] = `${map[prefix]},${providerName}`;
+                }
+              } else {
+                map[prefix] = providerName;
+              }
+              typeMap[prefix] = 'Codex';
+              modelsMap[prefix] = modelSet;
+            }
+          }
+        }
+      });
+
+      // 处理 Vertex 提供商
+      vertexConfigs.forEach((config) => {
+        const apiKey = config.apiKey;
+        if (apiKey) {
+          const providerName = config.prefix?.trim() || 'Vertex';
+          
+          if (map[apiKey]) {
+            const existing = map[apiKey].split(',');
+            if (!existing.includes(providerName)) {
+              map[apiKey] = `${map[apiKey]},${providerName}`;
+            }
+          } else {
+            map[apiKey] = providerName;
+          }
+          
+          typeMap[apiKey] = 'Vertex';
+          typeMap[providerName] = 'Vertex';
+          if (config.authIndex) {
+            authProviderMap[config.authIndex] = providerName;
+          }
+
+          if (config.models && config.models.length > 0) {
+            const modelSet = new Set<string>();
+            config.models.forEach((m) => {
+              if (m.alias) modelSet.add(m.alias);
+              if (m.name) modelSet.add(m.name);
+            });
+            
+            modelsMap[providerName] = modelSet;
+
+            if (!modelsMap[apiKey]) {
+              modelsMap[apiKey] = new Set<string>();
+            }
+            modelSet.forEach((m) => modelsMap[apiKey].add(m));
+
+            const prefix = config.prefix?.trim();
+            if (prefix) {
+              if (map[prefix]) {
+                const existing = map[prefix].split(',');
+                if (!existing.includes(providerName)) {
+                  map[prefix] = `${map[prefix]},${providerName}`;
+                }
+              } else {
+                map[prefix] = providerName;
+              }
+              typeMap[prefix] = 'Vertex';
+              modelsMap[prefix] = modelSet;
+            }
+          }
+        }
+      });
+
+      // 处理 OAuth 认证文件
+      const authTypeToProvider: Record<string, string> = {
+        claude: 'Claude',
+        gemini: 'Gemini',
+        'gemini-cli': 'Gemini',
+        codex: 'Codex',
+        vertex: 'Vertex',
+        aistudio: 'AI Studio',
+        qwen: 'Qwen',
+        antigravity: 'Antigravity',
+        iflow: 'iFlow',
+      };
+      const authFiles = authFilesRes?.files || [];
+      const authIdxMap: Record<string, string> = {};
+      authFiles.forEach((file) => {
+        const name = file.name;
+        if (!name) return;
+        const fileType = file.type || 'unknown';
+        const providerName = authTypeToProvider[fileType] || fileType;
+        map[name] = providerName;
+        typeMap[name] = providerName;
+        // auth_index → 文件名映射（供 RequestLogs 使用）
+        const rawAuthIndex = (file as Record<string, unknown>)['auth_index'] ?? file.authIndex;
+        if (rawAuthIndex !== undefined && rawAuthIndex !== null) {
+          const authIndexKey = String(rawAuthIndex).trim();
+          if (authIndexKey) {
+            authIdxMap[authIndexKey] = name;
+          }
+        }
+      });
+
+      setProviderMap(map);
       setProviderModels(modelsMap);
+      setProviderTypeMap(typeMap);
+      setAuthIndexMap(authIdxMap);
+      setAuthIndexProviderMap(authProviderMap);
     } catch (err) {
       console.warn('Monitor: Failed to load provider map:', err);
     }
   }, []);
 
-  // 加载数据：provider map + 触发底表 refreshKey；overview 由独立 effect 拉取
+  // 加载数据
   const loadData = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -114,30 +409,6 @@ export function MonitorPage() {
 
   // 响应头部刷新
   useHeaderRefresh(loadData);
-
-  // overview 合并包：跟随页面时间范围 / API 过滤；与 provider map 解耦
-  useEffect(() => {
-    let cancelled = false;
-    const key = overviewKey;
-    (async () => {
-      try {
-        const data = await monitorApi.getDashboard({
-          ...buildMonitorTimeRangeParams(timeRange),
-          ...(apiFilter ? { api_filter: apiFilter } : {}),
-          hours: 12,
-          hourly_model_limit: 6,
-          channel_limit: 100,
-        });
-        if (!cancelled) setDashboard({ key, data });
-      } catch (err) {
-        console.error('Monitor: dashboard load failed:', err);
-        if (!cancelled) setDashboard({ key, data: null });
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [overviewKey, timeRange, apiFilter, refreshKey]);
 
   // 处理时间范围变化
   const handleTimeRangeChange = (range: TimeRange) => {
@@ -222,100 +493,25 @@ export function MonitorPage() {
       </div>
 
       {/* KPI 卡片 */}
-      <KpiCards
-        timeRange={timeRange}
-        apiFilter={apiFilter}
-        preloaded={dashboard?.key === overviewKey ? dashboard.data?.kpi ?? null : undefined}
-        preloadedKey={overviewKey}
-      />
+      <KpiCards timeRange={timeRange} apiFilter={apiFilter} />
 
       {/* 图表区域 */}
       <div className={styles.chartsGrid}>
-        <ModelDistributionChart
-          timeRange={timeRange}
-          apiFilter={apiFilter}
-          isDark={isDark}
-          providerMap={providerMap}
-          preloadedChannelStats={
-            dashboard?.key === overviewKey ? dashboard.data?.channel_stats.items ?? [] : undefined
-          }
-          preloadedKey={overviewKey}
-        />
-        <DailyTrendChart
-          timeRange={timeRange}
-          apiFilter={apiFilter}
-          isDark={isDark}
-          preloadedItems={
-            dashboard?.key === overviewKey ? dashboard.data?.daily_trend.items ?? [] : undefined
-          }
-          preloadedKey={overviewKey}
-        />
+        <ModelDistributionChart timeRange={timeRange} apiFilter={apiFilter} isDark={isDark} />
+        <DailyTrendChart timeRange={timeRange} apiFilter={apiFilter} isDark={isDark} />
       </div>
 
-      {/* 小时级图表（默认 12h 吃 dashboard；切 6/24 时组件自行请求） */}
-      <HourlyModelChart
-        timeRange={timeRange}
-        apiFilter={apiFilter}
-        isDark={isDark}
-        preloaded={
-          dashboard?.key === overviewKey ? dashboard.data?.hourly_models : undefined
-        }
-        preloadedKey={hourlyPreloadKey}
-      />
-      <HourlyTokenChart
-        timeRange={timeRange}
-        apiFilter={apiFilter}
-        isDark={isDark}
-        preloaded={
-          dashboard?.key === overviewKey ? dashboard.data?.hourly_tokens : undefined
-        }
-        preloadedKey={hourlyPreloadKey}
-      />
+      {/* 小时级图表 */}
+      <HourlyModelChart timeRange={timeRange} apiFilter={apiFilter} isDark={isDark} />
+      <HourlyTokenChart timeRange={timeRange} apiFilter={apiFilter} isDark={isDark} />
 
       {/* 服务健康热力图 */}
-      <ServiceHealthCard
-        preloaded={dashboard?.key === overviewKey ? dashboard.data?.service_health ?? null : undefined}
-        preloadedReady={dashboard?.key === overviewKey}
-      />
+      <ServiceHealthCard />
 
       {/* 统计表格 */}
-      <div className={styles.statsSection}>
-        <div className={styles.statsTabs} role="tablist" aria-label={t('monitor.title')}>
-          <button
-            id="monitor-stats-tab-channel"
-            type="button"
-            role="tab"
-            aria-selected={activeStatsTab === 'channel'}
-            aria-controls="monitor-stats-panel-channel"
-            className={`${styles.statsTabButton} ${activeStatsTab === 'channel' ? styles.statsTabButtonActive : ''}`}
-            onClick={() => setActiveStatsTab('channel')}
-          >
-            {t('monitor.channel.title')}
-          </button>
-          <button
-            id="monitor-stats-tab-failure"
-            type="button"
-            role="tab"
-            aria-selected={activeStatsTab === 'failure'}
-            aria-controls="monitor-stats-panel-failure"
-            className={`${styles.statsTabButton} ${activeStatsTab === 'failure' ? styles.statsTabButtonActive : ''}`}
-            onClick={() => setActiveStatsTab('failure')}
-          >
-            {t('monitor.failure.title')}
-          </button>
-        </div>
-        <div
-          id={`monitor-stats-panel-${activeStatsTab}`}
-          className={styles.statsTabPanel}
-          role="tabpanel"
-          aria-labelledby={`monitor-stats-tab-${activeStatsTab}`}
-        >
-          {activeStatsTab === 'channel' ? (
-            <ChannelStats refreshKey={refreshKey} loading={loading} providerMap={providerMap} providerModels={providerModels} />
-          ) : (
-            <FailureAnalysis refreshKey={refreshKey} loading={loading} providerMap={providerMap} providerModels={providerModels} />
-          )}
-        </div>
+      <div className={styles.statsGrid}>
+        <ChannelStats refreshKey={refreshKey} loading={loading} providerMap={providerMap} providerModels={providerModels} />
+        <FailureAnalysis refreshKey={refreshKey} loading={loading} providerMap={providerMap} providerModels={providerModels} />
       </div>
 
       {/* 请求日志 */}
@@ -323,7 +519,11 @@ export function MonitorPage() {
         refreshKey={refreshKey}
         loading={loading}
         providerMap={providerMap}
+        providerTypeMap={providerTypeMap}
+        providerModels={providerModels}
         apiFilter={apiFilter}
+        authIndexMap={authIndexMap}
+        authIndexProviderMap={authIndexProviderMap}
       />
     </div>
   );

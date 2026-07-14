@@ -3,6 +3,7 @@ import { useNavigate, useOutletContext } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
+import { Modal } from '@/components/ui/Modal';
 import { HeaderInputList } from '@/components/ui/HeaderInputList';
 import { Input } from '@/components/ui/Input';
 import { ModelInputList } from '@/components/ui/ModelInputList';
@@ -12,15 +13,14 @@ import { useEdgeSwipeBack } from '@/hooks/useEdgeSwipeBack';
 import { useNotificationStore } from '@/stores';
 import { apiCallApi, getApiCallErrorMessage } from '@/services/api';
 import type { ApiKeyEntry } from '@/types';
-import { buildApiKeyEntry } from '@/components/providers/utils';
-import {
-  buildProviderConnectivityRequest,
-  type ProviderConnectivityFailureReason,
-} from '@/components/providers/providerRequests';
+import { buildHeaderObject, hasHeader } from '@/utils/headers';
+import { buildApiKeyEntry, buildOpenAIChatCompletionsEndpoint } from '@/components/providers/utils';
 import type { OpenAIEditOutletContext } from './AiProvidersOpenAIEditLayout';
 import type { KeyTestStatus } from '@/stores/useOpenAIEditDraftStore';
 import styles from './AiProvidersPage.module.scss';
 import layoutStyles from './AiProvidersEditLayout.module.scss';
+
+const OPENAI_TEST_TIMEOUT_MS = 30_000;
 
 const getErrorMessage = (err: unknown) => {
   if (err instanceof Error) return err.message;
@@ -128,6 +128,75 @@ export function AiProvidersOpenAIEditPage() {
   const swipeRef = useEdgeSwipeBack({ onBack: handleBack });
   const [isTestingKeys, setIsTestingKeys] = useState(false);
 
+  /* 分页与批量导入 API 密钥状态和处理 */
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageSize = 10;
+  const [importModalOpen, setImportModalOpen] = useState(false);
+  const [importText, setImportText] = useState('');
+
+  const apiKeyList = useMemo(() => {
+    return form.apiKeyEntries.length ? form.apiKeyEntries : [buildApiKeyEntry()];
+  }, [form.apiKeyEntries]);
+
+  const totalItems = apiKeyList.length;
+  const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
+  const activePage = Math.max(1, Math.min(currentPage, totalPages));
+  const startIndex = (activePage - 1) * pageSize;
+  const visibleKeys = useMemo(() => {
+    return apiKeyList.slice(startIndex, startIndex + pageSize);
+  }, [apiKeyList, startIndex, pageSize]);
+
+  const handleImportKeys = () => {
+    const lines = importText.split(/\r?\n/);
+    const newEntries: ApiKeyEntry[] = [];
+
+    lines.forEach((line) => {
+      const trimmed = line.trim();
+      if (!trimmed) return;
+
+      const parts = trimmed.split(/[\s\t]+/);
+      const apiKey = parts[0];
+      const proxyUrl = parts.length > 1 ? parts[1] : '';
+
+      if (apiKey) {
+        newEntries.push({
+          apiKey,
+          proxyUrl: proxyUrl || undefined,
+          headers: {},
+        });
+      }
+    });
+
+    if (newEntries.length === 0) {
+      showNotification(t('ai_providers.openai_keys_import_empty', '未检测到有效的密钥'), 'error');
+      return;
+    }
+
+    const currentList = form.apiKeyEntries;
+    let nextList: ApiKeyEntry[] = [];
+    if (currentList.length === 1 && !currentList[0].apiKey.trim() && !currentList[0].proxyUrl?.trim()) {
+      nextList = newEntries;
+    } else {
+      nextList = [...currentList, ...newEntries];
+    }
+
+    setForm((prev) => ({ ...prev, apiKeyEntries: nextList }));
+    resetDraftKeyTestStatuses(nextList.length);
+    setTestStatus('idle');
+    setTestMessage('');
+
+    showNotification(
+      t('ai_providers.openai_keys_import_success', '成功导入了 {{count}} 个 API 密钥', { count: newEntries.length }),
+      'success'
+    );
+    
+    setImportModalOpen(false);
+    setImportText('');
+
+    const nextTotalPages = Math.ceil(nextList.length / pageSize) || 1;
+    setCurrentPage(nextTotalPages);
+  };
+
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
@@ -140,9 +209,7 @@ export function AiProvidersOpenAIEditPage() {
 
   const canSave = !disableControls && !loading && !saving && !invalidIndexParam && !invalidIndex && !isTestingKeys;
   const hasConfiguredModels = form.modelEntries.some((entry) => entry.name.trim());
-  const hasTestableKeys = form.apiKeyEntries.some(
-    (entry) => entry.apiKey?.trim() || entry.authIndex?.trim()
-  );
+  const hasTestableKeys = form.apiKeyEntries.some((entry) => entry.apiKey?.trim());
   const modelSelectOptions = useMemo(() => {
     const seen = new Set<string>();
     return form.modelEntries.reduce<Array<{ value: string; label: string }>>((acc, entry) => {
@@ -164,17 +231,8 @@ export function AiProvidersOpenAIEditPage() {
     const modelsSignature = form.modelEntries
       .map((entry) => `${entry.name.trim()}:${entry.alias.trim()}`)
       .join('|');
-    const authIndexSignature = form.apiKeyEntries
-      .map((entry) => entry.authIndex?.trim() ?? '')
-      .join('|');
-    return [
-      form.baseUrl.trim(),
-      testModel.trim(),
-      headersSignature,
-      modelsSignature,
-      authIndexSignature,
-    ].join('||');
-  }, [form.apiKeyEntries, form.baseUrl, form.headers, form.modelEntries, testModel]);
+    return [form.baseUrl.trim(), testModel.trim(), headersSignature, modelsSignature].join('||');
+  }, [form.baseUrl, form.headers, form.modelEntries, testModel]);
   const previousConnectivityConfigRef = useRef(connectivityConfigSignature);
 
   useEffect(() => {
@@ -193,43 +251,60 @@ export function AiProvidersOpenAIEditPage() {
     setTestMessage,
   ]);
 
-  const getConnectivityFailureMessage = useCallback(
-    (reason: ProviderConnectivityFailureReason) => {
-      if (reason === 'api-key-required') return t('notification.openai_test_key_required');
-      if (reason === 'model-required') return t('notification.openai_test_model_required');
-      return t('notification.openai_test_url_required');
-    },
-    [t]
-  );
-
   // Test a single key by index
   const runSingleKeyTest = useCallback(
     async (keyIndex: number): Promise<boolean> => {
-      const keyEntry = form.apiKeyEntries[keyIndex];
-      const built = buildProviderConnectivityRequest({
-        brand: 'openai',
-        baseUrl: form.baseUrl,
-        headers: form.headers,
-        models: form.modelEntries,
-        testModel,
-        apiKeyEntry: keyEntry,
-      });
-
-      if (!built.ok) {
-        const message = getConnectivityFailureMessage(built.reason);
-        if (built.reason === 'api-key-required') {
-          setDraftKeyTestStatus(keyIndex, { status: 'error', message });
-        } else {
-          showNotification(message, 'error');
-        }
+      const baseUrl = form.baseUrl.trim();
+      if (!baseUrl) {
+        showNotification(t('notification.openai_test_url_required'), 'error');
         return false;
+      }
+
+      const endpoint = buildOpenAIChatCompletionsEndpoint(baseUrl);
+      if (!endpoint) {
+        showNotification(t('notification.openai_test_url_required'), 'error');
+        return false;
+      }
+
+      const keyEntry = form.apiKeyEntries[keyIndex];
+      if (!keyEntry?.apiKey?.trim()) {
+        setDraftKeyTestStatus(keyIndex, { status: 'error', message: t('notification.openai_test_key_required') });
+        return false;
+      }
+
+      const modelName = testModel.trim() || availableModels[0] || '';
+      if (!modelName) {
+        showNotification(t('notification.openai_test_model_required'), 'error');
+        return false;
+      }
+
+      const customHeaders = buildHeaderObject(form.headers);
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+        ...customHeaders,
+      };
+      if (!hasHeader(headers, 'authorization')) {
+        headers.Authorization = `Bearer ${keyEntry.apiKey.trim()}`;
       }
 
       // Set loading state for this key
       setDraftKeyTestStatus(keyIndex, { status: 'loading', message: '' });
 
       try {
-        const result = await apiCallApi.request(built.request, { timeout: built.timeoutMs });
+        const result = await apiCallApi.request(
+          {
+            method: 'POST',
+            url: endpoint,
+            header: Object.keys(headers).length ? headers : undefined,
+            data: JSON.stringify({
+              model: modelName,
+              messages: [{ role: 'user', content: 'Hi' }],
+              stream: false,
+              max_tokens: 5,
+            }),
+          },
+          { timeout: OPENAI_TEST_TIMEOUT_MS }
+        );
 
         if (result.statusCode < 200 || result.statusCode >= 300) {
           throw new Error(getApiCallErrorMessage(result));
@@ -245,23 +320,13 @@ export function AiProvidersOpenAIEditPage() {
             : '';
         const isTimeout = errorCode === 'ECONNABORTED' || message.toLowerCase().includes('timeout');
         const errorMessage = isTimeout
-          ? t('ai_providers.openai_test_timeout', { seconds: built.timeoutMs / 1000 })
+          ? t('ai_providers.openai_test_timeout', { seconds: OPENAI_TEST_TIMEOUT_MS / 1000 })
           : message;
         setDraftKeyTestStatus(keyIndex, { status: 'error', message: errorMessage });
         return false;
       }
     },
-    [
-      form.apiKeyEntries,
-      form.baseUrl,
-      form.headers,
-      form.modelEntries,
-      getConnectivityFailureMessage,
-      setDraftKeyTestStatus,
-      showNotification,
-      t,
-      testModel,
-    ]
+    [form.baseUrl, form.apiKeyEntries, form.headers, testModel, availableModels, t, setDraftKeyTestStatus, showNotification]
   );
 
   const testSingleKey = useCallback(
@@ -281,27 +346,38 @@ export function AiProvidersOpenAIEditPage() {
   const testAllKeys = useCallback(async () => {
     if (isTestingKeys) return;
 
-    const validKeyIndexes = form.apiKeyEntries
-      .map((entry, index) => (entry.apiKey?.trim() || entry.authIndex?.trim() ? index : -1))
-      .filter((index) => index >= 0);
-    if (validKeyIndexes.length === 0) {
-      const message = t('notification.openai_test_key_required');
+    const baseUrl = form.baseUrl.trim();
+    if (!baseUrl) {
+      const message = t('notification.openai_test_url_required');
       setTestStatus('error');
       setTestMessage(message);
       showNotification(message, 'error');
       return;
     }
 
-    const preflight = buildProviderConnectivityRequest({
-      brand: 'openai',
-      baseUrl: form.baseUrl,
-      headers: form.headers,
-      models: form.modelEntries,
-      testModel,
-      apiKeyEntry: form.apiKeyEntries[validKeyIndexes[0]],
-    });
-    if (!preflight.ok) {
-      const message = getConnectivityFailureMessage(preflight.reason);
+    const endpoint = buildOpenAIChatCompletionsEndpoint(baseUrl);
+    if (!endpoint) {
+      const message = t('notification.openai_test_url_required');
+      setTestStatus('error');
+      setTestMessage(message);
+      showNotification(message, 'error');
+      return;
+    }
+
+    const modelName = testModel.trim() || availableModels[0] || '';
+    if (!modelName) {
+      const message = t('notification.openai_test_model_required');
+      setTestStatus('error');
+      setTestMessage(message);
+      showNotification(message, 'error');
+      return;
+    }
+
+    const validKeyIndexes = form.apiKeyEntries
+      .map((entry, index) => (entry.apiKey?.trim() ? index : -1))
+      .filter((index) => index >= 0);
+    if (validKeyIndexes.length === 0) {
+      const message = t('notification.openai_test_key_required');
       setTestStatus('error');
       setTestMessage(message);
       showNotification(message, 'error');
@@ -342,16 +418,14 @@ export function AiProvidersOpenAIEditPage() {
     isTestingKeys,
     form.baseUrl,
     form.apiKeyEntries,
-    form.headers,
-    form.modelEntries,
     testModel,
+    availableModels,
     t,
     setTestStatus,
     setTestMessage,
     resetDraftKeyTestStatuses,
     runSingleKeyTest,
     showNotification,
-    getConnectivityFailureMessage,
   ]);
 
   const openOpenaiModelDiscovery = () => {
@@ -363,51 +437,71 @@ export function AiProvidersOpenAIEditPage() {
     navigate('models');
   };
 
-  const renderKeyEntries = (entries: ApiKeyEntry[]) => {
-    const list = entries.length ? entries : [buildApiKeyEntry()];
-
-    const updateEntry = (idx: number, field: keyof ApiKeyEntry, value: string) => {
-      const next = list.map((entry, i) => (i === idx ? { ...entry, [field]: value } : entry));
+  const renderKeyEntries = () => {
+    const updateEntry = (localIndex: number, field: keyof ApiKeyEntry, value: string) => {
+      const globalIndex = startIndex + localIndex;
+      const next = apiKeyList.map((entry, i) => (i === globalIndex ? { ...entry, [field]: value } : entry));
       setForm((prev) => ({ ...prev, apiKeyEntries: next }));
-      setDraftKeyTestStatus(idx, { status: 'idle', message: '' });
+      setDraftKeyTestStatus(globalIndex, { status: 'idle', message: '' });
       setTestStatus('idle');
       setTestMessage('');
     };
 
-    const removeEntry = (idx: number) => {
-      const next = list.filter((_, i) => i !== idx);
+    const removeEntry = (localIndex: number) => {
+      const globalIndex = startIndex + localIndex;
+      const next = apiKeyList.filter((_, i) => i !== globalIndex);
       const nextLength = next.length ? next.length : 1;
+      const finalNextList = next.length ? next : [buildApiKeyEntry()];
       setForm((prev) => ({
         ...prev,
-        apiKeyEntries: next.length ? next : [buildApiKeyEntry()],
+        apiKeyEntries: finalNextList,
       }));
       resetDraftKeyTestStatuses(nextLength);
       setTestStatus('idle');
       setTestMessage('');
+
+      const nextTotalPages = Math.ceil(finalNextList.length / pageSize) || 1;
+      if (activePage > nextTotalPages) {
+        setCurrentPage(nextTotalPages);
+      }
     };
 
     const addEntry = () => {
-      setForm((prev) => ({ ...prev, apiKeyEntries: [...list, buildApiKeyEntry()] }));
-      resetDraftKeyTestStatuses(list.length + 1);
+      const nextList = [...apiKeyList, buildApiKeyEntry()];
+      setForm((prev) => ({ ...prev, apiKeyEntries: nextList }));
+      resetDraftKeyTestStatuses(nextList.length);
       setTestStatus('idle');
       setTestMessage('');
+
+      const nextTotalPages = Math.ceil(nextList.length / pageSize) || 1;
+      setCurrentPage(nextTotalPages);
     };
 
     return (
       <div className={styles.keyEntriesList}>
         <div className={styles.keyEntriesToolbar}>
           <span className={styles.keyEntriesCount}>
-            {t('ai_providers.openai_keys_count')}: {list.length}
+            {t('ai_providers.openai_keys_count')}: {totalItems}
           </span>
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={addEntry}
-            disabled={saving || disableControls || isTestingKeys}
-            className={styles.addKeyButton}
-          >
-            {t('ai_providers.openai_keys_add_btn')}
-          </Button>
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => setImportModalOpen(true)}
+              disabled={saving || disableControls || isTestingKeys}
+            >
+              {t('ai_providers.openai_keys_import_btn', '导入密钥')}
+            </Button>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={addEntry}
+              disabled={saving || disableControls || isTestingKeys}
+              className={styles.addKeyButton}
+            >
+              {t('ai_providers.openai_keys_add_btn')}
+            </Button>
+          </div>
         </div>
         <div className={styles.keyTableShell}>
           {/* 表头 */}
@@ -420,19 +514,20 @@ export function AiProvidersOpenAIEditPage() {
           </div>
 
           {/* 数据行 */}
-          {list.map((entry, index) => {
-            const keyStatus = keyTestStatuses[index]?.status ?? 'idle';
-            const canTestKey = Boolean(entry.apiKey?.trim() || entry.authIndex?.trim()) && hasConfiguredModels;
+          {visibleKeys.map((entry, localIndex) => {
+            const globalIndex = startIndex + localIndex;
+            const keyStatus = keyTestStatuses[globalIndex]?.status ?? 'idle';
+            const canTestKey = Boolean(entry.apiKey?.trim()) && hasConfiguredModels;
 
             return (
-              <div key={index} className={styles.keyTableRow}>
+              <div key={globalIndex} className={styles.keyTableRow}>
                 {/* 序号 */}
-                <div className={styles.keyTableColIndex}>{index + 1}</div>
+                <div className={styles.keyTableColIndex}>{globalIndex + 1}</div>
 
                 {/* 状态指示灯 */}
                 <div
                   className={styles.keyTableColStatus}
-                  title={keyTestStatuses[index]?.message || ''}
+                  title={keyTestStatuses[globalIndex]?.message || ''}
                 >
                   <StatusIcon status={keyStatus} />
                 </div>
@@ -441,12 +536,8 @@ export function AiProvidersOpenAIEditPage() {
                 <div className={styles.keyTableColKey}>
                   <input
                     type="text"
-                    autoComplete="new-password"
-                    data-1p-ignore="true"
-                    data-lpignore="true"
-                    data-bwignore="true"
                     value={entry.apiKey}
-                    onChange={(e) => updateEntry(index, 'apiKey', e.target.value)}
+                    onChange={(e) => updateEntry(localIndex, 'apiKey', e.target.value)}
                     disabled={saving || disableControls || isTestingKeys}
                     className={`input ${styles.keyTableInput}`}
                     placeholder={t('ai_providers.openai_key_placeholder')}
@@ -458,7 +549,7 @@ export function AiProvidersOpenAIEditPage() {
                   <input
                     type="text"
                     value={entry.proxyUrl ?? ''}
-                    onChange={(e) => updateEntry(index, 'proxyUrl', e.target.value)}
+                    onChange={(e) => updateEntry(localIndex, 'proxyUrl', e.target.value)}
                     disabled={saving || disableControls || isTestingKeys}
                     className={`input ${styles.keyTableInput}`}
                     placeholder={t('ai_providers.openai_proxy_placeholder')}
@@ -470,7 +561,7 @@ export function AiProvidersOpenAIEditPage() {
                   <Button
                     variant="secondary"
                     size="sm"
-                    onClick={() => void testSingleKey(index)}
+                    onClick={() => void testSingleKey(globalIndex)}
                     disabled={saving || disableControls || isTestingKeys || !canTestKey}
                     loading={keyStatus === 'loading'}
                   >
@@ -479,8 +570,8 @@ export function AiProvidersOpenAIEditPage() {
                   <Button
                     variant="ghost"
                     size="sm"
-                    onClick={() => removeEntry(index)}
-                    disabled={saving || disableControls || isTestingKeys || list.length <= 1}
+                    onClick={() => removeEntry(localIndex)}
+                    disabled={saving || disableControls || isTestingKeys || totalItems <= 1}
                   >
                     {t('common.delete')}
                   </Button>
@@ -489,6 +580,35 @@ export function AiProvidersOpenAIEditPage() {
             );
           })}
         </div>
+
+        {/* 分页组件 */}
+        {totalItems > pageSize && (
+          <div className={styles.pagination} style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '16px', marginTop: '16px' }}>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+              disabled={activePage <= 1}
+            >
+              {t('auth_files.pagination_prev', '上一页')}
+            </Button>
+            <div className={styles.pageInfo} style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
+              {t('ai_providers.openai_keys_pagination_info', '第 {{current}} / {{total}} 页 · 共 {{count}} 个密钥', {
+                current: activePage,
+                total: totalPages,
+                count: totalItems,
+              })}
+            </div>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+              disabled={activePage >= totalPages}
+            >
+              {t('auth_files.pagination_next', '下一页')}
+            </Button>
+          </div>
+        )}
       </div>
     );
   };
@@ -688,11 +808,64 @@ export function AiProvidersOpenAIEditPage() {
                 <label className={styles.keyEntriesTitle}>{t('ai_providers.openai_add_modal_keys_label')}</label>
                 <span className={styles.keyEntriesHint}>{t('ai_providers.openai_keys_hint')}</span>
               </div>
-              {renderKeyEntries(form.apiKeyEntries)}
+              {renderKeyEntries()}
             </div>
           </div>
         )}
       </Card>
+
+      {/* 批量导入 API 密钥的 Modal 弹窗 */}
+      <Modal
+        open={importModalOpen}
+        title={t('ai_providers.openai_keys_import_title', '批量导入 API 密钥')}
+        onClose={() => {
+          setImportModalOpen(false);
+          setImportText('');
+        }}
+        footer={
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => {
+                setImportModalOpen(false);
+                setImportText('');
+              }}
+            >
+              {t('common.cancel', '取消')}
+            </Button>
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={handleImportKeys}
+              disabled={!importText.trim()}
+            >
+              {t('common.confirm', '确定')}
+            </Button>
+          </div>
+        }
+      >
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+          <label style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
+            {t('ai_providers.openai_keys_import_hint')}
+          </label>
+          <textarea
+            value={importText}
+            onChange={(e) => setImportText(e.target.value)}
+            rows={10}
+            className="input"
+            placeholder="sk-...\nsk-...\n..."
+            style={{
+              width: '100%',
+              fontFamily: 'monospace',
+              fontSize: '12px',
+              padding: '8px',
+              borderRadius: '8px',
+              resize: 'vertical',
+            }}
+          />
+        </div>
+      </Modal>
     </SecondaryScreenShell>
   );
 }
