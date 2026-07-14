@@ -46,6 +46,7 @@ interface LogEntry {
   totalInputTokens: number;
   outputTokens: number;
   cachedTokens: number;
+  cacheWriteTokens: number;
   cost: number;
   latencyMs: number;
   ttftMs: number;
@@ -61,12 +62,7 @@ const REQUEST_LOG_NUMERIC_COLUMN_KEYS = new Set<RequestLogTableColumnKey>([
   'cost',
 ]);
 
-export function RequestLogs({
-  refreshKey,
-  loading,
-  providerMap,
-  apiFilter,
-}: RequestLogsProps) {
+export function RequestLogs({ refreshKey, loading, providerMap, apiFilter }: RequestLogsProps) {
   const { t } = useTranslation();
   const [filterModel, setFilterModel] = useState('');
   const [filterSource, setFilterSource] = useState('');
@@ -106,6 +102,7 @@ export function RequestLogs({
       const timestampMs = item.timestamp ? new Date(item.timestamp).getTime() : 0;
       const totalInputTokens = item.input_tokens || 0;
       const cachedTokens = item.cached_tokens || 0;
+      const cacheWriteTokens = item.cache_write_tokens || 0;
       const outputTokens = item.output_tokens || 0;
       return {
         id: `${item.timestamp}-${item.api_key}-${item.model}-${index}`,
@@ -116,11 +113,18 @@ export function RequestLogs({
         providerName: provider,
         maskedKey: masked,
         failed: item.failed,
-        inputTokens: computeUncachedInputTokens(totalInputTokens, cachedTokens),
+        inputTokens: computeUncachedInputTokens(totalInputTokens, cachedTokens, cacheWriteTokens),
         totalInputTokens,
         outputTokens,
         cachedTokens,
-        cost: calculateMonitorRequestCost(item.model, totalInputTokens, outputTokens, cachedTokens),
+        cacheWriteTokens,
+        cost: calculateMonitorRequestCost(
+          item.model,
+          totalInputTokens,
+          outputTokens,
+          cachedTokens,
+          cacheWriteTokens
+        ),
         latencyMs: item.latency_ms || 0,
         ttftMs: item.ttft_ms || 0,
         recentRequests: (item.recent_requests || []).map((req) => ({
@@ -152,8 +156,8 @@ export function RequestLogs({
       setTotal(response.total || 0);
       setTotalPages(response.total_pages || 0);
       setFilterOptions((prev) => ({
-        models: filterModel ? prev.models : (response.filters?.models || []),
-        sources: filterSource ? prev.sources : (response.filters?.sources || []),
+        models: filterModel ? prev.models : response.filters?.models || [],
+        sources: filterSource ? prev.sources : response.filters?.sources || [],
       }));
 
       const safePage = response.page || page;
@@ -216,6 +220,8 @@ export function RequestLogs({
   }, [autoRefresh]);
 
   useEffect(() => {
+    // 首屏等 refreshKey 就绪，避免与 provider 加载结束时的二次刷新叠打 request-logs。
+    if (refreshKey === 0) return;
     fetchLogData();
   }, [fetchLogData, refreshKey]);
 
@@ -262,7 +268,9 @@ export function RequestLogs({
       case 'status':
         return (
           <td>
-            <span className={`${styles.statusPill} ${entry.failed ? styles.failed : styles.success}`}>
+            <span
+              className={`${styles.statusPill} ${entry.failed ? styles.failed : styles.success}`}
+            >
               {entry.failed ? t('monitor.logs.failed') : t('monitor.logs.success')}
             </span>
           </td>
@@ -288,7 +296,9 @@ export function RequestLogs({
         if (entry.latencyMs > 0) titleParts.push(`Latency: ${formatNumber(entry.latencyMs)}ms`);
         return (
           <td className={styles.tokenCell} title={titleParts.join(' / ') || '-'}>
-            {ttft === '-' && latency === '-' ? '-' : (
+            {ttft === '-' && latency === '-' ? (
+              '-'
+            ) : (
               <>
                 <span style={{ color: 'var(--text-secondary)' }}>{ttft}</span>
                 {' / '}
@@ -304,13 +314,19 @@ export function RequestLogs({
       }
       case 'input':
         return (
-          <td className={`${styles.tokenCell} ${styles.numberCell}`} title={formatNumber(entry.inputTokens)}>
+          <td
+            className={`${styles.tokenCell} ${styles.numberCell}`}
+            title={formatNumber(entry.inputTokens)}
+          >
             {formatNumber(entry.inputTokens)}
           </td>
         );
       case 'output':
         return (
-          <td className={`${styles.tokenCell} ${styles.numberCell}`} title={formatNumber(entry.outputTokens)}>
+          <td
+            className={`${styles.tokenCell} ${styles.numberCell}`}
+            title={formatNumber(entry.outputTokens)}
+          >
             {formatNumber(entry.outputTokens)}
           </td>
         );
@@ -326,14 +342,20 @@ export function RequestLogs({
       case 'cacheRate': {
         const cache = formatCacheTokenRatio(entry.cachedTokens, entry.totalInputTokens);
         return (
-          <td className={`${styles.tokenCell} ${styles.numberCell}`} title={entry.cachedTokens > 0 ? cache.title : ''}>
+          <td
+            className={`${styles.tokenCell} ${styles.numberCell}`}
+            title={entry.cachedTokens > 0 ? cache.title : ''}
+          >
             {entry.cachedTokens > 0 ? cache.ratio : ''}
           </td>
         );
       }
       case 'cost':
         return (
-          <td className={`${styles.tokenCell} ${styles.numberCell}`} title={formatMonitorCost(entry.cost)}>
+          <td
+            className={`${styles.tokenCell} ${styles.numberCell}`}
+            title={formatMonitorCost(entry.cost)}
+          >
             {formatMonitorCost(entry.cost)}
           </td>
         );
@@ -488,7 +510,9 @@ export function RequestLogs({
                   {REQUEST_LOG_TABLE_COLUMN_KEYS.map((column) => (
                     <th
                       key={column}
-                      className={REQUEST_LOG_NUMERIC_COLUMN_KEYS.has(column) ? styles.numberCell : undefined}
+                      className={
+                        REQUEST_LOG_NUMERIC_COLUMN_KEYS.has(column) ? styles.numberCell : undefined
+                      }
                     >
                       {t(REQUEST_LOG_TABLE_HEADER_KEYS[column])}
                     </th>

@@ -155,6 +155,8 @@ export function FailureAnalysis({ refreshKey, loading, providerMap, providerMode
   }, [filterChannel, filterModel, timeRange, customRange, mapFailureStat, formatChannelLabel]);
 
   useEffect(() => {
+    // 与 ChannelStats 一致：等 MonitorPage 完成 provider 加载（refreshKey>=1）再请求。
+    if (refreshKey === 0) return;
     loadFailureAnalysis();
   }, [loadFailureAnalysis, refreshKey]);
 

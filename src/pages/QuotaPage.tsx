@@ -6,7 +6,6 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useHeaderRefresh } from '@/hooks/useHeaderRefresh';
 import { useAuthStore } from '@/stores';
-import { authFilesApi } from '@/services/api';
 import {
   QuotaSection,
   ANTIGRAVITY_CONFIG,
@@ -22,7 +21,6 @@ import {
   readQuotaUiState,
   writeQuotaUiState,
 } from '@/components/quota/uiState';
-import type { AuthFileItem } from '@/types';
 import styles from './QuotaPage.module.scss';
 
 export function QuotaPage() {
@@ -30,12 +28,10 @@ export function QuotaPage() {
   const connectionStatus = useAuthStore((state) => state.connectionStatus);
   const persistedUiState = useMemo(() => readQuotaUiState(), []);
 
-  const [files, setFiles] = useState<AuthFileItem[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
   const [pageSize, setPageSizeState] = useState(() =>
     normalizeQuotaPageSize(persistedUiState?.pageSize ?? DEFAULT_QUOTA_PAGE_SIZE)
   );
+  const [refreshKey, setRefreshKey] = useState(0);
 
   const disableControls = connectionStatus !== 'connected';
 
@@ -43,25 +39,11 @@ export function QuotaPage() {
     setPageSizeState(normalizeQuotaPageSize(size));
   }, []);
 
-  const loadFiles = useCallback(async () => {
-    setLoading(true);
-    setError('');
-    try {
-      const data = await authFilesApi.list();
-      setFiles(data?.files || []);
-    } catch (err: unknown) {
-      const errorMessage = err instanceof Error ? err.message : t('notification.refresh_failed');
-      setError(errorMessage);
-    } finally {
-      setLoading(false);
-    }
-  }, [t]);
+  const handleHeaderRefresh = useCallback(async () => {
+    setRefreshKey((prev) => prev + 1);
+  }, []);
 
-  useHeaderRefresh(loadFiles);
-
-  useEffect(() => {
-    loadFiles();
-  }, [loadFiles]);
+  useHeaderRefresh(handleHeaderRefresh);
 
   useEffect(() => {
     writeQuotaUiState({ pageSize });
@@ -74,55 +56,47 @@ export function QuotaPage() {
         <p className={styles.description}>{t('quota_management.description')}</p>
       </div>
 
-      {error && <div className={styles.errorBox}>{error}</div>}
-
       <QuotaSection
         config={CLAUDE_CONFIG}
-        files={files}
-        loading={loading}
         disabled={disableControls}
         pageSize={pageSize}
         onPageSizeChange={setPageSize}
+        refreshKey={refreshKey}
       />
       <QuotaSection
         config={ANTIGRAVITY_CONFIG}
-        files={files}
-        loading={loading}
         disabled={disableControls}
         pageSize={pageSize}
         onPageSizeChange={setPageSize}
+        refreshKey={refreshKey}
       />
       <QuotaSection
         config={CODEX_CONFIG}
-        files={files}
-        loading={loading}
         disabled={disableControls}
         pageSize={pageSize}
         onPageSizeChange={setPageSize}
+        refreshKey={refreshKey}
       />
       <QuotaSection
         config={XAI_CONFIG}
-        files={files}
-        loading={loading}
         disabled={disableControls}
         pageSize={pageSize}
         onPageSizeChange={setPageSize}
+        refreshKey={refreshKey}
       />
       <QuotaSection
         config={GEMINI_CLI_CONFIG}
-        files={files}
-        loading={loading}
         disabled={disableControls}
         pageSize={pageSize}
         onPageSizeChange={setPageSize}
+        refreshKey={refreshKey}
       />
       <QuotaSection
         config={KIMI_CONFIG}
-        files={files}
-        loading={loading}
         disabled={disableControls}
         pageSize={pageSize}
         onPageSizeChange={setPageSize}
+        refreshKey={refreshKey}
       />
     </div>
   );

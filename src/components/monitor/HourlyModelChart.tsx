@@ -10,6 +10,9 @@ interface HourlyModelChartProps {
   timeRange: TimeRange;
   apiFilter: string;
   isDark: boolean;
+  /** dashboard 默认 hours=12 的预加载；切换 6/24 时回退独立请求 */
+  preloaded?: import('@/services/api/monitor').MonitorHourlyModelsData;
+  preloadedKey?: string;
 }
 
 // 颜色调色板
@@ -31,7 +34,7 @@ const EMPTY_DATA: MonitorHourlyModelsData = {
   success_rates: [],
 };
 
-export function HourlyModelChart({ timeRange, apiFilter, isDark }: HourlyModelChartProps) {
+export function HourlyModelChart({ timeRange, apiFilter, isDark, preloaded, preloadedKey }: HourlyModelChartProps) {
   const { t } = useTranslation();
   const [hourRange, setHourRange] = useState<HourRange>(12);
   const requestKey = `${timeRange}\0${apiFilter}\0${hourRange}`;
@@ -39,10 +42,13 @@ export function HourlyModelChart({ timeRange, apiFilter, isDark }: HourlyModelCh
     requestKey: string;
     data: MonitorHourlyModelsData;
   } | null>(null);
-  const loading = hourlyState?.requestKey !== requestKey;
-  const hourlyData = hourlyState?.data ?? EMPTY_DATA;
+  // 仅默认 12h 由 dashboard 接管；切换 6/24 时 preloadedKey 不匹配，回退独立请求。
+  const parentOwned = preloadedKey === requestKey;
+  const loading = parentOwned ? preloaded === undefined : hourlyState?.requestKey !== requestKey;
+  const hourlyData = parentOwned ? (preloaded ?? EMPTY_DATA) : (hourlyState?.data ?? EMPTY_DATA);
 
   useEffect(() => {
+    if (parentOwned) return;
     let cancelled = false;
 
     const params = {
@@ -64,7 +70,7 @@ export function HourlyModelChart({ timeRange, apiFilter, isDark }: HourlyModelCh
     });
 
     return () => { cancelled = true; };
-  }, [timeRange, apiFilter, hourRange, requestKey]);
+  }, [timeRange, apiFilter, hourRange, requestKey, parentOwned]);
 
   // 获取时间范围标签
   const hourRangeLabel = useMemo(() => {

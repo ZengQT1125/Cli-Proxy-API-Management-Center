@@ -14,6 +14,7 @@ import { animate } from 'motion/mini';
 import type { AnimationPlaybackControlsWithThen } from 'motion-dom';
 import { useInterval } from '@/hooks/useInterval';
 import { useHeaderRefresh } from '@/hooks/useHeaderRefresh';
+import { useDebounce } from '@/hooks/useDebounce';
 import { usePageTransitionLayer } from '@/components/common/PageTransitionLayer';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
@@ -31,13 +32,12 @@ import {
   clampCardPageSize,
   getTypeColor,
   getTypeLabel,
-  hasAuthFileStatusMessage,
   isRuntimeOnlyAuthFile,
   normalizeProviderKey,
   type QuotaProviderType,
   type ResolvedTheme,
 } from '@/features/authFiles/constants';
-import { sortAuthFilesByMode } from '@/features/authFiles/sorting';
+import type { AuthFilesListQuery } from '@/features/authFiles/listQuery';
 import { AuthFileCard } from '@/features/authFiles/components/AuthFileCard';
 import { AuthFileModelsModal } from '@/features/authFiles/components/AuthFileModelsModal';
 import { AuthFilesPrefixProxyEditorModal } from '@/features/authFiles/components/AuthFilesPrefixProxyEditorModal';
@@ -65,7 +65,12 @@ import {
   type AuthFilesSortMode,
 } from '@/features/authFiles/uiState';
 import { useAuthStore, useNotificationStore, useThemeStore } from '@/stores';
-import { authFilesApi, type CodexCleanupEvent } from '@/services/api/authFiles';
+import {
+  AUTH_CLEANUP_SUPPORTED_TYPES,
+  authFilesApi,
+  isAuthCleanupProvider,
+  type CodexCleanupEvent,
+} from '@/services/api/authFiles';
 import styles from './AuthFilesPage.module.scss';
 
 const easePower3Out = (progress: number) => 1 - (1 - progress) ** 4;
@@ -93,14 +98,6 @@ const getFilterTagIcon = (type: string, resolvedTheme: ResolvedTheme): string | 
     : resolvedTheme === 'dark'
       ? iconEntry.dark
       : iconEntry.light;
-};
-
-const escapeWildcardSearchSegment = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-
-const buildWildcardSearch = (value: string): RegExp | null => {
-  if (!value.includes('*')) return null;
-  const pattern = value.split('*').map(escapeWildcardSearchSegment).join('.*');
-  return new RegExp(pattern, 'i');
 };
 
 export function AuthFilesPage() {
@@ -141,16 +138,35 @@ export function AuthFilesPage() {
   const batchActionAnimationRef = useRef<AnimationPlaybackControlsWithThen | null>(null);
   const previousSelectionCountRef = useRef(0);
   const selectionCountRef = useRef(0);
+  const debouncedSearch = useDebounce(search, 200);
+  const listQuery = useMemo<AuthFilesListQuery>(
+    () => ({
+      page,
+      pageSize,
+      type: filter === 'all' ? '' : String(filter),
+      problemOnly,
+      disabledOnly,
+      enabledOnly,
+      search: debouncedSearch.trim(),
+      sort: sortMode,
+    }),
+    [page, pageSize, filter, problemOnly, disabledOnly, enabledOnly, debouncedSearch, sortMode]
+  );
 
   const {
     keyStats,
     statusBarByAuthIndex,
-    loadKeyStats,
-    refreshKeyStats,
+    resetKeyStats,
+    loadKeyStatsForFiles,
+    refreshKeyStatsForFiles,
     refreshKeyStatsForAuthIndex,
   } = useAuthFilesStats();
   const {
     files,
+    total,
+    types,
+    typeCounts,
+    enabledTypeCounts,
     selectedFiles,
     selectionCount,
     loading,
@@ -159,6 +175,7 @@ export function AuthFilesPage() {
     uploadProgress,
     deleting,
     deletingAll,
+    deleteAllProgress,
     downloadingAll,
     statusUpdating,
     batchStatusUpdating,
@@ -173,10 +190,11 @@ export function AuthFilesPage() {
     handleStatusToggle,
     toggleSelect,
     selectAllVisible,
+    removeFromSelection,
     deselectAll,
     batchSetStatus,
     batchDelete,
-  } = useAuthFilesData({ refreshKeyStats });
+  } = useAuthFilesData({ query: listQuery, resetKeyStats, loadKeyStatsForFiles });
 
   const statusBarCache = useAuthFilesStatusBarCache(files, statusBarByAuthIndex);
 
@@ -218,12 +236,15 @@ export function AuthFilesPage() {
     handlePrefixProxySave,
   } = useAuthFilesPrefixProxyEditor({
     disableControls: connectionStatus !== 'connected',
-    loadFiles,
-    loadKeyStats: refreshKeyStats,
+    loadFiles: async () => {
+      await loadFiles();
+    },
   });
 
   const disableControls = connectionStatus !== 'connected';
   const [codexCleaning, setCodexCleaning] = useState(false);
+  const [cleanupPickerOpen, setCleanupPickerOpen] = useState(false);
+  const [cleanupProvider, setCleanupProvider] = useState('codex');
   const [cleanupModalOpen, setCleanupModalOpen] = useState(false);
   const [cleanupTotal, setCleanupTotal] = useState(0);
   const [cleanupCurrent, setCleanupCurrent] = useState(0);
@@ -302,61 +323,105 @@ export function AuthFilesPage() {
   );
 
   const handleHeaderRefresh = useCallback(async () => {
-    await Promise.all([loadFiles(), refreshKeyStats(), loadExcluded(), loadModelAlias()]);
-  }, [loadFiles, refreshKeyStats, loadExcluded, loadModelAlias]);
+    const [latestFiles] = await Promise.all([loadFiles(), loadExcluded(), loadModelAlias()]);
+    await refreshKeyStatsForFiles(latestFiles);
+  }, [loadFiles, loadExcluded, loadModelAlias, refreshKeyStatsForFiles]);
 
-  const handleCodexCleanup = useCallback(async () => {
-    setCodexCleaning(true);
-    setCleanupModalOpen(true);
-    setCleanupTotal(0);
-    setCleanupCurrent(0);
-    setCleanupDeleted(0);
-    setCleanupLogs([]);
-    setCleanupDone(false);
+  const cleanableTypes = useMemo(
+    () =>
+      AUTH_CLEANUP_SUPPORTED_TYPES.filter((type) => (enabledTypeCounts[type] ?? 0) > 0),
+    [enabledTypeCounts]
+  );
 
-    const abort = new AbortController();
-    cleanupAbortRef.current = abort;
+  const cleanupTypeOptions = useMemo(
+    () =>
+      cleanableTypes.map((type) => ({
+        value: type,
+        label: `${getTypeLabel(t, type)} (${enabledTypeCounts[type] ?? 0})`,
+      })),
+    [cleanableTypes, enabledTypeCounts, t]
+  );
 
-    try {
-      await authFilesApi.codexCleanup((ev: CodexCleanupEvent) => {
-        if (ev.type === 'start') {
-          setCleanupTotal(ev.total);
-          setCleanupLogs((prev) => [
-            ...prev,
-            t('auth_files.codex_cleanup_log_start', { total: ev.total }),
-          ]);
-        } else if (ev.type === 'progress') {
-          setCleanupCurrent(ev.index);
-          const status = ev.deleted
-            ? `\u2717 ${t('auth_files.codex_cleanup_log_deleted')}`
-            : ev.error
-              ? `\u26A0 ${ev.error}`
-              : `\u2713 ${t('auth_files.codex_cleanup_log_valid')}`;
-          setCleanupLogs((prev) => [
-            ...prev,
-            `[${ev.index}/${ev.total}] ${ev.name} \u2014 ${status}`,
-          ]);
-          if (ev.deleted) {
-            setCleanupDeleted((prev) => prev + 1);
-          }
-        } else if (ev.type === 'done') {
-          setCleanupDone(true);
-          setCleanupLogs((prev) => [
-            ...prev,
-            t('auth_files.codex_cleanup_log_done', { total: ev.total, deleted: ev.deleted }),
-          ]);
+  const openCleanupPicker = useCallback(() => {
+    if (cleanableTypes.length === 0) return;
+    const preferred =
+      isAuthCleanupProvider(normalizedFilter) && cleanableTypes.includes(normalizedFilter)
+        ? normalizedFilter
+        : cleanableTypes[0];
+    setCleanupProvider(preferred);
+    setCleanupPickerOpen(true);
+  }, [cleanableTypes, normalizedFilter]);
+
+  const handleCodexCleanup = useCallback(
+    async (provider: string) => {
+      const target = provider.trim().toLowerCase() || 'codex';
+      const typeLabel = getTypeLabel(t, target);
+      setCleanupPickerOpen(false);
+      setCleanupProvider(target);
+      setCodexCleaning(true);
+      setCleanupModalOpen(true);
+      setCleanupTotal(0);
+      setCleanupCurrent(0);
+      setCleanupDeleted(0);
+      setCleanupLogs([]);
+      setCleanupDone(false);
+
+      const abort = new AbortController();
+      const deletedNames = new Set<string>();
+      cleanupAbortRef.current = abort;
+
+      try {
+        await authFilesApi.codexCleanup(
+          (ev: CodexCleanupEvent) => {
+            if (ev.type === 'start') {
+              setCleanupTotal(ev.total);
+              setCleanupLogs((prev) => [
+                ...prev,
+                t('auth_files.codex_cleanup_log_start', { total: ev.total, type: typeLabel }),
+              ]);
+            } else if (ev.type === 'progress') {
+              setCleanupCurrent(ev.index);
+              const status = ev.deleted
+                ? `\u2717 ${t('auth_files.codex_cleanup_log_deleted')}`
+                : ev.error
+                  ? `\u26A0 ${ev.error}`
+                  : `\u2713 ${t('auth_files.codex_cleanup_log_valid')}`;
+              setCleanupLogs((prev) => [
+                ...prev,
+                `[${ev.index}/${ev.total}] ${ev.name} \u2014 ${status}`,
+              ]);
+              if (ev.deleted) {
+                deletedNames.add(ev.name);
+                setCleanupDeleted((prev) => prev + 1);
+              }
+            } else if (ev.type === 'done') {
+              setCleanupDone(true);
+              setCleanupLogs((prev) => [
+                ...prev,
+                t('auth_files.codex_cleanup_log_done', {
+                  total: ev.total,
+                  deleted: ev.deleted,
+                  type: typeLabel,
+                }),
+              ]);
+            }
+          },
+          abort.signal,
+          target
+        );
+      } catch {
+        if (!abort.signal.aborted) {
+          showNotification(t('auth_files.codex_cleanup_failed', { type: typeLabel }), 'error');
         }
-      }, abort.signal);
-      await loadFiles();
-    } catch {
-      if (!abort.signal.aborted) {
-        showNotification(t('auth_files.codex_cleanup_failed'), 'error');
+      } finally {
+        removeFromSelection(deletedNames);
+        await loadFiles();
+        setCodexCleaning(false);
+        cleanupAbortRef.current = null;
       }
-    } finally {
-      setCodexCleaning(false);
-      cleanupAbortRef.current = null;
-    }
-  }, [loadFiles, showNotification, t]);
+    },
+    [loadFiles, removeFromSelection, showNotification, t]
+  );
 
   const handleCleanupModalClose = useCallback(() => {
     if (codexCleaning && cleanupAbortRef.current) {
@@ -371,41 +436,25 @@ export function AuthFilesPage() {
 
   useHeaderRefresh(handleHeaderRefresh);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!isCurrentLayer) return;
     loadFiles();
-    void loadKeyStats().catch(() => {});
+  }, [isCurrentLayer, listQuery, loadFiles]);
+
+  useEffect(() => {
+    if (!isCurrentLayer) return;
     loadExcluded();
     loadModelAlias();
-  }, [isCurrentLayer, loadFiles, loadKeyStats, loadExcluded, loadModelAlias]);
+  }, [isCurrentLayer, loadExcluded, loadModelAlias]);
 
   useInterval(
     () => {
-      void refreshKeyStats().catch(() => {});
+      void refreshKeyStatsForFiles(files).catch(() => {});
     },
     isCurrentLayer ? 240_000 : null
   );
 
-  const existingTypes = useMemo(() => {
-    const types = new Set<string>(['all']);
-    files.forEach((file) => {
-      if (file.type) {
-        types.add(file.type);
-      }
-    });
-    return Array.from(types);
-  }, [files]);
-
-  const filesMatchingStatusFilters = useMemo(
-    () =>
-      files.filter((file) => {
-        if (problemOnly && !hasAuthFileStatusMessage(file)) return false;
-        if (disabledOnly && file.disabled !== true) return false;
-        if (enabledOnly && file.disabled === true) return false;
-        return true;
-      }),
-    [disabledOnly, enabledOnly, files, problemOnly]
-  );
+  const existingTypes = useMemo(() => ['all', ...types.filter((type) => type !== 'all')], [types]);
 
   const sortOptions = useMemo(
     () => [
@@ -416,43 +465,14 @@ export function AuthFilesPage() {
     [t]
   );
 
-  const typeCounts = useMemo(() => {
-    const counts: Record<string, number> = { all: filesMatchingStatusFilters.length };
-    filesMatchingStatusFilters.forEach((file) => {
-      if (!file.type) return;
-      counts[file.type] = (counts[file.type] || 0) + 1;
-    });
-    return counts;
-  }, [filesMatchingStatusFilters]);
-
-  const normalizedSearch = search.trim();
-  const wildcardSearch = useMemo(() => buildWildcardSearch(normalizedSearch), [normalizedSearch]);
-
-  const filtered = useMemo(() => {
-    const normalizedTerm = normalizedSearch.toLowerCase();
-
-    return filesMatchingStatusFilters.filter((item) => {
-      const matchType = filter === 'all' || item.type === filter;
-      const matchSearch =
-        !normalizedSearch ||
-        [item.name, item.type, item.provider].some((value) => {
-          const content = (value || '').toString();
-          return wildcardSearch
-            ? wildcardSearch.test(content)
-            : content.toLowerCase().includes(normalizedTerm);
-        });
-      return matchType && matchSearch;
-    });
-  }, [filesMatchingStatusFilters, filter, normalizedSearch, wildcardSearch]);
-
-  const sorted = useMemo(() => {
-    return sortAuthFilesByMode(filtered, sortMode);
-  }, [filtered, sortMode]);
-
-  const totalPages = Math.max(1, Math.ceil(sorted.length / pageSize));
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
   const currentPage = Math.min(page, totalPages);
-  const start = (currentPage - 1) * pageSize;
-  const pageItems = sorted.slice(start, start + pageSize);
+  const pageItems = files;
+  useEffect(() => {
+    if (!loading && page > totalPages) {
+      setPage(totalPages);
+    }
+  }, [loading, page, totalPages]);
   const selectablePageItems = useMemo(
     () => pageItems.filter((file) => !isRuntimeOnlyAuthFile(file)),
     [pageItems]
@@ -639,9 +659,11 @@ export function AuthFilesPage() {
   const titleNode = (
     <div className={styles.titleWrapper}>
       <span>{t('auth_files.title_section')}</span>
-      {files.length > 0 && <span className={styles.countBadge}>{files.length}</span>}
+      {total > 0 && <span className={styles.countBadge}>{total}</span>}
     </div>
   );
+  const hasAnyAuthFiles = total > 0 || types.some((type) => type !== 'all');
+  const deleteCandidateCount = typeCounts[filter] ?? 0;
 
   const deleteAllButtonLabel = (() => {
     if (disabledOnly) {
@@ -661,6 +683,15 @@ export function AuthFilesPage() {
       ? t('auth_files.upload_progress_percent', { percent: uploadProgress.percent })
       : t('auth_files.upload_progress_active')
     : '';
+  const deleteAllProgressPercent =
+    deleteAllProgress && deleteAllProgress.total > 0
+      ? Math.min(100, Math.max(0, Math.round((deleteAllProgress.current / deleteAllProgress.total) * 100)))
+      : null;
+  const deleteAllProgressLabel = deletingAll
+    ? deleteAllProgressPercent !== null
+      ? t('auth_files.delete_all_progress_percent', { percent: deleteAllProgressPercent })
+      : t('auth_files.delete_all_progress_active')
+    : '';
 
   return (
     <div className={styles.container}>
@@ -673,11 +704,11 @@ export function AuthFilesPage() {
         title={titleNode}
         extra={
           <div className={styles.headerActions}>
-            {files.some((f) => f.type === 'codex' && !f.disabled) && (
+            {cleanableTypes.length > 0 && (
               <Button
                 variant="secondary"
                 size="sm"
-                onClick={handleCodexCleanup}
+                onClick={openCleanupPicker}
                 disabled={disableControls || codexCleaning}
                 loading={codexCleaning}
               >
@@ -691,7 +722,7 @@ export function AuthFilesPage() {
               variant="secondary"
               size="sm"
               onClick={() => void handleDownloadAll()}
-              disabled={disableControls || loading || files.length === 0 || downloadingAll}
+              disabled={disableControls || loading || !hasAnyAuthFiles || downloadingAll}
               loading={downloadingAll}
             >
               {t('auth_files.download_all_button')}
@@ -719,7 +750,7 @@ export function AuthFilesPage() {
                   onResetEnabledOnly: () => setEnabledOnly(false),
                 })
               }
-              disabled={disableControls || loading || deletingAll}
+              disabled={disableControls || loading || deleteCandidateCount === 0 || deletingAll}
               loading={deletingAll}
             >
               {deleteAllButtonLabel}
@@ -746,6 +777,21 @@ export function AuthFilesPage() {
                 className={styles.uploadProgressBar}
                 style={{
                   width: uploadProgress.percent !== null ? `${uploadProgress.percent}%` : '100%',
+                }}
+              />
+            </div>
+          </div>
+        )}
+        {deletingAll && (
+          <div className={styles.uploadProgress} role="status" aria-live="polite">
+            <div className={styles.uploadProgressHeader}>
+              <span>{deleteAllProgressLabel}</span>
+            </div>
+            <div className={styles.uploadProgressTrack}>
+              <div
+                className={styles.uploadProgressBar}
+                style={{
+                  width: deleteAllProgressPercent !== null ? `${deleteAllProgressPercent}%` : '100%',
                 }}
               />
             </div>
@@ -888,7 +934,7 @@ export function AuthFilesPage() {
           </div>
         )}
 
-        {!loading && sorted.length > pageSize && (
+        {!loading && total > pageSize && (
           <div className={styles.pagination}>
             <Button
               variant="secondary"
@@ -902,7 +948,7 @@ export function AuthFilesPage() {
               {t('auth_files.pagination_info', {
                 current: currentPage,
                 total: totalPages,
-                count: sorted.length,
+                count: total,
               })}
             </div>
             <Button
@@ -967,8 +1013,44 @@ export function AuthFilesPage() {
       />
 
       <Modal
-        open={cleanupModalOpen}
+        open={cleanupPickerOpen}
         title={t('auth_files.codex_cleanup_button')}
+        onClose={() => setCleanupPickerOpen(false)}
+        width={420}
+        footer={
+          <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+            <Button variant="secondary" size="sm" onClick={() => setCleanupPickerOpen(false)}>
+              {t('common.cancel')}
+            </Button>
+            <Button
+              size="sm"
+              disabled={!cleanupProvider || cleanupTypeOptions.length === 0}
+              onClick={() => void handleCodexCleanup(cleanupProvider)}
+            >
+              {t('auth_files.codex_cleanup_start')}
+            </Button>
+          </div>
+        }
+      >
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
+            {t('auth_files.codex_cleanup_select_hint')}
+          </div>
+          <Select
+            value={cleanupProvider}
+            options={cleanupTypeOptions}
+            onChange={setCleanupProvider}
+            ariaLabel={t('auth_files.codex_cleanup_select_label')}
+            fullWidth
+          />
+        </div>
+      </Modal>
+
+      <Modal
+        open={cleanupModalOpen}
+        title={t('auth_files.codex_cleanup_running_title', {
+          type: getTypeLabel(t, cleanupProvider),
+        })}
         onClose={handleCleanupModalClose}
         width={560}
         footer={
@@ -995,10 +1077,12 @@ export function AuthFilesPage() {
                 ? t('auth_files.codex_cleanup_log_done', {
                     total: cleanupTotal,
                     deleted: cleanupDeleted,
+                    type: getTypeLabel(t, cleanupProvider),
                   })
                 : t('auth_files.codex_cleanup_progress', {
                     current: cleanupCurrent,
                     total: cleanupTotal,
+                    type: getTypeLabel(t, cleanupProvider),
                   })}
             </span>
             <span>

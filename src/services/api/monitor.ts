@@ -8,8 +8,17 @@ import {
   normalizeMonitorHourlyTokensData,
   normalizeMonitorKpiData,
 } from '@/utils/monitor';
+import { buildMonitorRequestKey, monitorRequestGate } from '@/utils/requestGate';
 
 const MONITOR_TIMEOUT_MS = 60 * 1000;
+
+const gatedGet = <T>(path: string, params?: object, config?: { timeout?: number }) =>
+  monitorRequestGate.run(buildMonitorRequestKey(path, params), () =>
+    apiClient.get<T>(path, {
+      params,
+      timeout: config?.timeout ?? MONITOR_TIMEOUT_MS,
+    })
+  );
 
 export interface MonitorTimeRangeQuery {
   time_range?: string;
@@ -52,6 +61,7 @@ export interface MonitorRequestLogItem {
   output_tokens: number;
   reasoning_tokens: number;
   cached_tokens: number;
+  cache_write_tokens: number;
   total_tokens: number;
   latency_ms: number;
   ttft_ms: number;
@@ -94,6 +104,7 @@ export interface MonitorModelStatsItem {
   input_tokens: number;
   output_tokens: number;
   cached_tokens: number;
+  cache_write_tokens: number;
   success_rate: number;
   last_request_at?: string;
   recent_requests: MonitorRecentRequest[];
@@ -107,6 +118,7 @@ export interface MonitorChannelStatsItem {
   input_tokens: number;
   output_tokens: number;
   cached_tokens: number;
+  cache_write_tokens: number;
   success_rate: number;
   last_request_at?: string;
   recent_requests: MonitorRecentRequest[];
@@ -152,6 +164,7 @@ export interface MonitorKpiData {
   output_tokens: number;
   reasoning_tokens: number;
   cached_tokens: number;
+  cache_write_tokens: number;
   avg_tpm: number;
   avg_rpm: number;
   avg_rpd: number;
@@ -166,6 +179,7 @@ export interface MonitorDailyTrendItem {
   output_tokens: number;
   reasoning_tokens: number;
   cached_tokens: number;
+  cache_write_tokens: number;
 }
 
 export interface MonitorHourlyModelsData {
@@ -182,6 +196,7 @@ export interface MonitorHourlyTokensData {
   output_tokens: number[];
   reasoning_tokens: number[];
   cached_tokens: number[];
+  cache_write_tokens: number[];
 }
 
 export interface MonitorServiceHealthBlock {
@@ -205,7 +220,15 @@ export interface MonitorKeyStatsEntry {
   blocks: Array<{ success: number; failure: number }>;
 }
 
-export interface MonitorKeyStatsResponse {
+export interface MonitorKeyStatsWireFilter {
+  auth_indexes?: string[];
+}
+
+export interface MonitorKeyStatsResponseFilter extends MonitorKeyStatsWireFilter {
+  auth_index?: string;
+}
+
+export interface MonitorKeyStatsWireResponse {
   by_source: Record<string, MonitorKeyStatsEntry>;
   by_auth_index: Record<string, MonitorKeyStatsEntry>;
   block_config: {
@@ -213,14 +236,14 @@ export interface MonitorKeyStatsResponse {
     duration_ms: number;
     window_start_ms: number;
   };
-  filter?: {
-    auth_index?: string;
-  };
+  filter?: MonitorKeyStatsWireFilter;
 }
 
-export interface MonitorKeyStatsQuery {
-  auth_index?: string;
-}
+export type MonitorKeyStatsResponse = Omit<MonitorKeyStatsWireResponse, 'filter'> & {
+  filter?: MonitorKeyStatsResponseFilter;
+};
+
+export type MonitorKeyStatsQuery = { auth_index?: string } | string[];
 
 export interface MonitorRequestDetailItem {
   timestamp: string;
@@ -244,66 +267,130 @@ export interface MonitorRequestDetailsQuery {
   limit?: number;
 }
 
+export interface MonitorDashboardQuery extends MonitorTimeRangeQuery {
+  hours?: number;
+  hourly_model_limit?: number;
+  channel_limit?: number;
+}
+
+export interface MonitorDashboardResponse {
+  kpi: MonitorKpiData | null;
+  daily_trend: { items: MonitorDailyTrendItem[] };
+  hourly_models: MonitorHourlyModelsData;
+  hourly_tokens: MonitorHourlyTokensData;
+  channel_stats: MonitorChannelStatsResponse;
+  service_health: MonitorServiceHealthData;
+  time_range?: {
+    start_time?: string;
+    end_time?: string;
+  };
+}
+
+
+export interface MonitorProviderMapResponse {
+  providers: Record<string, string>;
+  models: Record<string, string[]>;
+}
+
 export const monitorApi = {
+  getDashboard: async (params: MonitorDashboardQuery = {}): Promise<MonitorDashboardResponse> => {
+    const data = await gatedGet<Record<string, unknown>>('/custom/monitor/dashboard', params);
+    return {
+      kpi: normalizeMonitorKpiData(data.kpi),
+      daily_trend: {
+        items: Array.isArray((data.daily_trend as { items?: MonitorDailyTrendItem[] } | undefined)?.items)
+          ? ((data.daily_trend as { items: MonitorDailyTrendItem[] }).items || [])
+          : [],
+      },
+      hourly_models: normalizeMonitorHourlyModelsData(data.hourly_models),
+      hourly_tokens: normalizeMonitorHourlyTokensData(data.hourly_tokens),
+      channel_stats: (data.channel_stats as MonitorChannelStatsResponse) || {
+        items: [],
+        total: 0,
+        limit: 0,
+      },
+      service_health: (data.service_health as MonitorServiceHealthData) || {
+        rows: 0,
+        cols: 0,
+        block_duration_ms: 0,
+        blocks: [],
+        total_success: 0,
+        total_failure: 0,
+        success_rate: 0,
+      },
+      time_range: data.time_range as MonitorDashboardResponse['time_range'],
+    };
+  },
+
+  getProviderMap: async (): Promise<MonitorProviderMapResponse> => {
+    const data = await gatedGet<Partial<MonitorProviderMapResponse>>('/custom/monitor/provider-map');
+    return {
+      providers:
+        data.providers && typeof data.providers === 'object' && !Array.isArray(data.providers)
+          ? (data.providers as Record<string, string>)
+          : {},
+      models:
+        data.models && typeof data.models === 'object' && !Array.isArray(data.models)
+          ? (data.models as Record<string, string[]>)
+          : {},
+    };
+  },
+
   getRequestLogs: (params: MonitorRequestLogsQuery = {}) =>
-    apiClient.get<MonitorRequestLogsResponse>('/custom/monitor/request-logs', {
-      params,
-      timeout: MONITOR_TIMEOUT_MS,
-    }),
+    gatedGet<MonitorRequestLogsResponse>('/custom/monitor/request-logs', params),
 
   getChannelStats: (params: MonitorStatsQuery = {}) =>
-    apiClient.get<MonitorChannelStatsResponse>('/custom/monitor/channel-stats', {
-      params,
-      timeout: MONITOR_TIMEOUT_MS,
-    }),
+    gatedGet<MonitorChannelStatsResponse>('/custom/monitor/channel-stats', params),
 
   getFailureAnalysis: (params: MonitorStatsQuery = {}) =>
-    apiClient.get<MonitorFailureAnalysisResponse>('/custom/monitor/failure-analysis', {
-      params,
-      timeout: MONITOR_TIMEOUT_MS,
-    }),
+    gatedGet<MonitorFailureAnalysisResponse>('/custom/monitor/failure-analysis', params),
 
   getKpi: async (params: MonitorTimeRangeQuery = {}) => {
-    const data = await apiClient.get('/custom/monitor/kpi', {
-      params,
-      timeout: MONITOR_TIMEOUT_MS,
-    });
+    const data = await gatedGet('/custom/monitor/kpi', params);
     return normalizeMonitorKpiData(data);
   },
 
   getDailyTrend: (params: MonitorTimeRangeQuery = {}) =>
-    apiClient.get<{ items: MonitorDailyTrendItem[] }>('/custom/monitor/daily-trend', { params, timeout: MONITOR_TIMEOUT_MS }),
+    gatedGet<{ items: MonitorDailyTrendItem[] }>('/custom/monitor/daily-trend', params),
 
-  getHourlyModels: async (params: MonitorTimeRangeQuery & { hours?: number; limit?: number } = {}) => {
-    const data = await apiClient.get('/custom/monitor/hourly-models', {
-      params,
-      timeout: MONITOR_TIMEOUT_MS,
-    });
+  getHourlyModels: async (
+    params: MonitorTimeRangeQuery & { hours?: number; limit?: number } = {}
+  ) => {
+    const data = await gatedGet('/custom/monitor/hourly-models', params);
     return normalizeMonitorHourlyModelsData(data);
   },
 
   getHourlyTokens: async (params: MonitorTimeRangeQuery & { hours?: number } = {}) => {
-    const data = await apiClient.get('/custom/monitor/hourly-tokens', {
-      params,
-      timeout: MONITOR_TIMEOUT_MS,
-    });
+    const data = await gatedGet('/custom/monitor/hourly-tokens', params);
     return normalizeMonitorHourlyTokensData(data);
   },
 
-  getServiceHealth: () =>
-    apiClient.get<MonitorServiceHealthData>('/custom/monitor/service-health', {
-      timeout: MONITOR_TIMEOUT_MS,
-    }),
+  getServiceHealth: () => gatedGet<MonitorServiceHealthData>('/custom/monitor/service-health'),
 
-  getKeyStats: (params: MonitorKeyStatsQuery = {}) =>
-    apiClient.get<MonitorKeyStatsResponse>('/custom/monitor/key-stats', {
-      params,
-      timeout: MONITOR_TIMEOUT_MS,
-    }),
+  getKeyStats: async (query: MonitorKeyStatsQuery = []): Promise<MonitorKeyStatsResponse> => {
+    const authIndexes = Array.isArray(query) ? query : query.auth_index ? [query.auth_index] : [];
+    const key = buildMonitorRequestKey('/custom/monitor/key-stats', { auth_index: authIndexes });
+    const response = await monitorRequestGate.run(key, () =>
+      apiClient.get<MonitorKeyStatsWireResponse>('/custom/monitor/key-stats', {
+        params: { auth_index: authIndexes },
+        paramsSerializer: { indexes: null },
+        timeout: MONITOR_TIMEOUT_MS,
+      })
+    );
+
+    if (!Array.isArray(query) && response.filter?.auth_indexes?.length === 1) {
+      return {
+        ...response,
+        filter: {
+          ...response.filter,
+          auth_index: response.filter.auth_indexes[0],
+        },
+      };
+    }
+
+    return response;
+  },
 
   getRequestDetails: (params: MonitorRequestDetailsQuery = {}) =>
-    apiClient.get<MonitorRequestDetailsResponse>('/custom/monitor/request-details', {
-      params,
-      timeout: MONITOR_TIMEOUT_MS,
-    }),
+    gatedGet<MonitorRequestDetailsResponse>('/custom/monitor/request-details', params),
 };

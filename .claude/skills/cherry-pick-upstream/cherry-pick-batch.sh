@@ -352,6 +352,41 @@ SKIP_HASHES=(
   1a8e059   # fix(config): jump request handling + Collapsible state — #321 配套
   # === 2026-07-04 上游同步评估：小修已摘取，patch-id 漂移需跳过 ===
   88d60bf   # add xai pay-as-you-go quota progress — 本地 45015f94，cherry-pick 已应用但 git cherry 仍显示未应用
+  # === 2026-07-12 上游同步评估：跳过 Provider Workbench/清理/Bun-CI 分叉链 ===
+  0c565c8   # feat(providers): collapse api key and model entries — 计划跳过，依赖本地未采纳的 Provider Workbench 表单架构
+  e43df69   # chore: remove unused components and utility functions — 计划跳过，上游 dead-code 判定不覆盖本地 monitor/OAuth 使用方
+  9d3e82e   # feat(providers): add quick fill section — 计划跳过，依赖本地未采纳的 Provider Workbench
+  066d25f   # chore: remove orphan files and build config — 计划跳过，会删除本地仍保留的 tsconfig.app.json 等构建文件
+  e36de50   # chore(api): remove dead endpoints and normalizers — 计划跳过，本地 authFiles/client/provider API 已分叉
+  3ee7fce   # chore(stores): remove unused state/actions — 计划跳过，上游使用关系不包含本地功能链
+  3785d75   # chore(types): remove dead exports — 计划跳过，本地 OAuth/provider/quota 类型依赖已分叉
+  3c91d57   # chore(ui): remove dead props/render chains — 计划跳过，依赖 Provider Workbench 且触及本地 OAuth/Quota 页面
+  c21d4ae   # style: remove dead global styles/tokens — 计划跳过，本地 monitor 与主题样式依赖已分叉
+  82bb41c   # refactor(icons): alias duplicate sidebar icons — 计划跳过，本地图标集包含 monitor 扩展
+  d8f74ae   # chore(i18n): remove orphan locale keys — 计划跳过，上游无法识别本地路由与功能键
+  12bfeab   # style: status bar grid layout — 计划跳过，主体依赖本地不存在的 Provider Workbench 状态栏
+  328bead   # feat: FennoAI and Qiniu Cloud providers — 计划跳过，依赖本地未采纳的 Provider Workbench 全链路
+  022634b   # fix(providers): preserve concurrent updates — 计划跳过，目标 useProviderWorkbench 本地不存在
+  ab6b0b3   # fix(providers): guard sponsor aggregation — 计划跳过，依赖本地未采纳的 sponsor Provider Workbench
+  6d54016   # fix(providers): recover partial sponsor updates — 计划跳过，依赖本地未采纳的 sponsor Provider Workbench
+  a4f7bb2   # chore: update dependencies — 计划跳过，包含 bun.lock 且本地继续使用 npm/Vite 7/TypeScript 5
+  2201fe1   # fix: ESLint async loading and provider sorting — 计划跳过，混合 Provider Workbench 分叉与低价值重排
+  4af4cf4   # ci: add Bun test verification — 计划跳过，本地使用 npm 且仓库 AGENTS/README 已分叉
+  2818921   # fix(config): validate Redis retention range — 计划跳过，本地未采纳 redisUsageQueueRetentionSeconds 视觉配置字段
+  7958915   # feat(config): disable image generation passthrough — 计划跳过，本地未采纳 disable-image-generation 视觉配置链
+  # === 2026-07-12 已摘取但因冲突适配/上下文差异导致 patch-id 漂移 ===
+  550169c   # feat(quota): weekly billing support — 本地 30fd8cc，保留 Gemini CLI quota builder
+  fe24d78   # feat(plugin): GitHub release version selection — 本地 b378c28，保留本地插件认证与安装门禁
+  637f399   # fix(config): preserve concurrent visual updates — 本地 477f8fa，仅对本 fork 实际视觉字段应用 dirty 写入
+  878abca   # fix(auth-files): preserve alias force mapping — 本地 40951d9，保留本地 alias 去重语义与 Codex cleanup
+  6c64e25   # fix(plugin-store): verify official source identity — 本地 9616499
+  c69e5fd   # fix(dashboard): distinguish model load failures — 本地 abfc4d0，保留本地 Dashboard provider 数据链
+  4afba52   # fix(auth-files): validate aliases case-insensitively — 本地 4399e3d，适配本地 ModelMappingDiagram
+  5694b10   # fix(auth-files): guard unsaved OAuth edits — 本地 88a77b4，保留本地 OAuth 页面结构
+  ad366ef   # fix(auth-files): custom excluded model rules — 本地 147df20
+  47f7a9e   # fix(plugins): preserve untouched config fields — 本地 0e286c0，移除已无调用的全量 PUT
+  5754ecf   # fix(quota): isolate cache across connections — 本地 824c276，保留 Gemini CLI quota store 与 local 导出
+  07562b7   # feat(auth-files): xAI official API toggle — 本地 58216b0，适配本地 JSON 编辑器并保留 Codex cleanup
 )
 
 is_skip() {

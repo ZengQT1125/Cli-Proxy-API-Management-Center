@@ -2,7 +2,8 @@ export type QuotaUiState = {
   pageSize?: number;
 };
 
-export const MIN_QUOTA_PAGE_SIZE = 1;
+// Align with /auth-files list contract: page_size must be 3..40.
+export const MIN_QUOTA_PAGE_SIZE = 3;
 export const DEFAULT_QUOTA_PAGE_SIZE = 12;
 export const MAX_QUOTA_PAGE_SIZE = 40;
 

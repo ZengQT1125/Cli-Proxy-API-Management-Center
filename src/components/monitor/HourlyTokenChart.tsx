@@ -10,6 +10,8 @@ interface HourlyTokenChartProps {
   timeRange: TimeRange;
   apiFilter: string;
   isDark: boolean;
+  preloaded?: MonitorHourlyTokensData;
+  preloadedKey?: string;
 }
 
 type HourRange = 6 | 12 | 24;
@@ -21,9 +23,10 @@ const EMPTY_DATA: MonitorHourlyTokensData = {
   output_tokens: [],
   reasoning_tokens: [],
   cached_tokens: [],
+  cache_write_tokens: [],
 };
 
-export function HourlyTokenChart({ timeRange, apiFilter, isDark }: HourlyTokenChartProps) {
+export function HourlyTokenChart({ timeRange, apiFilter, isDark, preloaded, preloadedKey }: HourlyTokenChartProps) {
   const { t } = useTranslation();
   const [hourRange, setHourRange] = useState<HourRange>(12);
   const requestKey = `${timeRange}\0${apiFilter}\0${hourRange}`;
@@ -31,10 +34,12 @@ export function HourlyTokenChart({ timeRange, apiFilter, isDark }: HourlyTokenCh
     requestKey: string;
     data: MonitorHourlyTokensData;
   } | null>(null);
-  const loading = hourlyState?.requestKey !== requestKey;
-  const hourlyData = hourlyState?.data ?? EMPTY_DATA;
+  const parentOwned = preloadedKey === requestKey;
+  const loading = parentOwned ? preloaded === undefined : hourlyState?.requestKey !== requestKey;
+  const hourlyData = parentOwned ? (preloaded ?? EMPTY_DATA) : (hourlyState?.data ?? EMPTY_DATA);
 
   useEffect(() => {
+    if (parentOwned) return;
     let cancelled = false;
 
     const params = {
@@ -43,19 +48,24 @@ export function HourlyTokenChart({ timeRange, apiFilter, isDark }: HourlyTokenCh
       ...(apiFilter ? { api_filter: apiFilter } : {}),
     };
 
-    monitorApi.getHourlyTokens(params).then((data) => {
-      if (!cancelled) {
-        setHourlyState({ requestKey, data });
-      }
-    }).catch((err) => {
-      console.error('Hourly tokens load failed:', err);
-      if (!cancelled) {
-        setHourlyState({ requestKey, data: EMPTY_DATA });
-      }
-    });
+    monitorApi
+      .getHourlyTokens(params)
+      .then((data) => {
+        if (!cancelled) {
+          setHourlyState({ requestKey, data });
+        }
+      })
+      .catch((err) => {
+        console.error('Hourly tokens load failed:', err);
+        if (!cancelled) {
+          setHourlyState({ requestKey, data: EMPTY_DATA });
+        }
+      });
 
-    return () => { cancelled = true; };
-  }, [timeRange, apiFilter, hourRange, requestKey]);
+    return () => {
+      cancelled = true;
+    };
+  }, [timeRange, apiFilter, hourRange, requestKey, parentOwned]);
 
   // 获取时间范围标签
   const hourRangeLabel = useMemo(() => {
@@ -115,100 +125,101 @@ export function HourlyTokenChart({ timeRange, apiFilter, isDark }: HourlyTokenCh
   }, [hourlyData, t]);
 
   // 图表配置
-  const chartOptions = useMemo(() => ({
-    responsive: true,
-    maintainAspectRatio: false,
-    interaction: {
-      mode: 'index' as const,
-      intersect: false,
-    },
-    plugins: {
-      legend: {
-        display: true,
-        position: 'bottom' as const,
-        labels: {
-          color: isDark ? '#9ca3af' : '#6b7280',
-          usePointStyle: true,
-          padding: 12,
-          font: {
-            size: 11,
-          },
-          generateLabels: (chart: any) => {
-            return chart.data.datasets.map((dataset: any, i: number) => {
-              const isLine = dataset.type === 'line';
-              return {
-                text: dataset.label,
-                fillStyle: dataset.backgroundColor,
-                strokeStyle: dataset.borderColor,
-                lineWidth: 0,
-                hidden: !chart.isDatasetVisible(i),
-                datasetIndex: i,
-                pointStyle: isLine ? 'circle' : 'rect',
-              };
-            });
-          },
-        },
+  const chartOptions = useMemo(
+    () => ({
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: {
+        mode: 'index' as const,
+        intersect: false,
       },
-      tooltip: {
-        backgroundColor: isDark ? '#374151' : '#ffffff',
-        titleColor: isDark ? '#f3f4f6' : '#111827',
-        bodyColor: isDark ? '#d1d5db' : '#4b5563',
-        borderColor: isDark ? '#4b5563' : '#e5e7eb',
-        borderWidth: 1,
-        padding: 12,
-        callbacks: {
-          label: (context: any) => {
-            const label = context.dataset.label || '';
-            const value = context.raw;
-            return `${label}: ${value.toFixed(1)}K`;
-          },
-        },
-      },
-    },
-    scales: {
-      x: {
-        grid: {
-          color: isDark ? 'rgba(255, 255, 255, 0.06)' : 'rgba(0, 0, 0, 0.06)',
-        },
-        ticks: {
-          color: isDark ? '#9ca3af' : '#6b7280',
-          font: {
-            size: 11,
-          },
-        },
-      },
-      y: {
-        position: 'left' as const,
-        grid: {
-          color: isDark ? 'rgba(255, 255, 255, 0.06)' : 'rgba(0, 0, 0, 0.06)',
-        },
-        ticks: {
-          color: isDark ? '#9ca3af' : '#6b7280',
-          font: {
-            size: 11,
-          },
-          callback: (value: string | number) => `${value}K`,
-        },
-        title: {
+      plugins: {
+        legend: {
           display: true,
-          text: 'Tokens (K)',
-          color: isDark ? '#9ca3af' : '#6b7280',
-          font: {
-            size: 11,
+          position: 'bottom' as const,
+          labels: {
+            color: isDark ? '#9ca3af' : '#6b7280',
+            usePointStyle: true,
+            padding: 12,
+            font: {
+              size: 11,
+            },
+            generateLabels: (chart: any) => {
+              return chart.data.datasets.map((dataset: any, i: number) => {
+                const isLine = dataset.type === 'line';
+                return {
+                  text: dataset.label,
+                  fillStyle: dataset.backgroundColor,
+                  strokeStyle: dataset.borderColor,
+                  lineWidth: 0,
+                  hidden: !chart.isDatasetVisible(i),
+                  datasetIndex: i,
+                  pointStyle: isLine ? 'circle' : 'rect',
+                };
+              });
+            },
+          },
+        },
+        tooltip: {
+          backgroundColor: isDark ? '#374151' : '#ffffff',
+          titleColor: isDark ? '#f3f4f6' : '#111827',
+          bodyColor: isDark ? '#d1d5db' : '#4b5563',
+          borderColor: isDark ? '#4b5563' : '#e5e7eb',
+          borderWidth: 1,
+          padding: 12,
+          callbacks: {
+            label: (context: any) => {
+              const label = context.dataset.label || '';
+              const value = context.raw;
+              return `${label}: ${value.toFixed(1)}K`;
+            },
           },
         },
       },
-    },
-  }), [isDark]);
+      scales: {
+        x: {
+          grid: {
+            color: isDark ? 'rgba(255, 255, 255, 0.06)' : 'rgba(0, 0, 0, 0.06)',
+          },
+          ticks: {
+            color: isDark ? '#9ca3af' : '#6b7280',
+            font: {
+              size: 11,
+            },
+          },
+        },
+        y: {
+          position: 'left' as const,
+          grid: {
+            color: isDark ? 'rgba(255, 255, 255, 0.06)' : 'rgba(0, 0, 0, 0.06)',
+          },
+          ticks: {
+            color: isDark ? '#9ca3af' : '#6b7280',
+            font: {
+              size: 11,
+            },
+            callback: (value: string | number) => `${value}K`,
+          },
+          title: {
+            display: true,
+            text: 'Tokens (K)',
+            color: isDark ? '#9ca3af' : '#6b7280',
+            font: {
+              size: 11,
+            },
+          },
+        },
+      },
+    }),
+    [isDark]
+  );
 
   return (
     <div className={styles.chartCard}>
       <div className={styles.chartHeader}>
         <div>
           <h3 className={styles.chartTitle}>{t('monitor.hourly_token.title')}</h3>
-          <p className={styles.chartSubtitle}>
-            {hourRangeLabel}
-          </p>
+          <p className={styles.chartSubtitle}>{hourRangeLabel}</p>
         </div>
         <div className={styles.chartControls}>
           <button

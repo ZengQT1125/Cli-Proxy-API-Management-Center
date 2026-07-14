@@ -64,6 +64,7 @@ const monitorKpiNumberFields = [
   'output_tokens',
   'reasoning_tokens',
   'cached_tokens',
+  'cache_write_tokens',
   'avg_tpm',
   'avg_rpm',
   'avg_rpd',
@@ -158,12 +159,19 @@ function buildTopMonitorDistributionItems(
   return [...visible, other];
 }
 
-function calculateMonitorModelStatsCost(model: { model: string; input_tokens: number; output_tokens: number; cached_tokens: number }): number {
+function calculateMonitorModelStatsCost(model: {
+  model: string;
+  input_tokens: number;
+  output_tokens: number;
+  cached_tokens: number;
+  cache_write_tokens: number;
+}): number {
   return calculateMonitorAggregateCost(
     model.model,
     toSafeMonitorNumber(model.input_tokens),
     toSafeMonitorNumber(model.output_tokens),
-    toSafeMonitorNumber(model.cached_tokens)
+    toSafeMonitorNumber(model.cached_tokens),
+    toSafeMonitorNumber(model.cache_write_tokens)
   );
 }
 
@@ -203,7 +211,8 @@ export function buildMonitorModelDistributionItems(
     (item.models || []).forEach((model) => {
       const label = model.model || 'unknown';
       const previous = models.get(label) ?? { label, tokens: 0, cost: 0 };
-      previous.tokens += toSafeMonitorNumber(model.input_tokens) + toSafeMonitorNumber(model.output_tokens);
+      previous.tokens +=
+        toSafeMonitorNumber(model.input_tokens) + toSafeMonitorNumber(model.output_tokens);
       previous.cost += calculateMonitorModelStatsCost(model);
       models.set(label, previous);
     });
@@ -228,9 +237,8 @@ export function formatMonitorNumber(value: unknown): string {
 }
 
 export function normalizeMonitorKpiData(raw: unknown): MonitorKpiData | null {
-  const source = raw && typeof raw === 'object'
-    ? raw as Partial<Record<keyof MonitorKpiData, unknown>>
-    : null;
+  const source =
+    raw && typeof raw === 'object' ? (raw as Partial<Record<keyof MonitorKpiData, unknown>>) : null;
   if (!source || !monitorKpiNumberFields.some((field) => field in source)) {
     return null;
   }
@@ -245,9 +253,10 @@ export function normalizeMonitorKpiData(raw: unknown): MonitorKpiData | null {
 }
 
 export function normalizeMonitorHourlyModelsData(raw: unknown): MonitorHourlyModelsData {
-  const source = raw && typeof raw === 'object'
-    ? raw as Partial<Record<keyof MonitorHourlyModelsData, unknown>>
-    : {};
+  const source =
+    raw && typeof raw === 'object'
+      ? (raw as Partial<Record<keyof MonitorHourlyModelsData, unknown>>)
+      : {};
 
   return {
     hours: toSafeMonitorStringArray(source.hours),
@@ -258,9 +267,10 @@ export function normalizeMonitorHourlyModelsData(raw: unknown): MonitorHourlyMod
 }
 
 export function normalizeMonitorHourlyTokensData(raw: unknown): MonitorHourlyTokensData {
-  const source = raw && typeof raw === 'object'
-    ? raw as Partial<Record<keyof MonitorHourlyTokensData, unknown>>
-    : {};
+  const source =
+    raw && typeof raw === 'object'
+      ? (raw as Partial<Record<keyof MonitorHourlyTokensData, unknown>>)
+      : {};
 
   return {
     hours: toSafeMonitorStringArray(source.hours),
@@ -269,6 +279,7 @@ export function normalizeMonitorHourlyTokensData(raw: unknown): MonitorHourlyTok
     output_tokens: toSafeMonitorNumberArray(source.output_tokens),
     reasoning_tokens: toSafeMonitorNumberArray(source.reasoning_tokens),
     cached_tokens: toSafeMonitorNumberArray(source.cached_tokens),
+    cache_write_tokens: toSafeMonitorNumberArray(source.cache_write_tokens),
   };
 }
 
@@ -311,6 +322,10 @@ export function applyMonitorChannelStatsModelFilter(
       (sum, model) => sum + toSafeMonitorNumber(model.cached_tokens),
       0
     );
+    const cacheWriteTokens = models.reduce(
+      (sum, model) => sum + toSafeMonitorNumber(model.cache_write_tokens),
+      0
+    );
     const successRate = totalRequests > 0 ? (successRequests / totalRequests) * 100 : 0;
     const recentRequests = models
       .flatMap((model) => model.recent_requests || [])
@@ -335,6 +350,7 @@ export function applyMonitorChannelStatsModelFilter(
         input_tokens: inputTokens,
         output_tokens: outputTokens,
         cached_tokens: cachedTokens,
+        cache_write_tokens: cacheWriteTokens,
         success_rate: successRate,
         last_request_at: lastRequestAt,
         recent_requests: recentRequests,
@@ -355,10 +371,7 @@ export function applyMonitorFailureAnalysisModelFilter(
 
   return items.flatMap((item) => {
     const models = (item.models || []).filter((model) => model.model === selectedModel);
-    const failedCount = models.reduce(
-      (sum, model) => sum + toSafeMonitorNumber(model.failed),
-      0
-    );
+    const failedCount = models.reduce((sum, model) => sum + toSafeMonitorNumber(model.failed), 0);
 
     if (models.length === 0 || failedCount <= 0) {
       return [];
@@ -584,24 +597,28 @@ export function formatCompactTokenNumber(value: number): string {
 
 export function computeUncachedInputTokens(
   inputTokens: number,
-  cachedTokens: number
+  cachedTokens: number,
+  cacheWriteTokens = 0
 ): number {
   const input = toSafeMonitorNumber(inputTokens);
   const cached = toSafeMonitorNumber(cachedTokens);
-  return Math.max(input - cached, 0);
+  const cacheWrite = toSafeMonitorNumber(cacheWriteTokens);
+  return Math.max(input - cached - cacheWrite, 0);
 }
 
 export function calculateMonitorRequestCost(
   model: string,
   inputTokens: number,
   outputTokens: number,
-  cachedTokens: number
+  cachedTokens: number,
+  cacheWriteTokens = 0
 ): number {
   return calculateModelCost(
     model,
-    computeUncachedInputTokens(inputTokens, cachedTokens),
+    toSafeMonitorNumber(inputTokens),
     toSafeMonitorNumber(outputTokens),
     toSafeMonitorNumber(cachedTokens),
+    toSafeMonitorNumber(cacheWriteTokens),
     { applyLongContextTier: true }
   );
 }
@@ -610,13 +627,15 @@ export function calculateMonitorAggregateCost(
   model: string,
   inputTokens: number,
   outputTokens: number,
-  cachedTokens: number
+  cachedTokens: number,
+  cacheWriteTokens = 0
 ): number {
   return calculateModelCost(
     model,
-    computeUncachedInputTokens(inputTokens, cachedTokens),
+    toSafeMonitorNumber(inputTokens),
     toSafeMonitorNumber(outputTokens),
     toSafeMonitorNumber(cachedTokens),
+    toSafeMonitorNumber(cacheWriteTokens),
     { applyLongContextTier: false }
   );
 }
@@ -628,10 +647,7 @@ export function formatMonitorCost(cost: number): string {
 
 const MIN_STREAM_OUTPUT_DURATION_MS = 1000;
 
-export function computeEffectiveOutputDurationMs(
-  latencyMs: number,
-  ttftMs: number
-): number {
+export function computeEffectiveOutputDurationMs(latencyMs: number, ttftMs: number): number {
   const latency = toSafeMonitorNumber(latencyMs);
   const ttft = toSafeMonitorNumber(ttftMs);
   const streamOutputDuration = latency - ttft;

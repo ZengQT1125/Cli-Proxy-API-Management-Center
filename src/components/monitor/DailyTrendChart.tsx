@@ -13,11 +13,13 @@ interface DailyTrendChartProps {
   timeRange: TimeRange;
   apiFilter: string;
   isDark: boolean;
+  preloadedItems?: MonitorDailyTrendItem[];
+  preloadedKey?: string;
 }
 
 const EMPTY_DAILY_ITEMS: MonitorDailyTrendItem[] = [];
 
-export function DailyTrendChart({ timeRange, apiFilter, isDark }: DailyTrendChartProps) {
+export function DailyTrendChart({ timeRange, apiFilter, isDark, preloadedItems, preloadedKey }: DailyTrendChartProps) {
   const { t } = useTranslation();
   const isMobile = useMediaQuery('(max-width: 768px)');
   const requestKey = `${timeRange}\0${apiFilter}`;
@@ -25,10 +27,12 @@ export function DailyTrendChart({ timeRange, apiFilter, isDark }: DailyTrendChar
     requestKey: string;
     items: MonitorDailyTrendItem[];
   } | null>(null);
-  const loading = dailyState?.requestKey !== requestKey;
-  const dailyItems = dailyState?.items ?? EMPTY_DAILY_ITEMS;
+  const parentOwned = preloadedKey === requestKey;
+  const loading = parentOwned ? preloadedItems === undefined : dailyState?.requestKey !== requestKey;
+  const dailyItems = parentOwned ? (preloadedItems ?? EMPTY_DAILY_ITEMS) : (dailyState?.items ?? EMPTY_DAILY_ITEMS);
 
   useEffect(() => {
+    if (parentOwned) return;
     let cancelled = false;
 
     const params = {
@@ -48,7 +52,7 @@ export function DailyTrendChart({ timeRange, apiFilter, isDark }: DailyTrendChar
     });
 
     return () => { cancelled = true; };
-  }, [timeRange, apiFilter, requestKey]);
+  }, [timeRange, apiFilter, requestKey, parentOwned]);
 
   // 图表数据
   const chartData = useMemo(() => {

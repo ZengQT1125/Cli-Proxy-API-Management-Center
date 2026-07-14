@@ -19,6 +19,8 @@ interface ModelDistributionChartProps {
   apiFilter: string;
   isDark: boolean;
   providerMap: Record<string, string>;
+  preloadedChannelStats?: import('@/services/api/monitor').MonitorChannelStatsItem[];
+  preloadedKey?: string;
 }
 
 // 颜色调色板
@@ -45,11 +47,12 @@ const DISTRIBUTION_TABS: { id: DistributionTab; labelKey: string }[] = [
 ];
 
 const DISTRIBUTION_TOP_LIMIT = 10;
-const DISTRIBUTION_SOURCE_LIMIT = 1000;
+// 后端 channel-stats limit 上限为 100；再大只是空转参数，徒增请求体积与解析成本。
+const DISTRIBUTION_SOURCE_LIMIT = 100;
 
 const EMPTY_DISTRIBUTION_ITEMS: MonitorDistributionListItem[] = [];
 
-export function ModelDistributionChart({ timeRange, apiFilter, isDark, providerMap }: ModelDistributionChartProps) {
+export function ModelDistributionChart({ timeRange, apiFilter, isDark, providerMap, preloadedChannelStats, preloadedKey }: ModelDistributionChartProps) {
   const { t } = useTranslation();
   const [activeTab, setActiveTab] = useState<DistributionTab>('channel-token');
   const distributionMode = activeTab.startsWith('channel') ? 'channel' : 'model';
@@ -63,20 +66,33 @@ export function ModelDistributionChart({ timeRange, apiFilter, isDark, providerM
   const loading = distributionState?.requestKey !== requestKey;
   const distributionItems = distributionState?.items ?? EMPTY_DISTRIBUTION_ITEMS;
 
+  const statsRequestKey = `${timeRange}\0${apiFilter}`;
+  const parentOwned = preloadedKey === statsRequestKey;
+
   useEffect(() => {
     let cancelled = false;
     const timeParams = buildMonitorTimeRangeParams(timeRange);
 
     const loadDistribution = async () => {
-      const data = await monitorApi.getChannelStats({
-        limit: DISTRIBUTION_SOURCE_LIMIT,
-        ...timeParams,
-        ...(apiFilter ? { api_filter: apiFilter } : {}),
-      });
+      let items: import('@/services/api/monitor').MonitorChannelStatsItem[];
+      if (parentOwned) {
+        // 父组件接管：等 dashboard.channel_stats，禁止再打独立 channel-stats。
+        if (preloadedChannelStats === undefined) {
+          return null;
+        }
+        items = preloadedChannelStats;
+      } else {
+        const data = await monitorApi.getChannelStats({
+          limit: DISTRIBUTION_SOURCE_LIMIT,
+          ...timeParams,
+          ...(apiFilter ? { api_filter: apiFilter } : {}),
+        });
+        items = data.items || [];
+      }
 
       if (distributionMode === 'channel') {
         return buildMonitorChannelDistributionItems(
-          data.items || [],
+          items,
           providerMap,
           metric,
           DISTRIBUTION_TOP_LIMIT,
@@ -85,7 +101,7 @@ export function ModelDistributionChart({ timeRange, apiFilter, isDark, providerM
       }
 
       return buildMonitorModelDistributionItems(
-        data.items || [],
+        items,
         metric,
         DISTRIBUTION_TOP_LIMIT,
         otherLabel
@@ -94,9 +110,8 @@ export function ModelDistributionChart({ timeRange, apiFilter, isDark, providerM
 
     loadDistribution()
       .then((items) => {
-        if (!cancelled) {
-          setDistributionState({ requestKey, items });
-        }
+        if (cancelled || items === null) return;
+        setDistributionState({ requestKey, items });
       })
       .catch((err) => {
         console.error('Distribution load failed:', err);
@@ -106,7 +121,7 @@ export function ModelDistributionChart({ timeRange, apiFilter, isDark, providerM
       });
 
     return () => { cancelled = true; };
-  }, [timeRange, apiFilter, activeTab, distributionMode, metric, providerMap, otherLabel, requestKey]);
+  }, [timeRange, apiFilter, activeTab, distributionMode, metric, providerMap, otherLabel, requestKey, parentOwned, preloadedChannelStats]);
 
   const timeRangeLabel = (() => {
     if (timeRange === 'yesterday') return t('monitor.yesterday');

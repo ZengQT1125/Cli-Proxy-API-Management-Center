@@ -59,19 +59,37 @@ export const getPluginRepositorySlug = (repository: string): string => {
   return repo ? `${owner}/${repo.replace(/\.git$/i, '')}` : owner;
 };
 
-// A repository is official only when its canonical github.com URL sits exactly
-// under the router-for-me org prefix. Slugs ("router-for-me/repo") and full URLs
-// are both normalized first; anything else (other hosts, look-alike domains,
-// other owners) is untrusted.
-export const isOfficialRepository = (repository: string): boolean =>
-  buildRepositoryURL(repository)
-    .toLowerCase()
-    .startsWith(OFFICIAL_PLUGIN_REPO_PREFIX);
+// A repository is official only when URL parsing leaves it directly under the
+// router-for-me organization. Parsing first prevents encoded dot segments from
+// escaping the organization while still matching the original string prefix.
+export const isOfficialRepository = (repository: string): boolean => {
+  try {
+    const url = new URL(buildRepositoryURL(repository));
+    const hostname = url.hostname.toLowerCase();
+    if (
+      url.protocol !== 'https:' ||
+      url.username ||
+      url.password ||
+      url.port ||
+      (hostname !== 'github.com' && hostname !== 'www.github.com')
+    ) {
+      return false;
+    }
 
-// A plugin is official iff its code repository sits under the router-for-me org.
-// Every first-party plugin lives there, so the repository URL is the single
-// source of truth — see isOfficialRepository for the exact match.
+    if (url.pathname.includes('%')) return false;
+
+    const [, owner = '', repo = ''] = url.pathname.split('/');
+    return owner.toLowerCase() === 'router-for-me' && Boolean(repo);
+  } catch {
+    return false;
+  }
+};
+
+// Both the backend-assigned source identity and repository must be official.
+// A third-party registry can copy repository metadata, so repository alone is
+// insufficient to bypass the third-party installation gate.
 export const isOfficialPlugin = (entry: PluginStoreEntry): boolean =>
+  entry.sourceId.trim().toLowerCase() === DEFAULT_PLUGIN_STORE_SOURCE_ID &&
   isOfficialRepository(entry.repository);
 
 export const isDefaultPluginStoreSource = (

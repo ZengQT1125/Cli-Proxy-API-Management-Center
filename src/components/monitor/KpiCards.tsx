@@ -13,19 +13,25 @@ interface KpiCardsProps {
   timeRange: TimeRange;
   apiFilter: string;
   isDark?: boolean;
+  /** 来自 dashboard 合并接口的预加载数据；有则跳过独立 KPI 请求 */
+  preloaded?: MonitorKpiData | null;
+  preloadedKey?: string;
 }
 
-export function KpiCards({ timeRange, apiFilter }: KpiCardsProps) {
+export function KpiCards({ timeRange, apiFilter, preloaded, preloadedKey }: KpiCardsProps) {
   const { t } = useTranslation();
   const requestKey = `${timeRange}\0${apiFilter}`;
   const [kpiResult, setKpiResult] = useState<{
     requestKey: string;
     data: MonitorKpiData | null;
   } | null>(null);
-  const loading = kpiResult?.requestKey !== requestKey;
-  const kpiData = kpiResult?.data ?? null;
+  // 父组件传入 preloadedKey 即接管数据源；加载中 preloaded 为 undefined，禁止再打独立 KPI 请求。
+  const parentOwned = preloadedKey === requestKey;
+  const loading = parentOwned ? preloaded === undefined : kpiResult?.requestKey !== requestKey;
+  const kpiData = parentOwned ? (preloaded ?? null) : (kpiResult?.data ?? null);
 
   useEffect(() => {
+    if (parentOwned) return;
     let cancelled = false;
 
     const params = {
@@ -45,7 +51,7 @@ export function KpiCards({ timeRange, apiFilter }: KpiCardsProps) {
     });
 
     return () => { cancelled = true; };
-  }, [timeRange, apiFilter, requestKey]);
+  }, [timeRange, apiFilter, requestKey, parentOwned]);
 
   const timeRangeLabel = (() => {
     if (timeRange === 'yesterday') return t('monitor.yesterday');
