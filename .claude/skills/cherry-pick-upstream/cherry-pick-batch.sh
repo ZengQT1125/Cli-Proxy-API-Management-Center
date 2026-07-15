@@ -356,8 +356,6 @@ SKIP_HASHES=(
   0c565c8   # feat(providers): collapse api key and model entries — 计划跳过，依赖本地未采纳的 Provider Workbench 表单架构
   e43df69   # chore: remove unused components and utility functions — 计划跳过，上游 dead-code 判定不覆盖本地 monitor/OAuth 使用方
   9d3e82e   # feat(providers): add quick fill section — 计划跳过，依赖本地未采纳的 Provider Workbench
-  066d25f   # chore: remove orphan files and build config — 计划跳过，会删除本地仍保留的 tsconfig.app.json 等构建文件
-  e36de50   # chore(api): remove dead endpoints and normalizers — 计划跳过，本地 authFiles/client/provider API 已分叉
   3ee7fce   # chore(stores): remove unused state/actions — 计划跳过，上游使用关系不包含本地功能链
   3785d75   # chore(types): remove dead exports — 计划跳过，本地 OAuth/provider/quota 类型依赖已分叉
   3c91d57   # chore(ui): remove dead props/render chains — 计划跳过，依赖 Provider Workbench 且触及本地 OAuth/Quota 页面
@@ -387,6 +385,9 @@ SKIP_HASHES=(
   47f7a9e   # fix(plugins): preserve untouched config fields — 本地 0e286c0，移除已无调用的全量 PUT
   5754ecf   # fix(quota): isolate cache across connections — 本地 824c276，保留 Gemini CLI quota store 与 local 导出
   07562b7   # feat(auth-files): xAI official API toggle — 本地 58216b0，适配本地 JSON 编辑器并保留 Codex cleanup
+  # === 2026-07-14 上游同步评估：动作 C 死代码清理，grep 验证后手工重建 ===
+  066d25f   # chore: remove orphan files and build config — 本地 029310e3（部分应用），排除 src/hooks/index.ts 删除：本地是扩展版本（额外 export useApi/useDebounce/usePagination/useDisableModel），监控中心 ChannelStats.tsx/FailureAnalysis.tsx 依赖 useDisableModel 导出；其余 7 项（App.css/react.svg/index.css/PlaceholderPage.module.scss/types/log.ts/tsconfig.app.json + types/index.ts 的 log 导出）grep 确认本地无引用，安全删除
+  e36de50   # chore(api): remove dead endpoints, response fields and unused normalizers — 本地 0b208e08（部分应用）：plugins.ts 保留 patchConfig（本地无 putConfig，PluginsPage 依赖 patchConfig）；providers.ts 完全跳过（getGeminiKeys/getCodexConfigs/getClaudeConfigs 仍被 DashboardPage 调用）；antigravitySubscription.ts 部分应用（保留 tierId/tierName，删除本地从未实现的 source/currentTier/paidTier 字段）；logs.ts 完全跳过（本地极简实现与上游删除目标无对应关系，架构分叉）
 )
 
 is_skip() {
