@@ -9,7 +9,12 @@ import {
   KIMI_CONFIG,
   XAI_CONFIG,
 } from '@/components/quota';
-import { useNotificationStore, useQuotaStore } from '@/stores';
+import {
+  captureQuotaCacheGeneration,
+  commitIfQuotaCacheCurrent,
+  useNotificationStore,
+  useQuotaStore,
+} from '@/stores';
 import type { AuthFileItem } from '@/types';
 import { getStatusFromError } from '@/utils/quota';
 import type { QuotaProviderType } from '@/features/authFiles/constants';
@@ -106,6 +111,7 @@ export function useAuthFileQuotaRefresh() {
       }
 
       const config = getAuthFileQuotaConfig(quotaType) as AuthFileQuotaConfig;
+      const cacheGeneration = captureQuotaCacheGeneration();
 
       updateQuotaState(quotaType, (prev) => ({
         ...prev,
@@ -114,28 +120,39 @@ export function useAuthFileQuotaRefresh() {
 
       try {
         const data = await config.fetchQuota(file, t);
-        updateQuotaState(quotaType, (prev) => ({
-          ...prev,
-          [file.name]: config.buildSuccessState(data),
-        }));
-        if (notify) {
-          showNotification(t('auth_files.quota_refresh_success', { name: file.name }), 'success');
-        }
-        return { status: 'success', name: file.name };
+        const committed = commitIfQuotaCacheCurrent(cacheGeneration, () => {
+          updateQuotaState(quotaType, (prev) => ({
+            ...prev,
+            [file.name]: config.buildSuccessState(data),
+          }));
+          if (notify) {
+            showNotification(
+              t('auth_files.quota_refresh_success', { name: file.name }),
+              'success'
+            );
+          }
+        });
+        return committed
+          ? { status: 'success', name: file.name }
+          : { status: 'skipped', name: file.name };
       } catch (err: unknown) {
         const message = err instanceof Error ? err.message : t('common.unknown_error');
         const status = getStatusFromError(err);
-        updateQuotaState(quotaType, (prev) => ({
-          ...prev,
-          [file.name]: config.buildErrorState(message, status),
-        }));
-        if (notify) {
-          showNotification(
-            t('auth_files.quota_refresh_failed', { name: file.name, message }),
-            'error'
-          );
-        }
-        return { status: 'failed', name: file.name, message };
+        const committed = commitIfQuotaCacheCurrent(cacheGeneration, () => {
+          updateQuotaState(quotaType, (prev) => ({
+            ...prev,
+            [file.name]: config.buildErrorState(message, status),
+          }));
+          if (notify) {
+            showNotification(
+              t('auth_files.quota_refresh_failed', { name: file.name, message }),
+              'error'
+            );
+          }
+        });
+        return committed
+          ? { status: 'failed', name: file.name, message }
+          : { status: 'skipped', name: file.name };
       }
     },
     [showNotification, t]
