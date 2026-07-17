@@ -388,6 +388,24 @@ SKIP_HASHES=(
   # === 2026-07-14 上游同步评估：动作 C 死代码清理，grep 验证后手工重建 ===
   066d25f   # chore: remove orphan files and build config — 本地 029310e3（部分应用），排除 src/hooks/index.ts 删除：本地是扩展版本（额外 export useApi/useDebounce/usePagination/useDisableModel），监控中心 ChannelStats.tsx/FailureAnalysis.tsx 依赖 useDisableModel 导出；其余 7 项（App.css/react.svg/index.css/PlaceholderPage.module.scss/types/log.ts/tsconfig.app.json + types/index.ts 的 log 导出）grep 确认本地无引用，安全删除
   e36de50   # chore(api): remove dead endpoints, response fields and unused normalizers — 本地 0b208e08（部分应用）：plugins.ts 保留 patchConfig（本地无 putConfig，PluginsPage 依赖 patchConfig）；providers.ts 完全跳过（getGeminiKeys/getCodexConfigs/getClaudeConfigs 仍被 DashboardPage 调用）；antigravitySubscription.ts 部分应用（保留 tierId/tierName，删除本地从未实现的 source/currentTier/paidTier 字段）；logs.ts 完全跳过（本地极简实现与上游删除目标无对应关系，架构分叉）
+  # === 2026-07-17 上游同步评估：采纳 auth-files 数据保护修复，跳过 Provider Workbench/Kimi 营销链 ===
+  5d24c6f   # feat(xai): provider API integration — 计划跳过，依赖本地未采纳的 src/features/providers/Provider Workbench 架构
+  b2c8490   # feat(kimi): provider configuration integration — 计划跳过，依赖本地未采纳的 src/features/providers/Provider Workbench 架构
+  7fb5890   # feat(kimi): swap theme icons — 计划跳过，依赖 Kimi Provider Workbench/UI 链且会覆盖本地 OAuth 图标映射
+  e2aa494   # feat(oauth): recommended Kimi provider section — 计划跳过，营销型 OAuth UI，本地 OAuthPage 已独立演进
+  6a8319d   # fix(oauth): featured card gradient — 计划跳过，依赖 e2aa494 的 Kimi featured card
+  339529f   # refactor(oauth): trim recommended provider decorations — 计划跳过，依赖 e2aa494 的 Kimi featured card
+  bb48387   # feat(oauth): Kimi quick sign-up — 计划跳过，营销型 OAuth UI 且依赖 featured card 链
+  72c13c0   # feat(oauth): Kimi sign-up copy/styles — 计划跳过，依赖 bb48387 Kimi quick sign-up
+  36681ce   # feat(oauth): featured icon dark theme — 计划跳过，依赖 e2aa494 的 Kimi featured card
+  f860bc8   # feat(kimi): provider theme surfaces — 计划跳过，依赖本地未采纳的 Provider Workbench/Kimi provider
+  f324135   # fix(kimi): versioned OpenAI base URL — 计划跳过，目标 src/features/providers/kimi.ts 本地不存在
+  5b62fa1   # fix(providers): preserve custom sponsor endpoints — 计划跳过，依赖本地未采纳的 sponsor Provider Workbench
+  4e0af8c   # fix(providers): keep FennoAI OpenAI configs visible — 计划跳过，依赖本地未采纳的 FennoAI Provider Workbench
+  291f15c   # fix(providers): isolate recent usage cache by connection — 计划跳过，目标 useProviderRecentRequests 本地不存在，本地状态条走 monitorApi/useProviderStats
+  e3fa19b   # fix(auth-files): isolate inline quota responses — 本地 5a09223，适配本地拆分的 quota refresh hook，patch-id 漂移
+  abcd70f   # fix(auth-files): block OAuth writes after load failures — 本地 fdb2652，保留 xAI/Kimi/Codex cleanup 定制，patch-id 漂移
+  6a6a22a   # fix(kimi): domestic base URLs/protocol mappings — 计划跳过，目标 src/features/providers/kimi.ts 本地不存在
 )
 
 is_skip() {
