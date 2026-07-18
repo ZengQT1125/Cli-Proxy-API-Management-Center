@@ -2,10 +2,14 @@ import { MAX_AUTH_ARCHIVE_SIZE, MAX_AUTH_FILE_SIZE } from '../../utils/constants
 
 /** Value for <input type="file" accept> on auth-files upload. */
 export const AUTH_UPLOAD_ACCEPT =
-  '.json,.zip,.tar,.tar.gz,.tgz,application/json,application/zip,application/x-zip-compressed,application/x-tar,application/gzip,application/x-gzip';
+  '.json,.txt,.zip,.tar,.tar.gz,.tgz,application/json,text/plain,application/zip,application/x-zip-compressed,application/x-tar,application/gzip,application/x-gzip';
 
 export function isAuthUploadJsonFile(name: string): boolean {
   return name.trim().toLowerCase().endsWith('.json');
+}
+
+export function isAuthUploadTxtFile(name: string): boolean {
+  return name.trim().toLowerCase().endsWith('.txt');
 }
 
 export function isAuthUploadArchiveFile(name: string): boolean {
@@ -19,7 +23,7 @@ export function isAuthUploadArchiveFile(name: string): boolean {
 }
 
 export function isAuthUploadAllowedFile(name: string): boolean {
-  return isAuthUploadJsonFile(name) || isAuthUploadArchiveFile(name);
+  return isAuthUploadJsonFile(name) || isAuthUploadTxtFile(name) || isAuthUploadArchiveFile(name);
 }
 
 /** Per-file client-side size cap. Archives use the larger backend bulk limit. */
