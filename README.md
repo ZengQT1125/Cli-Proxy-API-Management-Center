@@ -167,7 +167,6 @@ remote-management:
 - **Codex**：完整配置管理（API 密钥、Base URL、代理）
 - **Vertex**：模型映射配置
 - **OpenAI 兼容**：多密钥管理、模型别名导入、连通性测试
-- **Ampcode**：上游集成和模型映射
 
 ### 认证文件管理
 - 上传、下载、删除 JSON 认证文件

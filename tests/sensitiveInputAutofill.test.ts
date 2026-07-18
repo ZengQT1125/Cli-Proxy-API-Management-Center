@@ -33,8 +33,6 @@ test('AI provider API key 输入禁用浏览器和密码管理器自动填充', 
     ['src/pages/AiProvidersClaudeEditPage.tsx', 'value={form.apiKey}'],
     ['src/pages/AiProvidersVertexEditPage.tsx', 'value={form.apiKey}'],
     ['src/pages/AiProvidersOpenAIEditPage.tsx', 'value={entry.apiKey}'],
-    ['src/pages/AiProvidersAmpcodeEditPage.tsx', 'value={form.upstreamApiKey}'],
-    ['src/pages/AiProvidersAmpcodeEditPage.tsx', 'value={entry.upstreamApiKey}'],
   ] as const;
 
   for (const [path, marker] of cases) {

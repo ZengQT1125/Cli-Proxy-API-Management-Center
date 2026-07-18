@@ -167,7 +167,6 @@ The following features are consistent with the official version, providing a bet
 - **Codex**: Complete configuration management (API key, Base URL, proxy)
 - **Vertex**: Model mapping configuration
 - **OpenAI Compatible**: Multi-key management, model alias import, connectivity testing
-- **Ampcode**: Upstream integration and model mapping
 
 ### Authentication File Management
 - Upload, download, delete JSON authentication files
