@@ -42,6 +42,7 @@ import { AUTH_UPLOAD_ACCEPT } from '@/features/authFiles/uploadValidation';
 import { AuthFileCard } from '@/features/authFiles/components/AuthFileCard';
 import { AuthFileModelsModal } from '@/features/authFiles/components/AuthFileModelsModal';
 import { AuthFilesPrefixProxyEditorModal } from '@/features/authFiles/components/AuthFilesPrefixProxyEditorModal';
+import { AuthFilesBatchFieldsEditorModal } from '@/features/authFiles/components/AuthFilesBatchFieldsEditorModal';
 import { OAuthExcludedCard } from '@/features/authFiles/components/OAuthExcludedCard';
 import { OAuthModelAliasCard } from '@/features/authFiles/components/OAuthModelAliasCard';
 import iconAntigravity from '@/assets/icons/antigravity.svg';
@@ -57,6 +58,7 @@ import { useAuthFilesData } from '@/features/authFiles/hooks/useAuthFilesData';
 import { useAuthFilesModels } from '@/features/authFiles/hooks/useAuthFilesModels';
 import { useAuthFilesOauth } from '@/features/authFiles/hooks/useAuthFilesOauth';
 import { useAuthFilesPrefixProxyEditor } from '@/features/authFiles/hooks/useAuthFilesPrefixProxyEditor';
+import { useAuthFilesBatchFieldsEditor } from '@/features/authFiles/hooks/useAuthFilesBatchFieldsEditor';
 import { useAuthFilesStats } from '@/features/authFiles/hooks/useAuthFilesStats';
 import { useAuthFilesStatusBarCache } from '@/features/authFiles/hooks/useAuthFilesStatusBarCache';
 import {
@@ -329,8 +331,7 @@ export function AuthFilesPage() {
   }, [loadFiles, loadExcluded, loadModelAlias, refreshKeyStatsForFiles]);
 
   const cleanableTypes = useMemo(
-    () =>
-      AUTH_CLEANUP_SUPPORTED_TYPES.filter((type) => (enabledTypeCounts[type] ?? 0) > 0),
+    () => AUTH_CLEANUP_SUPPORTED_TYPES.filter((type) => (enabledTypeCounts[type] ?? 0) > 0),
     [enabledTypeCounts]
   );
 
@@ -479,6 +480,13 @@ export function AuthFilesPage() {
     [pageItems]
   );
   const selectedNames = useMemo(() => Array.from(selectedFiles), [selectedFiles]);
+  const batchFieldsEditor = useAuthFilesBatchFieldsEditor({
+    disableControls,
+    files,
+    selectedNames,
+    loadFiles,
+    deselectAll,
+  });
   const selectedHasStatusUpdating = useMemo(
     () => selectedNames.some((name) => statusUpdating[name] === true),
     [selectedNames, statusUpdating]
@@ -686,7 +694,10 @@ export function AuthFilesPage() {
     : '';
   const deleteAllProgressPercent =
     deleteAllProgress && deleteAllProgress.total > 0
-      ? Math.min(100, Math.max(0, Math.round((deleteAllProgress.current / deleteAllProgress.total) * 100)))
+      ? Math.min(
+          100,
+          Math.max(0, Math.round((deleteAllProgress.current / deleteAllProgress.total) * 100))
+        )
       : null;
   const deleteAllProgressLabel = deletingAll
     ? deleteAllProgressPercent !== null
@@ -792,7 +803,8 @@ export function AuthFilesPage() {
               <div
                 className={styles.uploadProgressBar}
                 style={{
-                  width: deleteAllProgressPercent !== null ? `${deleteAllProgressPercent}%` : '100%',
+                  width:
+                    deleteAllProgressPercent !== null ? `${deleteAllProgressPercent}%` : '100%',
                 }}
               />
             </div>
@@ -1015,6 +1027,24 @@ export function AuthFilesPage() {
         onChange={handlePrefixProxyChange}
       />
 
+      <AuthFilesBatchFieldsEditorModal
+        open={batchFieldsEditor.open}
+        saving={batchFieldsEditor.saving}
+        disableControls={disableControls}
+        selectedCount={batchFieldsEditor.selectedCount}
+        form={batchFieldsEditor.form}
+        headersError={batchFieldsEditor.headersError}
+        priorityError={batchFieldsEditor.priorityError}
+        showWebsockets={batchFieldsEditor.showWebsockets}
+        showUsingApi={batchFieldsEditor.showUsingApi}
+        canApply={batchFieldsEditor.canApply}
+        onClose={batchFieldsEditor.closeBatchFieldsEditor}
+        onApply={() => {
+          void batchFieldsEditor.handleApply();
+        }}
+        onChange={batchFieldsEditor.setField}
+      />
+
       <Modal
         open={cleanupPickerOpen}
         title={t('auth_files.codex_cleanup_button')}
@@ -1153,6 +1183,19 @@ export function AuthFilesPage() {
                   </Button>
                 </div>
                 <div className={styles.batchActionRight}>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={batchFieldsEditor.openBatchFieldsEditor}
+                    disabled={
+                      disableControls ||
+                      selectedNames.length === 0 ||
+                      batchFieldsEditor.saving ||
+                      batchStatusUpdating
+                    }
+                  >
+                    {t('auth_files.batch_edit_fields')}
+                  </Button>
                   <Button
                     size="sm"
                     onClick={() => batchSetStatus(selectedNames, true)}
