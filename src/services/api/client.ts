@@ -16,6 +16,7 @@ import {
   VERSION_HEADER_KEYS,
 } from '@/utils/constants';
 import { computeApiUrl } from '@/utils/connection';
+import { parseApiErrorResponse } from './apiError';
 
 class ApiClient {
   private instance: AxiosInstance;
@@ -159,25 +160,14 @@ class ApiClient {
    * 错误处理
    */
   private handleError(error: unknown): ApiError {
-    const isRecord = (value: unknown): value is Record<string, unknown> =>
-      value !== null && typeof value === 'object';
-
     if (axios.isAxiosError(error)) {
       const responseData: unknown = error.response?.data;
-      const responseRecord = isRecord(responseData) ? responseData : null;
-      const errorValue = responseRecord?.error;
-      const message =
-        typeof errorValue === 'string'
-          ? errorValue
-          : isRecord(errorValue) && typeof errorValue.message === 'string'
-            ? errorValue.message
-            : typeof responseRecord?.message === 'string'
-              ? responseRecord.message
-              : error.message || 'Request failed';
-      const apiError = new Error(message) as ApiError;
+      const parsedError = parseApiErrorResponse(responseData, error.message);
+      const apiError = new Error(parsedError.message) as ApiError;
       apiError.name = 'ApiError';
       apiError.status = error.response?.status;
       apiError.code = error.code;
+      apiError.apiCode = parsedError.apiCode;
       apiError.details = responseData;
       apiError.data = responseData;
 
