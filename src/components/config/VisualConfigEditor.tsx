@@ -486,13 +486,6 @@ export function VisualConfigEditor({
             disabled={disabled}
             onChange={(wsAuth) => onChange({ wsAuth })}
           />
-          <ToggleRow
-            title={t('config_management.visual.sections.network.codex_identity_confuse')}
-            description={t('config_management.visual.sections.network.codex_identity_confuse_desc')}
-            checked={values.codexIdentityConfuse}
-            disabled={disabled}
-            onChange={(codexIdentityConfuse) => onChange({ codexIdentityConfuse })}
-          />
         </div>
       </ConfigSection>
 

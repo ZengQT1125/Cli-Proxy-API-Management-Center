@@ -873,12 +873,6 @@ function getNextDirtyFields(
       nextValues.gptImage2BaseModel === baselineValues.gptImage2BaseModel
     );
   }
-  if (Object.prototype.hasOwnProperty.call(patch, 'codexIdentityConfuse')) {
-    updateDirty(
-      'codexIdentityConfuse',
-      nextValues.codexIdentityConfuse === baselineValues.codexIdentityConfuse
-    );
-  }
   if (Object.prototype.hasOwnProperty.call(patch, 'quotaSwitchProject')) {
     updateDirty(
       'quotaSwitchProject',
@@ -1051,7 +1045,6 @@ export function useVisualConfig() {
       const payload = asRecord(parsed.payload);
       const streaming = asRecord(parsed.streaming);
       const plugins = asRecord(parsed.plugins);
-      const codex = asRecord(parsed.codex);
       const apiKeysStorage = resolveApiKeysStorage(parsed);
 
       const newValues: VisualConfigValues = {
@@ -1097,7 +1090,6 @@ export function useVisualConfig() {
           typeof parsed['gpt-image-2-base-model'] === 'string'
             ? parsed['gpt-image-2-base-model']
             : '',
-        codexIdentityConfuse: Boolean(codex?.['identity-confuse']),
         wsAuth: Boolean(parsed['ws-auth']),
 
         quotaSwitchProject: Boolean(quotaExceeded?.['switch-project'] ?? true),
@@ -1301,12 +1293,6 @@ export function useVisualConfig() {
           setStringInDoc(doc, ['gpt-image-2-base-model'], values.gptImage2BaseModel);
         }
         if (dirtyFields.has('wsAuth')) setBooleanInDoc(doc, ['ws-auth'], values.wsAuth);
-
-        if (dirtyFields.has('codexIdentityConfuse')) {
-          ensureMapInDoc(doc, ['codex']);
-          setBooleanInDoc(doc, ['codex', 'identity-confuse'], values.codexIdentityConfuse);
-          deleteIfMapEmpty(doc, ['codex']);
-        }
 
         const quotaDirty =
           dirtyFields.has('quotaSwitchProject') ||
