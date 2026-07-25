@@ -406,6 +406,16 @@ SKIP_HASHES=(
   e3fa19b   # fix(auth-files): isolate inline quota responses — 本地 5a09223，适配本地拆分的 quota refresh hook，patch-id 漂移
   abcd70f   # fix(auth-files): block OAuth writes after load failures — 本地 fdb2652，保留 xAI/Kimi/Codex cleanup 定制，patch-id 漂移
   6a6a22a   # fix(kimi): domestic base URLs/protocol mappings — 计划跳过，目标 src/features/providers/kimi.ts 本地不存在
+  # === 2026-07-25 上游同步评估：采纳额度与错误处理修复，跳过已分叉的 Layout/AuthFiles/Provider UI 链 ===
+  3738c0b   # fix(xai): paid OAuth quota health fallback — 本地 e631aba，保留 Gemini CLI 配额缓存扩展后完整应用，patch-id 漂移
+  f2be3bb   # fix(config): remove codexIdentityConfuse — 本地 dade511，按扁平化 VisualConfig 架构删除 UI/状态/YAML/i18n 链，patch-id 漂移
+  e677a68   # feat(api-error): structured API error parsing — 本地 d959779，保留版本与插件响应头处理，patch-id 漂移
+  aef7ff0   # feat(layout): sidebar layout and navigation badges — 计划跳过，本地 Monitor/插件导航与 layout.scss 已独立分叉
+  4d08135   # feat(auth-files/layout): auth-file count events and accessible tooltips — 计划跳过，依赖 aef7ff0 且计数未适配本地分页 API
+  5590326   # fix(layout): navigation badge color variables — 计划跳过，仅为 aef7ff0/4d08135 侧栏重构配套
+  05631cf   # feat(auth-files): Kimi theme surface icons — 计划跳过，依赖本地未采纳的上游认证文件图标体系
+  7793321   # refactor(auth-files): filter toolbar and display settings — 计划跳过，依赖已跳过的 AuthFilesStatusFilterCard/WebGL UI 链，本地分页筛选已独立演进
+  b24f306   # fix(claudeApi): update provider base URL — 计划跳过，依赖已跳过的 ClaudeAPI Provider Workbench 架构
 )
 
 is_skip() {
