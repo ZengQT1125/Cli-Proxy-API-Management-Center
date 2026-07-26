@@ -416,6 +416,11 @@ SKIP_HASHES=(
   05631cf   # feat(auth-files): Kimi theme surface icons — 计划跳过，依赖本地未采纳的上游认证文件图标体系
   7793321   # refactor(auth-files): filter toolbar and display settings — 计划跳过，依赖已跳过的 AuthFilesStatusFilterCard/WebGL UI 链，本地分页筛选已独立演进
   b24f306   # fix(claudeApi): update provider base URL — 计划跳过，依赖已跳过的 ClaudeAPI Provider Workbench 架构
+  # === 2026-07-27 上游同步评估（v1.19.2 / v1.19.3）：采纳插件卡片布局与凭证手动刷新，清理 Home 检测残留 ===
+  21af576   # refactor(logs): remove Home payload — 本地 logs.ts 无 requestLogHomeIpById，净空
+  cf3c617   # refactor(MainLayout): simplify nav-group — 计划跳过，本地侧边栏用 nav-section 结构，无 navGroups.map，不适用
+  1d7bc0d   # feat(auth-files): manual OAuth credential refresh — 本地 2b0c0cb，AuthFileCard/useAuthFilesData 已分叉改为手工移植（图标改 IconKey，刷新走 loadFiles）
+  0a2be7d   # refactor(runtime): remove Home detection — 本地 58e86d6，LogsPage/version.ts/i18n 部分先前已应用，本次手工清理 constants/client/store/types 残留
 )
 
 is_skip() {
