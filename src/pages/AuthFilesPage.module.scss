@@ -1146,6 +1146,7 @@
 
 .cardActions {
   display: flex;
+  flex-wrap: wrap;
   gap: $spacing-xs;
   justify-content: flex-end;
   align-items: center;
@@ -1157,13 +1158,13 @@
   display: flex;
   align-items: center;
   flex-shrink: 0;
-  margin-left: $spacing-sm;
+  margin-left: $spacing-xs;
 }
 
 .iconButton:global(.btn.btn-sm) {
-  width: 34px;
-  height: 34px;
-  min-width: 34px;
+  width: 30px;
+  height: 30px;
+  min-width: 30px;
   padding: 0;
   box-sizing: border-box;
   border-radius: 6px;
