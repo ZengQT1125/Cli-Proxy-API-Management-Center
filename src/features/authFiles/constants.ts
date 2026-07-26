@@ -110,6 +110,18 @@ export const resolveQuotaErrorMessage = (
 
 export const normalizeProviderKey = (value: string) => value.trim().toLowerCase();
 
+// 支持手动触发 OAuth 凭证刷新的提供商（与后端 executor 的 expired 元数据判定保持一致）
+export const AUTH_FILE_MANUAL_REFRESH_PROVIDERS = new Set([
+  'antigravity',
+  'claude',
+  'codex',
+  'kimi',
+  'xai',
+]);
+
+export const supportsAuthFileManualRefresh = (provider: unknown): boolean =>
+  AUTH_FILE_MANUAL_REFRESH_PROVIDERS.has(normalizeProviderKey(String(provider ?? '')));
+
 export const getAuthFileStatusMessage = (file: AuthFileItem): string => {
   const raw = file['status_message'] ?? file.statusMessage;
   if (typeof raw === 'string') return raw.trim();

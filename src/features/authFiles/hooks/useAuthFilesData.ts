@@ -19,7 +19,11 @@ import type {
 } from '@/services/api/authFilesUpload';
 import { formatFileSize } from '@/utils/format';
 import { downloadBlob } from '@/utils/download';
-import { getTypeLabel, isRuntimeOnlyAuthFile } from '@/features/authFiles/constants';
+import {
+  getTypeLabel,
+  isRuntimeOnlyAuthFile,
+  supportsAuthFileManualRefresh,
+} from '@/features/authFiles/constants';
 import type { AuthFilesListQuery } from '@/features/authFiles/listQuery';
 import {
   removeSelectedAuthFiles,
@@ -71,6 +75,7 @@ export type UseAuthFilesDataResult = {
   deleteAllProgress: { current: number; total: number } | null;
   downloadingAll: boolean;
   statusUpdating: Record<string, boolean>;
+  manualRefreshing: Record<string, boolean>;
   batchStatusUpdating: boolean;
   fileInputRef: RefObject<HTMLInputElement | null>;
   loadFiles: () => Promise<AuthFileItem[]>;
@@ -81,6 +86,7 @@ export type UseAuthFilesDataResult = {
   handleDeleteAll: (options: DeleteAllOptions) => void;
   handleDownload: (name: string) => Promise<void>;
   handleDownloadAll: () => Promise<void>;
+  handleManualRefresh: (item: AuthFileItem) => Promise<void>;
   handleStatusToggle: (item: AuthFileItem, enabled: boolean) => Promise<void>;
   toggleSelect: (file: AuthFileItem) => void;
   selectAllVisible: (visibleFiles: AuthFileItem[]) => void;
@@ -118,10 +124,12 @@ export function useAuthFilesData(options: UseAuthFilesDataOptions): UseAuthFiles
   } | null>(null);
   const [downloadingAll, setDownloadingAll] = useState(false);
   const [statusUpdating, setStatusUpdating] = useState<Record<string, boolean>>({});
+  const [manualRefreshing, setManualRefreshing] = useState<Record<string, boolean>>({});
   const [batchStatusUpdating, setBatchStatusUpdating] = useState(false);
   const [selection, setSelection] = useState<AuthFileSelection>(new Map());
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const manualRefreshPendingRef = useRef<Set<string>>(new Set());
   const batchStatusPendingRef = useRef(false);
   const mountedRef = useRef(true);
   const loadControllerRef = useRef<AbortController | null>(null);
@@ -527,6 +535,43 @@ export function useAuthFilesData(options: UseAuthFilesDataOptions): UseAuthFiles
     }
   }, [showNotification, t]);
 
+  const handleManualRefresh = useCallback(
+    async (item: AuthFileItem) => {
+      const name = item.name.trim();
+      const provider = item.type ?? item.provider;
+      if (
+        !name ||
+        item.disabled === true ||
+        isRuntimeOnlyAuthFile(item) ||
+        !supportsAuthFileManualRefresh(provider) ||
+        manualRefreshPendingRef.current.has(name)
+      ) {
+        return;
+      }
+
+      manualRefreshPendingRef.current.add(name);
+      setManualRefreshing((prev) => ({ ...prev, [name]: true }));
+
+      try {
+        await authFilesApi.requestManualRefresh(name);
+        showNotification(t('auth_files.manual_refresh_requested', { name }), 'info');
+        await loadFiles();
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : t('notification.update_failed');
+        showNotification(t('auth_files.manual_refresh_failed', { name, message }), 'error');
+      } finally {
+        manualRefreshPendingRef.current.delete(name);
+        setManualRefreshing((prev) => {
+          if (!prev[name]) return prev;
+          const next = { ...prev };
+          delete next[name];
+          return next;
+        });
+      }
+    },
+    [loadFiles, showNotification, t]
+  );
+
   const handleStatusToggle = useCallback(
     async (item: AuthFileItem, enabled: boolean) => {
       const name = item.name;
@@ -739,6 +784,7 @@ export function useAuthFilesData(options: UseAuthFilesDataOptions): UseAuthFiles
     deleteAllProgress,
     downloadingAll,
     statusUpdating,
+    manualRefreshing,
     batchStatusUpdating,
     fileInputRef,
     loadFiles,
@@ -749,6 +795,7 @@ export function useAuthFilesData(options: UseAuthFilesDataOptions): UseAuthFiles
     handleDeleteAll,
     handleDownload,
     handleDownloadAll,
+    handleManualRefresh,
     handleStatusToggle,
     toggleSelect,
     selectAllVisible,
