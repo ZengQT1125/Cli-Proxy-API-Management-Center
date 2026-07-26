@@ -5,7 +5,7 @@
 
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
-import type { AuthState, LoginCredentials, ConnectionStatus, ServerRuntimeKind } from '@/types';
+import type { AuthState, LoginCredentials, ConnectionStatus } from '@/types';
 import { STORAGE_KEY_AUTH } from '@/utils/constants';
 import { obfuscatedStorage } from '@/services/storage/secureStorage';
 import { apiClient } from '@/services/api/client';
@@ -23,12 +23,7 @@ interface AuthStoreState extends AuthState {
   logout: () => void;
   checkAuth: () => Promise<boolean>;
   restoreSession: () => Promise<boolean>;
-  updateServerVersion: (
-    version: string | null,
-    buildDate?: string | null,
-    runtimeKind?: ServerRuntimeKind | null
-  ) => void;
-  updateServerRuntimeKind: (runtimeKind: ServerRuntimeKind) => void;
+  updateServerVersion: (version: string | null, buildDate?: string | null) => void;
   updateServerPluginSupport: (supportsPlugin: boolean) => void;
   updateConnectionStatus: (status: ConnectionStatus, error?: string | null) => void;
 }
@@ -45,7 +40,6 @@ export const useAuthStore = create<AuthStoreState>()(
       rememberPassword: false,
       serverVersion: null,
       serverBuildDate: null,
-      serverRuntimeKind: 'unknown',
       supportsPlugin: false,
       connectionStatus: 'disconnected',
       connectionError: null,
@@ -109,7 +103,6 @@ export const useAuthStore = create<AuthStoreState>()(
             connectionStatus: 'connecting',
             serverVersion: null,
             serverBuildDate: null,
-            serverRuntimeKind: 'unknown',
             supportsPlugin: false,
           });
           useModelsStore.getState().clearCache();
@@ -165,7 +158,6 @@ export const useAuthStore = create<AuthStoreState>()(
           managementKey: '',
           serverVersion: null,
           serverBuildDate: null,
-          serverRuntimeKind: 'unknown',
           supportsPlugin: false,
           connectionStatus: 'disconnected',
           connectionError: null,
@@ -206,16 +198,11 @@ export const useAuthStore = create<AuthStoreState>()(
       },
 
       // 更新服务器版本
-      updateServerVersion: (version, buildDate, runtimeKind) => {
+      updateServerVersion: (version, buildDate) => {
         set({
           serverVersion: version || null,
           serverBuildDate: buildDate || null,
-          ...(runtimeKind ? { serverRuntimeKind: runtimeKind } : {}),
         });
-      },
-
-      updateServerRuntimeKind: (runtimeKind) => {
-        set({ serverRuntimeKind: runtimeKind });
       },
 
       updateServerPluginSupport: (supportsPlugin) => {
@@ -263,13 +250,7 @@ if (typeof window !== 'undefined') {
 
   window.addEventListener('server-version-update', ((e: CustomEvent) => {
     const detail = e.detail || {};
-    const runtimeKind =
-      detail.runtimeKind === 'home' || detail.runtimeKind === 'cpa'
-        ? detail.runtimeKind
-        : undefined;
-    useAuthStore
-      .getState()
-      .updateServerVersion(detail.version || null, detail.buildDate || null, runtimeKind);
+    useAuthStore.getState().updateServerVersion(detail.version || null, detail.buildDate || null);
   }) as EventListener);
 
   window.addEventListener('server-plugin-support-update', ((e: CustomEvent) => {

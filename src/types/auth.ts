@@ -10,8 +10,6 @@ export interface LoginCredentials {
   rememberPassword?: boolean;
 }
 
-export type ServerRuntimeKind = 'home' | 'cpa' | 'unknown';
-
 // 认证状态
 export interface AuthState {
   isAuthenticated: boolean;
@@ -20,7 +18,6 @@ export interface AuthState {
   rememberPassword: boolean;
   serverVersion: string | null;
   serverBuildDate: string | null;
-  serverRuntimeKind: ServerRuntimeKind;
   supportsPlugin: boolean;
 }
 
