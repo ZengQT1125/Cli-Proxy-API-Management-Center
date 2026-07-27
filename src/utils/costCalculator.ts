@@ -35,6 +35,20 @@ const legacyModelPricing: Record<string, ModelPricing> = {
   'claude-haiku': { inputPrice: 1, outputPrice: 5 },
   'gemini-1.5-pro': { inputPrice: 1.25, outputPrice: 5 },
   'gemini-1.5-flash': { inputPrice: 0.2, outputPrice: 0.6 },
+  // models.dev 的 openai 源已下架下列变体，但它们仍出现在真实请求日志里。
+  // 不能依赖前缀 fallback：降档变体（-mini/-nano/-lite）与基础型号价格不同，
+  // gpt-5.1-codex-mini 曾被错配到 gpt-5.1 而高估 5 倍。
+  // 价格取自 models.dev 其他 provider 对同名模型的记录。
+  'gpt-5-chat-latest': { inputPrice: 1.25, outputPrice: 10, cacheReadPrice: 0.125 },
+  'gpt-5-codex': { inputPrice: 1.25, outputPrice: 10, cacheReadPrice: 0.125 },
+  'gpt-5.1-chat-latest': { inputPrice: 1.25, outputPrice: 10, cacheReadPrice: 0.125 },
+  'gpt-5.1-codex': { inputPrice: 1.25, outputPrice: 10, cacheReadPrice: 0.125 },
+  'gpt-5.1-codex-max': { inputPrice: 1.25, outputPrice: 10, cacheReadPrice: 0.125 },
+  'gpt-5.1-codex-mini': { inputPrice: 0.25, outputPrice: 2, cacheReadPrice: 0.025 },
+  'gpt-5.2-codex': { inputPrice: 1.75, outputPrice: 14, cacheReadPrice: 0.175 },
+  // models.dev 已完全移除、无任何 provider 记录，保留历史公开价格。
+  'o3-deep-research': { inputPrice: 10, outputPrice: 40, cacheReadPrice: 2.5 },
+  'o4-mini-deep-research': { inputPrice: 2, outputPrice: 8, cacheReadPrice: 0.5 },
 };
 
 const modelPricing: Record<string, ModelPricing> = {
@@ -93,6 +107,18 @@ const modelAliases: Record<string, string> = {
 
 const fuzzyPrefixes = Object.keys(modelPricing).sort((left, right) => right.length - left.length);
 
+// 规格后缀标记的是价格差数倍的另一个模型（gpt-5.1-codex-mini 只有 gpt-5.1 的 1/5），
+// 与 -high/-low 这类同价推理档位后缀不同。未收录的降档变体必须放弃前缀 fallback：
+// 返回 0 让费用显示为 "-"，好过静默按基础型号高估。
+const DOWNGRADE_SUFFIXES = ['-mini', '-nano', '-lite', '-small', '-flash-lite'];
+
+function hasDowngradeSuffixBeyond(model: string, prefix: string): boolean {
+  const remainder = model.slice(prefix.length);
+  return DOWNGRADE_SUFFIXES.some(
+    (suffix) => remainder === suffix || remainder.startsWith(`${suffix}-`)
+  );
+}
+
 function toSafeTokenCount(value: number): number {
   return Number.isFinite(value) && value > 0 ? value : 0;
 }
@@ -117,7 +143,7 @@ function resolveModelPricing(model: string): { key: string; pricing: ModelPricin
   }
 
   const prefix = fuzzyPrefixes.find((item) => aliased.startsWith(item));
-  if (!prefix) {
+  if (!prefix || hasDowngradeSuffixBeyond(aliased, prefix)) {
     return null;
   }
 
