@@ -1,16 +1,8 @@
-import {
-  useCallback,
-  useEffect,
-  useId,
-  useLayoutEffect,
-  useMemo,
-  useRef,
-  useState,
-  type CSSProperties,
-} from 'react';
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { IconChevronDown } from './icons';
 import styles from './Select.module.scss';
+import { useAnchoredDropdown } from './useAnchoredDropdown';
 
 export interface SelectOption {
   value: string;
@@ -30,50 +22,6 @@ interface SelectProps {
   fullWidth?: boolean;
   id?: string;
 }
-
-const VIEWPORT_MARGIN = 8;
-const DROPDOWN_OFFSET = 6;
-const DROPDOWN_MAX_HEIGHT = 240;
-const DROPDOWN_Z_INDEX = 2010;
-
-const clamp = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max);
-
-const resolveDropdownStyle = (element: HTMLElement): CSSProperties => {
-  const rect = element.getBoundingClientRect();
-  const viewportWidth = window.innerWidth;
-  const viewportHeight = window.innerHeight;
-  const width = Math.min(rect.width, Math.max(0, viewportWidth - VIEWPORT_MARGIN * 2));
-  const left = clamp(
-    rect.left,
-    VIEWPORT_MARGIN,
-    Math.max(VIEWPORT_MARGIN, viewportWidth - width - VIEWPORT_MARGIN)
-  );
-  const spaceBelow = viewportHeight - rect.bottom - VIEWPORT_MARGIN - DROPDOWN_OFFSET;
-  const spaceAbove = rect.top - VIEWPORT_MARGIN - DROPDOWN_OFFSET;
-  const direction = spaceBelow >= DROPDOWN_MAX_HEIGHT || spaceBelow >= spaceAbove ? 'down' : 'up';
-  const maxHeight = Math.max(
-    0,
-    Math.min(DROPDOWN_MAX_HEIGHT, direction === 'down' ? spaceBelow : spaceAbove)
-  );
-
-  return direction === 'down'
-    ? {
-        position: 'fixed',
-        top: rect.bottom + DROPDOWN_OFFSET,
-        left,
-        width,
-        maxHeight,
-        zIndex: DROPDOWN_Z_INDEX,
-      }
-    : {
-        position: 'fixed',
-        bottom: viewportHeight - rect.top + DROPDOWN_OFFSET,
-        left,
-        width,
-        maxHeight,
-        zIndex: DROPDOWN_Z_INDEX,
-      };
-};
 
 export function Select({
   value,
@@ -95,9 +43,8 @@ export function Select({
   const [highlightedIndex, setHighlightedIndex] = useState(-1);
   const wrapRef = useRef<HTMLDivElement | null>(null);
   const dropdownRef = useRef<HTMLDivElement | null>(null);
-  const rafRef = useRef<number | null>(null);
-  const [dropdownStyle, setDropdownStyle] = useState<CSSProperties | null>(null);
   const isOpen = open && !disabled;
+  const dropdownStyle = useAnchoredDropdown(wrapRef, isOpen);
 
   useEffect(() => {
     if (!open || disabled) return;
@@ -109,62 +56,6 @@ export function Select({
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [disabled, open]);
-
-  const updateDropdownStyle = useCallback(() => {
-    if (!wrapRef.current) return;
-    setDropdownStyle(resolveDropdownStyle(wrapRef.current));
-  }, []);
-
-  const scheduleDropdownStyleUpdate = useCallback(() => {
-    if (typeof window === 'undefined') return;
-    if (rafRef.current !== null) {
-      window.cancelAnimationFrame(rafRef.current);
-    }
-    rafRef.current = window.requestAnimationFrame(() => {
-      rafRef.current = null;
-      updateDropdownStyle();
-    });
-  }, [updateDropdownStyle]);
-
-  useLayoutEffect(() => {
-    if (!isOpen) {
-      if (rafRef.current !== null && typeof window !== 'undefined') {
-        window.cancelAnimationFrame(rafRef.current);
-        rafRef.current = null;
-      }
-      return;
-    }
-
-    updateDropdownStyle();
-
-    const handleViewportChange = () => {
-      scheduleDropdownStyleUpdate();
-    };
-
-    const resizeObserver =
-      typeof ResizeObserver !== 'undefined' && wrapRef.current
-        ? new ResizeObserver(() => {
-            scheduleDropdownStyleUpdate();
-          })
-        : null;
-
-    if (resizeObserver && wrapRef.current) {
-      resizeObserver.observe(wrapRef.current);
-    }
-
-    window.addEventListener('resize', handleViewportChange);
-    window.addEventListener('scroll', handleViewportChange, true);
-
-    return () => {
-      window.removeEventListener('resize', handleViewportChange);
-      window.removeEventListener('scroll', handleViewportChange, true);
-      resizeObserver?.disconnect();
-      if (rafRef.current !== null) {
-        window.cancelAnimationFrame(rafRef.current);
-        rafRef.current = null;
-      }
-    };
-  }, [isOpen, scheduleDropdownStyleUpdate, updateDropdownStyle]);
 
   const selectedIndex = useMemo(
     () => options.findIndex((option) => option.value === value),

@@ -6,7 +6,9 @@ import {
   type KeyboardEvent,
   type ReactNode,
 } from 'react';
+import { createPortal } from 'react-dom';
 import { IconChevronDown } from './icons';
+import { useAnchoredDropdown } from './useAnchoredDropdown';
 
 interface AutocompleteInputProps {
   label?: string;
@@ -42,6 +44,9 @@ export function AutocompleteInput({
   const [isOpen, setIsOpen] = useState(false);
   const [highlightedIndex, setHighlightedIndex] = useState(-1);
   const containerRef = useRef<HTMLDivElement>(null);
+  const anchorRef = useRef<HTMLDivElement>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+  const dropdownStyle = useAnchoredDropdown(anchorRef, isOpen && !disabled, 200);
 
   const normalizedOptions = options.map((opt) =>
     typeof opt === 'string'
@@ -58,9 +63,9 @@ export function AutocompleteInput({
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
-        setIsOpen(false);
-      }
+      const target = event.target as Node;
+      if (containerRef.current?.contains(target) || dropdownRef.current?.contains(target)) return;
+      setIsOpen(false);
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
@@ -108,7 +113,7 @@ export function AutocompleteInput({
   return (
     <div className={`form-group ${wrapperClassName}`} ref={containerRef} style={wrapperStyle}>
       {label && <label htmlFor={id}>{label}</label>}
-      <div style={{ position: 'relative' }}>
+      <div ref={anchorRef} style={{ position: 'relative' }}>
         <input
           id={id}
           className={`input ${className}`.trim()}
@@ -138,20 +143,20 @@ export function AutocompleteInput({
           {rightElement}
           <IconChevronDown size={16} style={{ opacity: 0.5, marginLeft: 4 }} />
         </div>
-
-        {isOpen && filteredOptions.length > 0 && !disabled && (
+      </div>
+      {isOpen &&
+        filteredOptions.length > 0 &&
+        !disabled &&
+        dropdownStyle &&
+        createPortal(
           <div
+            ref={dropdownRef}
             className="autocomplete-dropdown"
             style={{
-              position: 'absolute',
-              top: 'calc(100% + 4px)',
-              left: 0,
-              right: 0,
-              zIndex: 1000,
+              ...dropdownStyle,
               backgroundColor: 'var(--bg-secondary)',
               border: '1px solid var(--border-color)',
               borderRadius: 'var(--radius-md)',
-              maxHeight: 200,
               overflowY: 'auto',
               boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
             }}
@@ -180,9 +185,9 @@ export function AutocompleteInput({
                 )}
               </div>
             ))}
-          </div>
+          </div>,
+          document.body
         )}
-      </div>
       {hint && <div className="hint">{hint}</div>}
       {error && <div className="error-box">{error}</div>}
     </div>
