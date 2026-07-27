@@ -129,6 +129,17 @@ export const getAuthFileStatusMessage = (file: AuthFileItem): string => {
   return String(raw).trim();
 };
 
+export const getAuthFileErrorMessage = (file: AuthFileItem): string => {
+  const raw = file.last_request_error;
+  if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
+    const message = (raw as Record<string, unknown>).message;
+    if (typeof message === 'string' && message.trim()) {
+      return message.trim();
+    }
+  }
+  return getAuthFileStatusMessage(file);
+};
+
 export const hasAuthFileStatusMessage = (file: AuthFileItem): boolean =>
   getAuthFileStatusMessage(file).length > 0;
 

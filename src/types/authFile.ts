@@ -18,6 +18,13 @@ export type AuthFileType =
   | 'empty'
   | 'unknown';
 
+export interface AuthFileRequestError {
+  message?: string;
+  code?: string;
+  status_code?: number;
+  timestamp?: string;
+}
+
 export interface AuthFileItem {
   name: string;
   type?: AuthFileType | string;
@@ -29,6 +36,7 @@ export interface AuthFileItem {
   unavailable?: boolean;
   status?: string;
   statusMessage?: string;
+  last_request_error?: AuthFileRequestError;
   lastRefresh?: string | number;
   modified?: number;
   [key: string]: unknown;

@@ -19,7 +19,7 @@ import type { AuthFileItem } from '@/types';
 import { EMPTY_STATUS_BAR, normalizeAuthIndex, type KeyStats } from '@/utils/usage';
 import {
   formatModified,
-  getAuthFileStatusMessage,
+  getAuthFileErrorMessage,
   getTypeColor,
   getTypeLabel,
   isRuntimeOnlyAuthFile,
@@ -141,7 +141,7 @@ export function AuthFileCard(props: AuthFileCardProps) {
                 : '';
 
   const statusData = (authIndexKey && statusBarCache.get(authIndexKey)) || EMPTY_STATUS_BAR;
-  const rawStatusMessage = getAuthFileStatusMessage(file);
+  const rawStatusMessage = getAuthFileErrorMessage(file);
   const hasStatusWarning =
     Boolean(rawStatusMessage) && !HEALTHY_STATUS_MESSAGES.has(rawStatusMessage.toLowerCase());
 
