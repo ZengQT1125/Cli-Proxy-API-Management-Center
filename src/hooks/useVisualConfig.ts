@@ -52,9 +52,7 @@ function parseApiKeysText(raw: unknown): string {
 
 function parseStringList(raw: unknown): string[] {
   if (!Array.isArray(raw)) return [];
-  return raw
-    .map((item) => (typeof item === 'string' ? item.trim() : ''))
-    .filter(Boolean);
+  return raw.map((item) => (typeof item === 'string' ? item.trim() : '')).filter(Boolean);
 }
 
 const PLUGIN_STORE_AUTH_TYPES: PluginStoreAuthType[] = [
@@ -193,7 +191,7 @@ function buildApiKeyEntries(
 
     const record = asRecord(originalEntry);
     return record
-      ? ({ ...record, ...(replaceApiKeyValue(record, apiKey) as Record<string, unknown>) })
+      ? { ...record, ...(replaceApiKeyValue(record, apiKey) as Record<string, unknown>) }
       : apiKey;
   });
 }
@@ -875,12 +873,6 @@ function getNextDirtyFields(
       nextValues.gptImage2BaseModel === baselineValues.gptImage2BaseModel
     );
   }
-  if (Object.prototype.hasOwnProperty.call(patch, 'codexIdentityConfuse')) {
-    updateDirty(
-      'codexIdentityConfuse',
-      nextValues.codexIdentityConfuse === baselineValues.codexIdentityConfuse
-    );
-  }
   if (Object.prototype.hasOwnProperty.call(patch, 'quotaSwitchProject')) {
     updateDirty(
       'quotaSwitchProject',
@@ -1053,7 +1045,6 @@ export function useVisualConfig() {
       const payload = asRecord(parsed.payload);
       const streaming = asRecord(parsed.streaming);
       const plugins = asRecord(parsed.plugins);
-      const codex = asRecord(parsed.codex);
       const apiKeysStorage = resolveApiKeysStorage(parsed);
 
       const newValues: VisualConfigValues = {
@@ -1099,7 +1090,6 @@ export function useVisualConfig() {
           typeof parsed['gpt-image-2-base-model'] === 'string'
             ? parsed['gpt-image-2-base-model']
             : '',
-        codexIdentityConfuse: Boolean(codex?.['identity-confuse']),
         wsAuth: Boolean(parsed['ws-auth']),
 
         quotaSwitchProject: Boolean(quotaExceeded?.['switch-project'] ?? true),
@@ -1113,9 +1103,7 @@ export function useVisualConfig() {
               ? 'sf'
               : 'round-robin',
         routingSessionAffinity: Boolean(
-          routing?.['session-affinity'] ??
-            routing?.sessionAffinity ??
-            routing?.['sessionAffinity']
+          routing?.['session-affinity'] ?? routing?.sessionAffinity ?? routing?.['sessionAffinity']
         ),
         routingSessionAffinityTTL:
           typeof routing?.['session-affinity-ttl'] === 'string'
@@ -1305,12 +1293,6 @@ export function useVisualConfig() {
           setStringInDoc(doc, ['gpt-image-2-base-model'], values.gptImage2BaseModel);
         }
         if (dirtyFields.has('wsAuth')) setBooleanInDoc(doc, ['ws-auth'], values.wsAuth);
-
-        if (dirtyFields.has('codexIdentityConfuse')) {
-          ensureMapInDoc(doc, ['codex']);
-          setBooleanInDoc(doc, ['codex', 'identity-confuse'], values.codexIdentityConfuse);
-          deleteIfMapEmpty(doc, ['codex']);
-        }
 
         const quotaDirty =
           dirtyFields.has('quotaSwitchProject') ||

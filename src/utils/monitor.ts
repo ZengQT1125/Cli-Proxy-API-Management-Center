@@ -168,10 +168,22 @@ function calculateMonitorModelStatsCost(model: {
 }): number {
   return calculateMonitorAggregateCost(
     model.model,
-    toSafeMonitorNumber(model.input_tokens),
+    normalizeMonitorInputTokens(model.input_tokens, model.cached_tokens, model.cache_write_tokens),
     toSafeMonitorNumber(model.output_tokens),
     toSafeMonitorNumber(model.cached_tokens),
     toSafeMonitorNumber(model.cache_write_tokens)
+  );
+}
+
+function sumMonitorTotalTokens(item: {
+  input_tokens: number;
+  output_tokens: number;
+  cached_tokens: number;
+  cache_write_tokens: number;
+}): number {
+  return (
+    normalizeMonitorInputTokens(item.input_tokens, item.cached_tokens, item.cache_write_tokens) +
+    toSafeMonitorNumber(item.output_tokens)
   );
 }
 
@@ -188,7 +200,7 @@ export function buildMonitorChannelDistributionItems(
 
     return {
       label: provider ? `${provider} (${masked})` : masked,
-      tokens: toSafeMonitorNumber(item.input_tokens) + toSafeMonitorNumber(item.output_tokens),
+      tokens: sumMonitorTotalTokens(item),
       cost: (item.models || []).reduce(
         (sum, model) => sum + calculateMonitorModelStatsCost(model),
         0
@@ -211,8 +223,7 @@ export function buildMonitorModelDistributionItems(
     (item.models || []).forEach((model) => {
       const label = model.model || 'unknown';
       const previous = models.get(label) ?? { label, tokens: 0, cost: 0 };
-      previous.tokens +=
-        toSafeMonitorNumber(model.input_tokens) + toSafeMonitorNumber(model.output_tokens);
+      previous.tokens += sumMonitorTotalTokens(model);
       previous.cost += calculateMonitorModelStatsCost(model);
       models.set(label, previous);
     });
@@ -436,9 +447,9 @@ export function maskSecret(key: string): string {
 export function matchModel(requestedModel: string, configuredModel: string): boolean {
   const req = requestedModel.trim().toLowerCase();
   const conf = configuredModel.trim().toLowerCase();
-  
+
   if (req === conf) return true;
-  
+
   // 支持通配符（例如 gpt-* 或 minimax-*）
   if (conf.includes('*')) {
     const escaped = conf.replace(/[.+^${}()|[\]\\]/g, '\\$&');
@@ -450,12 +461,12 @@ export function matchModel(requestedModel: string, configuredModel: string): boo
       // 忽略正则解析错误
     }
   }
-  
+
   // 支持前缀匹配（例如配置了 minimax，应当匹配 minimax-m2.7）
   if (req.startsWith(conf + '-') || req.startsWith(conf + '/')) {
     return true;
   }
-  
+
   return false;
 }
 
@@ -502,7 +513,7 @@ export function resolveProvider(
   // 如果解析出来的是多个以逗号分隔的提供商名字（由于 API Key 相同）
   if (resolved.includes(',')) {
     const candidates = resolved.split(',');
-    
+
     // 如果有提供 model 且有模型列表，我们匹配拥有该 model 的 provider
     if (model && providerModels) {
       // 1. 优先寻找显式匹配的 candidate
@@ -516,7 +527,7 @@ export function resolveProvider(
           }
         }
       }
-      
+
       // 2. 如果没有显式匹配，寻找空模型列表（或 catch-all 渠道）
       for (const candidate of candidates) {
         const models = providerModels[candidate];
@@ -524,11 +535,11 @@ export function resolveProvider(
           return candidate;
         }
       }
-      
+
       // 3. 都没有匹配，默认返回第一个
       return candidates[0];
     }
-    
+
     // 如果没有提供 model，返回所有候选渠道的合并显示（如 "scnet / generalcompute2api"）
     return candidates.join(' / ');
   }
@@ -537,19 +548,15 @@ export function resolveProvider(
 }
 
 /**
- * 格式化 Gemini OAuth 文件名（去掉后缀、前缀并脱敏）
+ * 格式化 Gemini OAuth 来源（去掉后缀、前缀并脱敏）
  * @param source 来源标识（如 gemini-putthzli.json 或 xxx@gmail.com）
  * @returns 脱敏后的名称（如 g-put*zli）
  */
 function formatGeminiSource(source: string): string {
-  const lower = source.toLowerCase();
-  // 判断是否是 gemini 类型（gemini- 开头或 .json 结尾）
-  const isGeminiType = lower.startsWith('gemini-') || lower.endsWith('.json');
-
   let name = source;
 
-  // 去掉 @gmail.com 后缀
-  if (lower.endsWith('@gmail.com')) {
+  // 去掉 @gmail.com 后缀（裸邮箱形式）
+  if (name.toLowerCase().endsWith('@gmail.com')) {
     name = name.slice(0, -10);
   }
 
@@ -563,26 +570,100 @@ function formatGeminiSource(source: string): string {
     name = name.slice(7);
   }
 
-  // 确定前缀
-  const prefix = isGeminiType ? 'g-' : '';
-
   // 如果太短就直接返回
   if (name.length <= 6) {
-    return `${prefix}${name}`;
+    return `g-${name}`;
   }
 
   // 按 abc*jkh 格式显示（前3个字符 + * + 后3个字符）
-  return `${prefix}${name.slice(0, 3)}*${name.slice(-3)}`;
+  return `g-${name.slice(0, 3)}*${name.slice(-3)}`;
 }
 
 /**
- * 检查是否是 Gemini OAuth 类型的来源
- * @param source 来源标识
- * @returns 是否是 Gemini OAuth 类型
+ * 仅识别真正的 Gemini OAuth 来源。
+ * 不得把所有 .json 凭证文件（codex-*.json / antigravity-*.json 等）当成 Gemini。
  */
 function isGeminiOAuthSource(source: string): boolean {
-  const lower = source.toLowerCase();
-  return lower.endsWith('.json') || lower.endsWith('@gmail.com');
+  const lower = source.toLowerCase().trim();
+  if (!lower) return false;
+
+  // 标准 Gemini 凭证文件前缀
+  if (lower.startsWith('gemini-') || lower.startsWith('gemini_')) {
+    return true;
+  }
+
+  // 历史裸 Gmail 邮箱形式（无文件后缀、无其它 provider 前缀）
+  if (
+    lower.endsWith('@gmail.com') &&
+    !lower.endsWith('.json') &&
+    !lower.includes('/') &&
+    !/^(codex|antigravity|claude|vertex|aistudio|qwen|iflow|xai|kimi)-/.test(lower)
+  ) {
+    return true;
+  }
+
+  return false;
+}
+
+/** 凭证文件名中常见的 provider 前缀（展示时剥离，避免与 map 中的渠道类型重复） */
+const AUTH_FILE_PROVIDER_PREFIXES = [
+  'antigravity-',
+  'codex-',
+  'gemini-',
+  'claude-',
+  'vertex-',
+  'aistudio-',
+  'qwen-',
+  'iflow-',
+  'xai-',
+  'kimi-',
+] as const;
+
+function isAuthFileSource(source: string): boolean {
+  return source.toLowerCase().endsWith('.json');
+}
+
+/**
+ * 从凭证文件名提取完整可读身份（优先邮箱）。
+ * 例：
+ * - antigravity-vokegatuzo@gmail.com.json → vokegatuzo@gmail.com
+ * - xai-blvox1vcv0oo@bq4bwo.cc.cd.json → blvox1vcv0oo@bq4bwo.cc.cd
+ * - codex-32816962-caidaoli+2@gmail.com-team.json → caidaoli+2@gmail.com
+ */
+export function formatAuthFileIdentity(source: string): string {
+  let name = source.trim();
+  if (!name) return '-';
+
+  if (name.toLowerCase().endsWith('.json')) {
+    name = name.slice(0, -5);
+  }
+
+  const lower = name.toLowerCase();
+  for (const prefix of AUTH_FILE_PROVIDER_PREFIXES) {
+    if (lower.startsWith(prefix)) {
+      name = name.slice(prefix.length);
+      break;
+    }
+  }
+
+  // Codex 团队账号常见后缀 -team
+  if (/-team$/i.test(name)) {
+    name = name.replace(/-team$/i, '');
+  }
+
+  // Codex: 32816962-user@gmail.com → 去掉纯数字账号 id 前缀（仅当剩余段仍含邮箱）
+  const withoutNumericId = name.replace(/^\d+-/, '');
+  if (withoutNumericId !== name && /@/.test(withoutNumericId)) {
+    name = withoutNumericId;
+  }
+
+  // 文件名中夹杂其它段时，优先提取邮箱本体
+  const emailMatch = name.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i);
+  if (emailMatch) {
+    return emailMatch[0];
+  }
+
+  return name || source;
 }
 
 /**
@@ -604,7 +685,12 @@ export function formatProviderDisplay(
     return source || '-';
   }
 
-  // 检查是否是 gemini 类型（OAuth 文件或 Gmail 账号）
+  // 凭证文件：直接展示完整身份（筛选下拉/表格共用）
+  if (isAuthFileSource(source)) {
+    return formatAuthFileIdentity(source);
+  }
+
+  // 仅在 map 未命中时，对真正的 Gemini OAuth 使用紧凑 g- 显示
   if (isGeminiOAuthSource(source)) {
     return formatGeminiSource(source);
   }
@@ -634,10 +720,13 @@ export function getProviderDisplayParts(
     return { provider: null, masked: source || '-' };
   }
 
-  // 检查是否是 gemini 类型（OAuth 文件或 Gmail 账号）
+  // 凭证文件：只展示完整邮箱/身份，不带外层类型
+  if (isAuthFileSource(source)) {
+    return { provider: null, masked: formatAuthFileIdentity(source) };
+  }
+
   if (isGeminiOAuthSource(source)) {
-    const formatted = formatGeminiSource(source);
-    return { provider: null, masked: formatted };
+    return { provider: null, masked: formatGeminiSource(source) };
   }
 
   const provider = resolveProvider(source, providerMap, model, providerModels, preferredProvider);
@@ -687,6 +776,28 @@ export function formatCompactTokenNumber(value: number): string {
   }
 
   return Math.round(num).toLocaleString('zh-CN');
+}
+
+/**
+ * 归一化上游 input_tokens 到「总输入」口径。
+ *
+ * 上游 input_tokens 是双口径的，后端 usage_helpers.go 未做统一：
+ * - Gemini/OpenAI 系：promptTokenCount 已包含 cachedContentTokenCount，本身就是总输入。
+ * - Claude 系：input_tokens 只是非缓存部分，cache_read/cache_creation 与之并列
+ *   （后端 TotalTokens = Input + Output + CacheRead + CacheCreation 即为证据）。
+ *
+ * 后端 TokenBreakdown 契约要求 Input.Total = uncached + cacheRead + cacheWrite，
+ * 但该 breakdown 没有持久化也没有通过监控 API 透出，只能在此按数据自证口径：
+ * input < 缓存合计时必然是非缓存口径，补回缓存部分还原总输入。
+ */
+export function normalizeMonitorInputTokens(
+  inputTokens: number,
+  cachedTokens: number,
+  cacheWriteTokens = 0
+): number {
+  const input = toSafeMonitorNumber(inputTokens);
+  const cacheTotal = toSafeMonitorNumber(cachedTokens) + toSafeMonitorNumber(cacheWriteTokens);
+  return input < cacheTotal ? input + cacheTotal : input;
 }
 
 export function computeUncachedInputTokens(

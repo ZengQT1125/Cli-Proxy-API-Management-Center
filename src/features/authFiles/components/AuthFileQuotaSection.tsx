@@ -2,7 +2,12 @@ import { useCallback, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 import { canRunQuotaResetAction } from '@/components/quota/quotaActions';
-import { useNotificationStore, useQuotaStore } from '@/stores';
+import {
+  captureQuotaCacheGeneration,
+  commitIfQuotaCacheCurrent,
+  useNotificationStore,
+  useQuotaStore,
+} from '@/stores';
 import type { AuthFileItem } from '@/types';
 import {
   isRuntimeOnlyAuthFile,
@@ -79,17 +84,22 @@ export function AuthFileQuotaSection(props: AuthFileQuotaSectionProps) {
       confirmText: t('codex_quota.reset_confirm_button'),
       variant: 'primary',
       onConfirm: async () => {
+        const cacheGeneration = captureQuotaCacheGeneration();
         setResettingQuota(true);
         try {
           const data = await resetQuota(file, t);
-          updateQuotaState((prev: Record<string, unknown>) => ({
-            ...prev,
-            [file.name]: config.buildSuccessState(data),
-          }));
-          showNotification(t('codex_quota.reset_success', { name: file.name }), 'success');
+          commitIfQuotaCacheCurrent(cacheGeneration, () => {
+            updateQuotaState((prev: Record<string, unknown>) => ({
+              ...prev,
+              [file.name]: config.buildSuccessState(data),
+            }));
+            showNotification(t('codex_quota.reset_success', { name: file.name }), 'success');
+          });
         } catch (err: unknown) {
           const message = err instanceof Error ? err.message : t('common.unknown_error');
-          showNotification(t('codex_quota.reset_failed', { name: file.name, message }), 'error');
+          commitIfQuotaCacheCurrent(cacheGeneration, () => {
+            showNotification(t('codex_quota.reset_failed', { name: file.name, message }), 'error');
+          });
         } finally {
           setResettingQuota(false);
         }

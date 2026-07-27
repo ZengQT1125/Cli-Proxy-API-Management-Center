@@ -623,6 +623,8 @@
 
 .legendList {
   flex: 1;
+  // 渠道维度的 label 是邮箱等长字符串，min-width: auto 会按 min-content 撑大整列并顶出卡片
+  min-width: 0;
   display: flex;
   flex-direction: column;
   gap: 4px;
@@ -639,6 +641,7 @@
   padding: 4px 8px;
   font-size: 12px;
   color: var(--text-secondary);
+  min-width: 0;
 }
 
 .legendDot {
@@ -1272,7 +1275,9 @@
   width: 100%;
   height: 100%;
   border-radius: 2px;
-  transition: transform 0.15s ease, opacity 0.15s ease;
+  transition:
+    transform 0.15s ease,
+    opacity 0.15s ease;
 
   .healthBlockWrapper:hover &,
   .healthBlockWrapper.healthBlockActive & {

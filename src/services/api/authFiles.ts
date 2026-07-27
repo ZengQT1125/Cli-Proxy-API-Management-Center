@@ -144,6 +144,17 @@ export type AuthFileFieldsPatch = {
   websockets?: boolean;
   using_api?: boolean;
   note?: string;
+  expired?: string;
+};
+
+export type AuthFileFieldsBatchUpdate = {
+  name: string;
+  fields: AuthFileFieldsPatch;
+};
+
+export type AuthFileFieldsBatchResult = {
+  updated: number;
+  failed: Array<{ name: string; error: string }>;
 };
 
 export type CodexCleanupEvent =
@@ -168,38 +179,11 @@ export type AuthCleanupProvider = (typeof AUTH_CLEANUP_SUPPORTED_TYPES)[number];
 export const isAuthCleanupProvider = (value: string): value is AuthCleanupProvider =>
   (AUTH_CLEANUP_SUPPORTED_TYPES as readonly string[]).includes(value);
 
-export const AUTH_FILE_INVALID_JSON_OBJECT_ERROR = 'AUTH_FILE_INVALID_JSON_OBJECT';
-
 const getStatusCode = (err: unknown): number | undefined => {
   if (!err || typeof err !== 'object') return undefined;
   if ('status' in err) return (err as StatusError).status;
   return undefined;
 };
-
-const parseAuthFileJsonObject = (rawText: string): Record<string, unknown> => {
-  const trimmed = rawText.trim();
-
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(trimmed) as unknown;
-  } catch {
-    throw new Error(AUTH_FILE_INVALID_JSON_OBJECT_ERROR);
-  }
-
-  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-    throw new Error(AUTH_FILE_INVALID_JSON_OBJECT_ERROR);
-  }
-
-  return { ...(parsed as Record<string, unknown>) };
-};
-
-const saveAuthFileText = async (name: string, text: string) => {
-  const file = new File([text], name, { type: 'application/json' });
-  await authFilesApi.upload(file);
-};
-
-export const isAuthFileInvalidJsonObjectError = (err: unknown): boolean =>
-  err instanceof Error && err.message === AUTH_FILE_INVALID_JSON_OBJECT_ERROR;
 
 const normalizeOauthExcludedModels = (payload: unknown): Record<string, string[]> => {
   if (!payload || typeof payload !== 'object') return {};
@@ -335,6 +319,12 @@ const downloadAuthFileBlob = async (url: string, fallback: string): Promise<Down
   };
 };
 
+// 手动刷新把 expired 写成「刚过期」，后端调度器据此立即重新走 OAuth 刷新流程
+const MANUAL_REFRESH_EXPIRY_OFFSET_MS = 60_000;
+
+export const buildManualRefreshExpiredAt = (nowMs = Date.now()): string =>
+  new Date(nowMs - MANUAL_REFRESH_EXPIRY_OFFSET_MS).toISOString();
+
 export const authFilesApi = {
   list: () => apiClient.get<AuthFilesResponse>('/auth-files'),
 
@@ -349,6 +339,15 @@ export const authFilesApi = {
 
   patchFields: (name: string, fields: AuthFileFieldsPatch) =>
     apiClient.patch('/auth-files/fields', { name, ...fields }),
+
+  requestManualRefresh: (name: string) =>
+    apiClient.patch('/auth-files/fields', {
+      name,
+      expired: buildManualRefreshExpiredAt(),
+    }),
+
+  patchFieldsBatch: (updates: AuthFileFieldsBatchUpdate[]) =>
+    apiClient.patch<AuthFileFieldsBatchResult>('/auth-files/fields/batch', { updates }),
 
   upload: (file: File, options?: AuthFilesUploadOptions): Promise<AuthFilesUploadResult> =>
     authFilesApi.uploadBatch([file], options),
@@ -396,16 +395,6 @@ export const authFilesApi = {
     const { blob } = await authFilesApi.downloadFile(name);
     return blob.text();
   },
-
-  async downloadJsonObject(name: string): Promise<Record<string, unknown>> {
-    const rawText = await authFilesApi.downloadText(name);
-    return parseAuthFileJsonObject(rawText);
-  },
-
-  saveText: (name: string, text: string) => saveAuthFileText(name, text),
-
-  saveJsonObject: (name: string, json: Record<string, unknown>) =>
-    saveAuthFileText(name, JSON.stringify(json)),
 
   // OAuth 排除模型
   async getOauthExcludedModels(): Promise<Record<string, string[]>> {

@@ -8,7 +8,9 @@ import {
   calculateMonitorAggregateCost,
   calculateMonitorRequestCost,
   computeUncachedInputTokens,
+  formatCacheTokenRatio,
   formatMonitorCost,
+  normalizeMonitorInputTokens,
   formatOutputTokensPerSecond,
   formatMonitorNumber,
   mergeMonitorFilterOptions,
@@ -66,8 +68,47 @@ test('监控输入 token 展示同时扣除缓存读取和缓存写入部分', (
   assert.equal(computeUncachedInputTokens(42504, 36605), 5899);
   assert.equal(computeUncachedInputTokens(1000, 200, 300), 500);
   assert.equal(computeUncachedInputTokens(1000, 0), 1000);
-  assert.equal(computeUncachedInputTokens(1000, 1200), 0);
   assert.equal(computeUncachedInputTokens(Number.NaN, 100), 0);
+});
+
+// 上游 input_tokens 是双口径的：Gemini/OpenAI 系的 promptTokenCount 已含缓存，
+// Claude 系的 input_tokens 只是非缓存部分。两者必须归一到后端 TokenBreakdown.Input
+// 的三段式契约（total = uncached + cacheRead + cacheWrite）后才能算缓存率和费用。
+test('监控输入 token 口径归一：Claude 系非缓存口径按三段式求和还原总输入', () => {
+  // Claude：input_tokens=2 不含缓存，总输入应为 2 + 53409 + 0
+  assert.equal(normalizeMonitorInputTokens(2, 53409, 0), 53411);
+  // Claude 含缓存写入
+  assert.equal(normalizeMonitorInputTokens(2, 53409, 1000), 54411);
+  // Gemini：promptTokenCount=132976 已含缓存，保持原值
+  assert.equal(normalizeMonitorInputTokens(132976, 130587, 0), 132976);
+  // 边界：input 恰等于缓存合计，视为已含缓存口径
+  assert.equal(normalizeMonitorInputTokens(1000, 1000, 0), 1000);
+  // 无缓存时原样返回
+  assert.equal(normalizeMonitorInputTokens(1000, 0, 0), 1000);
+  // 脏值归零
+  assert.equal(normalizeMonitorInputTokens(Number.NaN, 100, 0), 100);
+});
+
+test('监控非缓存输入基于归一化后的总输入计算', () => {
+  // Claude：非缓存输入就是原始的 2，不该被钳成 0
+  assert.equal(computeUncachedInputTokens(normalizeMonitorInputTokens(2, 53409, 0), 53409, 0), 2);
+  // Gemini：从含缓存的总输入里扣除
+  assert.equal(
+    computeUncachedInputTokens(normalizeMonitorInputTokens(132976, 130587, 0), 130587, 0),
+    2389
+  );
+});
+
+test('监控缓存率基于归一化后的总输入，不会超过 100%', () => {
+  // 复现 bug：Claude 请求曾算出 2670450.0%
+  assert.equal(
+    formatCacheTokenRatio(53409, normalizeMonitorInputTokens(2, 53409, 0)).ratio,
+    '100.0%'
+  );
+  assert.equal(
+    formatCacheTokenRatio(130587, normalizeMonitorInputTokens(132976, 130587, 0)).ratio,
+    '98.2%'
+  );
 });
 
 test('监控 Tok/s 按有效输出耗时计算', () => {
@@ -126,8 +167,7 @@ test('models.dev 四家价格快照中的每个模型都参与费用计算', () 
 
 test('xAI context tier 使用生成快照中的阈值和高阶价格', () => {
   const tierEntry = Object.entries(xAIModelPricing).find(
-    ([, pricing]) =>
-      pricing.tierThreshold !== undefined && pricing.inputPriceHigh !== undefined
+    ([, pricing]) => pricing.tierThreshold !== undefined && pricing.inputPriceHigh !== undefined
   );
   assert.ok(tierEntry, 'xAI snapshot must include a context-tier model');
 
@@ -142,18 +182,61 @@ test('已下架模型继续使用明确的历史价格 fallback', () => {
   assert.equal(calculateModelCost('gemini-1.5-flash', 1_000_000, 1_000_000), 0.8);
 });
 
+// models.dev 的 openai 源下架了这些变体，但它们仍出现在真实请求日志里。
+// 前缀 fallback 会把降档变体错配到基础型号（codex-mini 曾按 gpt-5.1 全价高估 5 倍），
+// 因此必须在 legacy 表中固化 models.dev 其他 provider 记录的真实价格。
+test('models.dev 已下架的 OpenAI 变体使用固化的真实价格而非前缀猜测', () => {
+  // 降档变体：真实 0.25/2，前缀 fallback 到 gpt-5.1 会得到 11.25
+  assert.equal(calculateModelCost('gpt-5.1-codex-mini', 1_000_000, 1_000_000), 2.25);
+  // 同档变体：与基础型号价格一致
+  assert.equal(calculateModelCost('gpt-5.1-codex', 1_000_000, 1_000_000), 11.25);
+  assert.equal(calculateModelCost('gpt-5.1-codex-max', 1_000_000, 1_000_000), 11.25);
+  assert.equal(calculateModelCost('gpt-5-codex', 1_000_000, 1_000_000), 11.25);
+  assert.equal(calculateModelCost('gpt-5.2-codex', 1_000_000, 1_000_000), 15.75);
+  assert.equal(calculateModelCost('gpt-5-chat-latest', 1_000_000, 1_000_000), 11.25);
+  assert.equal(calculateModelCost('gpt-5.1-chat-latest', 1_000_000, 1_000_000), 11.25);
+  // models.dev 已完全移除、无任何来源的模型保留上一版快照的真实价格。
+  // 前缀 fallback 曾把它们错配到 o3(2+8=10) 和 o4-mini(1.1+4.4=5.5)。
+  assert.equal(calculateModelCost('o3-deep-research', 1_000_000, 1_000_000), 50);
+  assert.equal(calculateModelCost('o4-mini-deep-research', 1_000_000, 1_000_000), 10);
+});
+
+test('降档后缀不会被前缀 fallback 错配到基础型号', () => {
+  // gpt-5.1-codex-mini 的 cache read 也应按 mini 档，而非 gpt-5.1 档
+  const miniCacheCost = calculateModelCost('gpt-5.1-codex-mini', 1_000_000, 0, 1_000_000);
+  const baseCacheCost = calculateModelCost('gpt-5.1', 1_000_000, 0, 1_000_000);
+  assert.ok(
+    miniCacheCost < baseCacheCost,
+    `mini 档缓存费用 ${miniCacheCost} 必须低于基础档 ${baseCacheCost}`
+  );
+});
+
+// 前缀 fallback 是猜测，对推理档位后缀（-high/-low）安全——同一模型价格相同；
+// 对规格后缀（-mini/-nano/-lite）危险——那是价格差数倍的不同模型。
+// 未知的降档变体宁可返回 0（费用显示为 "-"）也不能静默按基础型号高估。
+test('未知降档变体不被前缀 fallback 按基础型号计费', () => {
+  // 基础型号存在，但 -mini/-nano/-lite 变体未收录：拒绝猜测
+  assert.equal(calculateModelCost('gpt-5.6-mini', 1_000_000, 1_000_000), 0);
+  assert.equal(calculateModelCost('gpt-5.6-nano', 1_000_000, 1_000_000), 0);
+  assert.equal(calculateModelCost('gemini-3.6-flash-lite', 1_000_000, 1_000_000), 0);
+});
+
+test('推理档位后缀仍走前缀 fallback 按基础型号计费', () => {
+  const base = calculateModelCost('gemini-3.6-flash', 1_000_000, 1_000_000);
+  assert.ok(base > 0, 'gemini-3.6-flash 必须已收录');
+  assert.equal(calculateModelCost('gemini-3.6-flash-high', 1_000_000, 1_000_000), base);
+  assert.equal(calculateModelCost('gemini-3.6-flash-low', 1_000_000, 1_000_000), base);
+  // 已显式收录的降档模型不受影响，走精确匹配
+  assert.equal(calculateModelCost('gpt-5.4-mini', 1_000_000, 1_000_000), 5.25);
+});
+
 test('观测到的 Gemini 名称映射到 canonical preview 定价', () => {
   const aliasCost = calculateModelCost('gemini-3.1-pro', 1_000_000, 1_000_000, 0, 0, {
     applyLongContextTier: false,
   });
-  const canonicalCost = calculateModelCost(
-    'gemini-3.1-pro-preview',
-    1_000_000,
-    1_000_000,
-    0,
-    0,
-    { applyLongContextTier: false }
-  );
+  const canonicalCost = calculateModelCost('gemini-3.1-pro-preview', 1_000_000, 1_000_000, 0, 0, {
+    applyLongContextTier: false,
+  });
   assert.equal(aliasCost, canonicalCost);
 });
 
@@ -602,5 +685,47 @@ test('渠道和模型费用分布包含 cache write 成本', () => {
   ]);
   assert.deepEqual(buildMonitorModelDistributionItems(items, 'cost'), [
     { label: 'gpt-5.6', tokens: 300_000, cost: 3.8375 },
+  ]);
+});
+
+test('渠道和模型用量分布对 Claude 非缓存输入口径补回缓存 token 与费用', () => {
+  // Claude 系 input_tokens 不含缓存：总输入应为 10_000 + 190_000
+  const items = [
+    {
+      source: 'claude-key',
+      total_requests: 1,
+      success_requests: 1,
+      failed_requests: 0,
+      input_tokens: 10_000,
+      output_tokens: 100_000,
+      cached_tokens: 150_000,
+      cache_write_tokens: 40_000,
+      success_rate: 100,
+      recent_requests: [],
+      models: [
+        {
+          model: 'claude-sonnet-4-6',
+          requests: 1,
+          success: 1,
+          failed: 0,
+          input_tokens: 10_000,
+          output_tokens: 100_000,
+          cached_tokens: 150_000,
+          cache_write_tokens: 40_000,
+          success_rate: 100,
+          recent_requests: [],
+        },
+      ],
+    },
+  ];
+
+  const expectedCost = calculateModelCost('claude-sonnet-4-6', 200_000, 100_000, 150_000, 40_000, {
+    applyLongContextTier: false,
+  });
+  assert.deepEqual(buildMonitorChannelDistributionItems(items, {}, 'cost'), [
+    { label: 'clau***-key', tokens: 300_000, cost: expectedCost },
+  ]);
+  assert.deepEqual(buildMonitorModelDistributionItems(items, 'cost'), [
+    { label: 'claude-sonnet-4-6', tokens: 300_000, cost: expectedCost },
   ]);
 });

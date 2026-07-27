@@ -95,7 +95,7 @@ export const modelsApi = {
     }
 
     const response = await axios.get(endpoint, {
-      headers: Object.keys(resolvedHeaders).length ? resolvedHeaders : undefined
+      headers: Object.keys(resolvedHeaders).length ? resolvedHeaders : undefined,
     });
     const payload = response.data?.data ?? response.data?.models ?? response.data;
     return normalizeModelList(payload, { dedupe: true });
@@ -123,7 +123,7 @@ export const modelsApi = {
     const result = await apiCallApi.request({
       method: 'GET',
       url: endpoint,
-      header: Object.keys(resolvedHeaders).length ? resolvedHeaders : undefined
+      header: Object.keys(resolvedHeaders).length ? resolvedHeaders : undefined,
     });
 
     if (result.statusCode < 200 || result.statusCode >= 300) {
@@ -155,7 +155,7 @@ export const modelsApi = {
     const result = await apiCallApi.request({
       method: 'GET',
       url: endpoint,
-      header: Object.keys(resolvedHeaders).length ? resolvedHeaders : undefined
+      header: Object.keys(resolvedHeaders).length ? resolvedHeaders : undefined,
     });
 
     if (result.statusCode < 200 || result.statusCode >= 300) {
@@ -164,18 +164,6 @@ export const modelsApi = {
 
     const payload = result.body ?? result.bodyText;
     return normalizeModelList(payload, { dedupe: true });
-  },
-
-  buildV1ModelsEndpoint(baseUrl: string) {
-    return buildV1ModelsEndpoint(baseUrl);
-  },
-
-  buildClaudeModelsEndpoint(baseUrl: string) {
-    return buildClaudeModelsEndpoint(baseUrl);
-  },
-
-  buildGeminiModelsEndpoint(baseUrl: string) {
-    return buildGeminiModelsEndpoint(baseUrl);
   },
 
   /**
@@ -213,7 +201,7 @@ export const modelsApi = {
       const result = await apiCallApi.request({
         method: 'GET',
         url: endpoint,
-        header: Object.keys(resolvedHeaders).length ? resolvedHeaders : undefined
+        header: Object.keys(resolvedHeaders).length ? resolvedHeaders : undefined,
       });
 
       if (result.statusCode < 200 || result.statusCode >= 300) {
@@ -270,7 +258,7 @@ export const modelsApi = {
         const result = await apiCallApi.request({
           method: 'GET',
           url: url.toString(),
-          header: Object.keys(resolvedHeaders).length ? resolvedHeaders : undefined
+          header: Object.keys(resolvedHeaders).length ? resolvedHeaders : undefined,
         });
 
         if (result.statusCode < 200 || result.statusCode >= 300) {
@@ -292,7 +280,9 @@ export const modelsApi = {
         });
 
         const nextToken =
-          isRecord(payload) && typeof payload.nextPageToken === 'string' ? payload.nextPageToken : '';
+          isRecord(payload) && typeof payload.nextPageToken === 'string'
+            ? payload.nextPageToken
+            : '';
         if (!nextToken) {
           break;
         }

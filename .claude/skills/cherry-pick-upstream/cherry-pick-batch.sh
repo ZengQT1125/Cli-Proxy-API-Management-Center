@@ -356,8 +356,6 @@ SKIP_HASHES=(
   0c565c8   # feat(providers): collapse api key and model entries — 计划跳过，依赖本地未采纳的 Provider Workbench 表单架构
   e43df69   # chore: remove unused components and utility functions — 计划跳过，上游 dead-code 判定不覆盖本地 monitor/OAuth 使用方
   9d3e82e   # feat(providers): add quick fill section — 计划跳过，依赖本地未采纳的 Provider Workbench
-  066d25f   # chore: remove orphan files and build config — 计划跳过，会删除本地仍保留的 tsconfig.app.json 等构建文件
-  e36de50   # chore(api): remove dead endpoints and normalizers — 计划跳过，本地 authFiles/client/provider API 已分叉
   3ee7fce   # chore(stores): remove unused state/actions — 计划跳过，上游使用关系不包含本地功能链
   3785d75   # chore(types): remove dead exports — 计划跳过，本地 OAuth/provider/quota 类型依赖已分叉
   3c91d57   # chore(ui): remove dead props/render chains — 计划跳过，依赖 Provider Workbench 且触及本地 OAuth/Quota 页面
@@ -387,6 +385,42 @@ SKIP_HASHES=(
   47f7a9e   # fix(plugins): preserve untouched config fields — 本地 0e286c0，移除已无调用的全量 PUT
   5754ecf   # fix(quota): isolate cache across connections — 本地 824c276，保留 Gemini CLI quota store 与 local 导出
   07562b7   # feat(auth-files): xAI official API toggle — 本地 58216b0，适配本地 JSON 编辑器并保留 Codex cleanup
+  # === 2026-07-14 上游同步评估：动作 C 死代码清理，grep 验证后手工重建 ===
+  066d25f   # chore: remove orphan files and build config — 本地 029310e3（部分应用），排除 src/hooks/index.ts 删除：本地是扩展版本（额外 export useApi/useDebounce/usePagination/useDisableModel），监控中心 ChannelStats.tsx/FailureAnalysis.tsx 依赖 useDisableModel 导出；其余 7 项（App.css/react.svg/index.css/PlaceholderPage.module.scss/types/log.ts/tsconfig.app.json + types/index.ts 的 log 导出）grep 确认本地无引用，安全删除
+  e36de50   # chore(api): remove dead endpoints, response fields and unused normalizers — 本地 0b208e08（部分应用）：plugins.ts 保留 patchConfig（本地无 putConfig，PluginsPage 依赖 patchConfig）；providers.ts 完全跳过（getGeminiKeys/getCodexConfigs/getClaudeConfigs 仍被 DashboardPage 调用）；antigravitySubscription.ts 部分应用（保留 tierId/tierName，删除本地从未实现的 source/currentTier/paidTier 字段）；logs.ts 完全跳过（本地极简实现与上游删除目标无对应关系，架构分叉）
+  # === 2026-07-17 上游同步评估：采纳 auth-files 数据保护修复，跳过 Provider Workbench/Kimi 营销链 ===
+  5d24c6f   # feat(xai): provider API integration — 计划跳过，依赖本地未采纳的 src/features/providers/Provider Workbench 架构
+  b2c8490   # feat(kimi): provider configuration integration — 计划跳过，依赖本地未采纳的 src/features/providers/Provider Workbench 架构
+  7fb5890   # feat(kimi): swap theme icons — 计划跳过，依赖 Kimi Provider Workbench/UI 链且会覆盖本地 OAuth 图标映射
+  e2aa494   # feat(oauth): recommended Kimi provider section — 计划跳过，营销型 OAuth UI，本地 OAuthPage 已独立演进
+  6a8319d   # fix(oauth): featured card gradient — 计划跳过，依赖 e2aa494 的 Kimi featured card
+  339529f   # refactor(oauth): trim recommended provider decorations — 计划跳过，依赖 e2aa494 的 Kimi featured card
+  bb48387   # feat(oauth): Kimi quick sign-up — 计划跳过，营销型 OAuth UI 且依赖 featured card 链
+  72c13c0   # feat(oauth): Kimi sign-up copy/styles — 计划跳过，依赖 bb48387 Kimi quick sign-up
+  36681ce   # feat(oauth): featured icon dark theme — 计划跳过，依赖 e2aa494 的 Kimi featured card
+  f860bc8   # feat(kimi): provider theme surfaces — 计划跳过，依赖本地未采纳的 Provider Workbench/Kimi provider
+  f324135   # fix(kimi): versioned OpenAI base URL — 计划跳过，目标 src/features/providers/kimi.ts 本地不存在
+  5b62fa1   # fix(providers): preserve custom sponsor endpoints — 计划跳过，依赖本地未采纳的 sponsor Provider Workbench
+  4e0af8c   # fix(providers): keep FennoAI OpenAI configs visible — 计划跳过，依赖本地未采纳的 FennoAI Provider Workbench
+  291f15c   # fix(providers): isolate recent usage cache by connection — 计划跳过，目标 useProviderRecentRequests 本地不存在，本地状态条走 monitorApi/useProviderStats
+  e3fa19b   # fix(auth-files): isolate inline quota responses — 本地 5a09223，适配本地拆分的 quota refresh hook，patch-id 漂移
+  abcd70f   # fix(auth-files): block OAuth writes after load failures — 本地 fdb2652，保留 xAI/Kimi/Codex cleanup 定制，patch-id 漂移
+  6a6a22a   # fix(kimi): domestic base URLs/protocol mappings — 计划跳过，目标 src/features/providers/kimi.ts 本地不存在
+  # === 2026-07-25 上游同步评估：采纳额度与错误处理修复，跳过已分叉的 Layout/AuthFiles/Provider UI 链 ===
+  3738c0b   # fix(xai): paid OAuth quota health fallback — 本地 e631aba，保留 Gemini CLI 配额缓存扩展后完整应用，patch-id 漂移
+  f2be3bb   # fix(config): remove codexIdentityConfuse — 本地 dade511，按扁平化 VisualConfig 架构删除 UI/状态/YAML/i18n 链，patch-id 漂移
+  e677a68   # feat(api-error): structured API error parsing — 本地 d959779，保留版本与插件响应头处理，patch-id 漂移
+  aef7ff0   # feat(layout): sidebar layout and navigation badges — 计划跳过，本地 Monitor/插件导航与 layout.scss 已独立分叉
+  4d08135   # feat(auth-files/layout): auth-file count events and accessible tooltips — 计划跳过，依赖 aef7ff0 且计数未适配本地分页 API
+  5590326   # fix(layout): navigation badge color variables — 计划跳过，仅为 aef7ff0/4d08135 侧栏重构配套
+  05631cf   # feat(auth-files): Kimi theme surface icons — 计划跳过，依赖本地未采纳的上游认证文件图标体系
+  7793321   # refactor(auth-files): filter toolbar and display settings — 计划跳过，依赖已跳过的 AuthFilesStatusFilterCard/WebGL UI 链，本地分页筛选已独立演进
+  b24f306   # fix(claudeApi): update provider base URL — 计划跳过，依赖已跳过的 ClaudeAPI Provider Workbench 架构
+  # === 2026-07-27 上游同步评估（v1.19.2 / v1.19.3）：采纳插件卡片布局与凭证手动刷新，清理 Home 检测残留 ===
+  21af576   # refactor(logs): remove Home payload — 本地 logs.ts 无 requestLogHomeIpById，净空
+  cf3c617   # refactor(MainLayout): simplify nav-group — 计划跳过，本地侧边栏用 nav-section 结构，无 navGroups.map，不适用
+  1d7bc0d   # feat(auth-files): manual OAuth credential refresh — 本地 2b0c0cb，AuthFileCard/useAuthFilesData 已分叉改为手工移植（图标改 IconKey，刷新走 loadFiles）
+  0a2be7d   # refactor(runtime): remove Home detection — 本地 58e86d6，LogsPage/version.ts/i18n 部分先前已应用，本次手工清理 constants/client/store/types 残留
 )
 
 is_skip() {

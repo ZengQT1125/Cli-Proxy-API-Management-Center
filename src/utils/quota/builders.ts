@@ -123,7 +123,9 @@ export function buildGeminiCliQuotaBuckets(
       const remainingFraction = preferred
         ? preferred.remainingFraction
         : bucket.fallbackRemainingFraction;
-      const remainingAmount = preferred ? preferred.remainingAmount : bucket.fallbackRemainingAmount;
+      const remainingAmount = preferred
+        ? preferred.remainingAmount
+        : bucket.fallbackRemainingAmount;
       const resetTime = preferred ? preferred.resetTime : bucket.fallbackResetTime;
       return {
         id: bucket.id,
@@ -339,6 +341,23 @@ function toKimiUsageRow(
 export function buildKimiQuotaRows(payload: KimiUsagePayload): KimiQuotaRow[] {
   const rows: KimiQuotaRow[] = [];
 
+  const limits = payload.limits;
+  if (Array.isArray(limits)) {
+    limits.forEach((item, idx) => {
+      const detail = (item.detail && typeof item.detail === 'object' ? item.detail : item) as
+        | KimiUsageDetail
+        | KimiLimitItem;
+      const window = (
+        item.window && typeof item.window === 'object' ? item.window : {}
+      ) as KimiLimitWindow;
+      const fallbackLabel = kimiLimitLabel(item, detail, window, idx);
+      const row = toKimiUsageRow(detail as Record<string, unknown>, fallbackLabel);
+      if (row) {
+        rows.push({ id: `limit-${idx}`, ...row });
+      }
+    });
+  }
+
   const usage = payload.usage;
   if (usage && typeof usage === 'object') {
     const summary = toKimiUsageRow(usage as Record<string, unknown>, {
@@ -347,19 +366,6 @@ export function buildKimiQuotaRows(payload: KimiUsagePayload): KimiQuotaRow[] {
     if (summary) {
       rows.push({ id: 'summary', ...summary });
     }
-  }
-
-  const limits = payload.limits;
-  if (Array.isArray(limits)) {
-    limits.forEach((item, idx) => {
-      const detail = (item.detail && typeof item.detail === 'object' ? item.detail : item) as KimiUsageDetail | KimiLimitItem;
-      const window = (item.window && typeof item.window === 'object' ? item.window : {}) as KimiLimitWindow;
-      const fallbackLabel = kimiLimitLabel(item, detail, window, idx);
-      const row = toKimiUsageRow(detail as Record<string, unknown>, fallbackLabel);
-      if (row) {
-        rows.push({ id: `limit-${idx}`, ...row });
-      }
-    });
   }
 
   return rows;
@@ -397,6 +403,8 @@ function normalizeXaiProductUsage(
 }
 
 const emptyXaiBillingSummary = (): XaiBillingSummary => ({
+  mode: 'billing',
+  source: 'cli-chat-proxy',
   periodType: 'unknown',
   usagePercent: null,
   productUsage: [],
@@ -503,6 +511,8 @@ export function mergeXaiBillingSummaries(
   if (!fallback) return primary;
 
   return {
+    mode: 'billing',
+    source: 'cli-chat-proxy',
     periodType: primary.periodType !== 'unknown' ? primary.periodType : fallback.periodType,
     usagePercent: primary.usagePercent ?? fallback.usagePercent,
     periodStart: primary.periodStart ?? fallback.periodStart,

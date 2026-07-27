@@ -82,7 +82,7 @@ interface SidebarNavDrawerItem {
 type SidebarNavItem = SidebarNavLinkItem | SidebarNavDrawerItem;
 
 const flattenNavItems = (items: SidebarNavItem[]): SidebarNavLinkItem[] =>
-  items.flatMap((item) => item.kind === 'drawer' ? item.children : [item]);
+  items.flatMap((item) => (item.kind === 'drawer' ? item.children : [item]));
 
 function PluginSidebarIcon({ src }: { src: string }) {
   const [failed, setFailed] = useState(false);
@@ -631,8 +631,7 @@ export function MainLayout() {
         if (normalizedPath.startsWith('/ai-providers/codex')) return aiProvidersIndex + 0.2;
         if (normalizedPath.startsWith('/ai-providers/claude')) return aiProvidersIndex + 0.3;
         if (normalizedPath.startsWith('/ai-providers/vertex')) return aiProvidersIndex + 0.4;
-        if (normalizedPath.startsWith('/ai-providers/ampcode')) return aiProvidersIndex + 0.5;
-        if (normalizedPath.startsWith('/ai-providers/openai')) return aiProvidersIndex + 0.6;
+        if (normalizedPath.startsWith('/ai-providers/openai')) return aiProvidersIndex + 0.5;
         return aiProvidersIndex + 0.05;
       }
     }
@@ -999,9 +998,7 @@ export function MainLayout() {
         <aside
           className={`sidebar ${sidebarOpen ? 'open' : ''} ${sidebarCollapsed ? 'collapsed' : ''}`}
         >
-          <div className="nav-section">
-            {navItems.map((item) => renderNavItem(item))}
-          </div>
+          <div className="nav-section">{navItems.map((item) => renderNavItem(item))}</div>
           {pluginNavItems.length > 0 ? (
             <div className="nav-section nav-section-plugin-pages">
               {showSidebarLabels ? (

@@ -5,10 +5,8 @@ import type {
   ModelAlias,
   OpenAIProviderConfig,
   ProviderKeyConfig,
-  AmpcodeConfig,
-  AmpcodeModelMapping,
-  AmpcodeUpstreamApiKeyMapping
 } from '@/types';
+import type { AmpcodeConfig, AmpcodeModelMapping, AmpcodeUpstreamApiKeyMapping } from '@/types/ampcode';
 import type { Config } from '@/types/config';
 import { buildHeaderObject } from '@/utils/headers';
 
@@ -72,7 +70,11 @@ const normalizeHeaders = (headers: unknown) => {
 };
 
 const normalizeExcludedModels = (input: unknown): string[] => {
-  const rawList = Array.isArray(input) ? input : typeof input === 'string' ? input.split(/[\n,]/) : [];
+  const rawList = Array.isArray(input)
+    ? input
+    : typeof input === 'string'
+      ? input.split(/[\n,]/)
+      : [];
   const seen = new Set<string>();
   const normalized: string[] = [];
 
@@ -152,9 +154,9 @@ const normalizeProviderKeyConfig = (item: unknown): ProviderKeyConfig | null => 
   if (models.length) config.models = models;
   const excludedModels = normalizeExcludedModels(
     record?.['excluded-models'] ??
-      record?.excludedModels ??
-      record?.['excluded_models'] ??
-      record?.excluded_models
+    record?.excludedModels ??
+    record?.['excluded_models'] ??
+    record?.excluded_models
   );
   if (excludedModels.length) config.excludedModels = excludedModels;
 
@@ -247,7 +249,7 @@ const normalizeOpenAIProvider = (provider: unknown): OpenAIProviderConfig | null
   const result: OpenAIProviderConfig = {
     name: String(name),
     baseUrl: String(baseUrl),
-    apiKeyEntries
+    apiKeyEntries,
   };
 
   const prefix = normalizePrefix(provider.prefix ?? provider['prefix']);
@@ -474,7 +476,4 @@ export {
   normalizeProviderKeyConfig,
   normalizeHeaders,
   normalizeExcludedModels,
-  normalizeAmpcodeConfig,
-  normalizeAmpcodeModelMappings,
-  normalizeAmpcodeUpstreamApiKeys
 };

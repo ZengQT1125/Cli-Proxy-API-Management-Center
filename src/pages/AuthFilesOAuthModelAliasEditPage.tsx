@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { Card } from '@/components/ui/Card';
@@ -17,7 +17,7 @@ import {
   isOAuthEditorDirty,
 } from '@/features/authFiles/oauthEditorState';
 import type { AuthFileItem, OAuthModelAliasEntry } from '@/types';
-import { generateId } from '@/utils/helpers';
+import { generateId, getErrorMessage } from '@/utils/helpers';
 import styles from './AuthFilesOAuthModelAliasEditPage.module.scss';
 
 type AuthFileModelItem = { id: string; display_name?: string; type?: string; owned_by?: string };
@@ -81,9 +81,14 @@ export function AuthFilesOAuthModelAliasEditPage() {
   const [excluded, setExcluded] = useState<Record<string, string[]>>({});
   const [modelAlias, setModelAlias] = useState<Record<string, OAuthModelAliasEntry[]>>({});
   const [initialLoading, setInitialLoading] = useState(true);
+  const [initialLoadError, setInitialLoadError] = useState<string | null>(null);
+  const [baselineReady, setBaselineReady] = useState(false);
   const [modelAliasUnsupported, setModelAliasUnsupported] = useState(false);
+  const loadRequestRef = useRef(0);
 
-  const [mappings, setMappings] = useState<OAuthModelMappingFormEntry[]>([buildEmptyMappingEntry()]);
+  const [mappings, setMappings] = useState<OAuthModelMappingFormEntry[]>([
+    buildEmptyMappingEntry(),
+  ]);
   const [modelsList, setModelsList] = useState<AuthFileModelItem[]>([]);
   const [modelsLoading, setModelsLoading] = useState(false);
   const [modelsError, setModelsError] = useState<'unsupported' | null>(null);
@@ -194,61 +199,64 @@ export function AuthFilesOAuthModelAliasEditPage() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [handleBack]);
 
-  useEffect(() => {
-    let cancelled = false;
+  const loadInitialData = useCallback(async () => {
+    const requestId = ++loadRequestRef.current;
+    setInitialLoading(true);
+    setInitialLoadError(null);
+    setBaselineReady(false);
+    setModelAliasUnsupported(false);
 
-    const load = async () => {
-      setInitialLoading(true);
-      setModelAliasUnsupported(false);
-      try {
-        const [filesResult, excludedResult, aliasResult] = await Promise.allSettled([
-          authFilesApi.list(),
-          authFilesApi.getOauthExcludedModels(),
-          authFilesApi.getOauthModelAlias(),
-        ]);
+    try {
+      const [filesResult, excludedResult, aliasResult] = await Promise.allSettled([
+        authFilesApi.list(),
+        authFilesApi.getOauthExcludedModels(),
+        authFilesApi.getOauthModelAlias(),
+      ]);
 
-        if (cancelled) return;
+      if (requestId !== loadRequestRef.current) return;
 
-        if (filesResult.status === 'fulfilled') {
-          setFiles(filesResult.value?.files ?? []);
-        }
-
-        if (excludedResult.status === 'fulfilled') {
-          setExcluded(excludedResult.value ?? {});
-        }
-
-        if (aliasResult.status === 'fulfilled') {
-          setModelAlias(aliasResult.value ?? {});
-          return;
-        }
-
-        const err = aliasResult.status === 'rejected' ? aliasResult.reason : null;
-        const status =
-          typeof err === 'object' && err !== null && 'status' in err
-            ? (err as { status?: unknown }).status
-            : undefined;
-
-        if (status === 404) {
-          setModelAliasUnsupported(true);
-          return;
-        }
-      } finally {
-        if (!cancelled) {
-          setInitialLoading(false);
-        }
+      if (filesResult.status === 'fulfilled') {
+        setFiles(filesResult.value?.files ?? []);
       }
-    };
 
-    load().catch(() => {
-      if (!cancelled) {
+      if (excludedResult.status === 'fulfilled') {
+        setExcluded(excludedResult.value ?? {});
+      }
+
+      if (aliasResult.status === 'fulfilled') {
+        setModelAlias(aliasResult.value ?? {});
+        setBaselineReady(true);
+        return;
+      }
+
+      const err = aliasResult.reason;
+      const status =
+        typeof err === 'object' && err !== null && 'status' in err
+          ? (err as { status?: unknown }).status
+          : undefined;
+
+      if (status === 404) {
+        setModelAliasUnsupported(true);
+        return;
+      }
+      setInitialLoadError(getErrorMessage(err));
+    } catch (err: unknown) {
+      if (requestId === loadRequestRef.current) {
+        setInitialLoadError(getErrorMessage(err));
+      }
+    } finally {
+      if (requestId === loadRequestRef.current) {
         setInitialLoading(false);
       }
-    });
-
-    return () => {
-      cancelled = true;
-    };
+    }
   }, []);
+
+  useEffect(() => {
+    void loadInitialData();
+    return () => {
+      loadRequestRef.current += 1;
+    };
+  }, [loadInitialData]);
 
   useEffect(() => {
     if (!resolvedProviderKey) {
@@ -400,7 +408,12 @@ export function AuthFilesOAuthModelAliasEditPage() {
     }
   }, [allowNextNavigation, handleBack, isEditing, mappings, provider, showNotification, t]);
 
-  const canSave = !disableControls && !saving && !modelAliasUnsupported;
+  const canSave =
+    !disableControls &&
+    !saving &&
+    baselineReady &&
+    !modelAliasUnsupported &&
+    initialLoadError === null;
 
   return (
     <SecondaryScreenShell
@@ -425,6 +438,18 @@ export function AuthFilesOAuthModelAliasEditPage() {
             description={t('oauth_model_alias.upgrade_required_desc')}
           />
         </Card>
+      ) : initialLoadError !== null ? (
+        <Card>
+          <EmptyState
+            title={t('notification.refresh_failed')}
+            description={initialLoadError || t('notification.refresh_failed')}
+            action={
+              <Button variant="secondary" size="sm" onClick={() => void loadInitialData()}>
+                {t('common.refresh')}
+              </Button>
+            }
+          />
+        </Card>
       ) : (
         <>
           <Card className={styles.settingsCard}>
@@ -439,7 +464,9 @@ export function AuthFilesOAuthModelAliasEditPage() {
             <div className={styles.settingsSection}>
               <div className={styles.settingsRow}>
                 <div className={styles.settingsInfo}>
-                  <div className={styles.settingsLabel}>{t('oauth_model_alias.provider_label')}</div>
+                  <div className={styles.settingsLabel}>
+                    {t('oauth_model_alias.provider_label')}
+                  </div>
                   <div className={styles.settingsDesc}>{t('oauth_model_alias.provider_hint')}</div>
                 </div>
                 <div className={styles.settingsControl}>

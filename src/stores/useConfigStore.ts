@@ -46,13 +46,12 @@ const SECTION_KEYS: RawConfigSection[] = [
   'force-model-prefix',
   'routing/strategy',
   'api-keys',
-  'ampcode',
   'gemini-api-key',
   'codex-api-key',
   'claude-api-key',
   'vertex-api-key',
   'openai-compatibility',
-  'oauth-excluded-models'
+  'oauth-excluded-models',
 ];
 
 const extractSectionValue = (config: Config | null, section?: RawConfigSection) => {
@@ -82,8 +81,6 @@ const extractSectionValue = (config: Config | null, section?: RawConfigSection) 
       return config.routingStrategy;
     case 'api-keys':
       return config.apiKeys;
-    case 'ampcode':
-      return config.ampcode;
     case 'gemini-api-key':
       return config.geminiApiKeys;
     case 'codex-api-key':
@@ -162,17 +159,21 @@ export const useConfigStore = create<ConfigState>((set, get) => ({
       set({
         config: data,
         cache: newCache,
-        loading: false
+        loading: false,
       });
 
       return section ? extractSectionValue(data, section) : data;
     } catch (error: unknown) {
       const message =
-        error instanceof Error ? error.message : typeof error === 'string' ? error : 'Failed to fetch config';
+        error instanceof Error
+          ? error.message
+          : typeof error === 'string'
+            ? error
+            : 'Failed to fetch config';
       if (requestId === configRequestToken) {
         set({
           error: message || 'Failed to fetch config',
-          loading: false
+          loading: false,
         });
       }
       throw error;
@@ -225,9 +226,6 @@ export const useConfigStore = create<ConfigState>((set, get) => ({
           break;
         case 'api-keys':
           nextConfig.apiKeys = value as Config['apiKeys'];
-          break;
-        case 'ampcode':
-          nextConfig.ampcode = value as Config['ampcode'];
           break;
         case 'gemini-api-key':
           nextConfig.geminiApiKeys = value as Config['geminiApiKeys'];
@@ -293,5 +291,5 @@ export const useConfigStore = create<ConfigState>((set, get) => ({
     if (!cached) return false;
 
     return Date.now() - cached.timestamp < CACHE_EXPIRY_MS;
-  }
+  },
 }));

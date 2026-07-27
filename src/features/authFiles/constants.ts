@@ -5,16 +5,22 @@ import {
   normalizeAuthIndex,
   normalizeUsageSourceId,
   type KeyStatBucket,
-  type KeyStats
+  type KeyStats,
 } from '@/utils/usage';
 
 export type ThemeColors = { bg: string; text: string; border?: string };
 export type TypeColorSet = { light: ThemeColors; dark?: ThemeColors };
 export type ResolvedTheme = 'light' | 'dark';
-export type AuthFileModelItem = { id: string; display_name?: string; type?: string; owned_by?: string };
+export type AuthFileModelItem = {
+  id: string;
+  display_name?: string;
+  type?: string;
+  owned_by?: string;
+};
 
 export { QUOTA_PROVIDER_TYPES } from './quotaDisplay.ts';
 export type { QuotaProviderType } from './quotaDisplay.ts';
+export type OAuthConfigLoadError = 'loading' | 'unsupported' | 'load' | null;
 
 export const MIN_CARD_PAGE_SIZE = 3;
 export const MAX_CARD_PAGE_SIZE = 30;
@@ -28,53 +34,53 @@ export const FALSY_TEXT_VALUES = new Set(['false', '0', 'no', 'n', 'off']);
 export const TYPE_COLORS: Record<string, TypeColorSet> = {
   qwen: {
     light: { bg: '#e8f5e9', text: '#2e7d32' },
-    dark: { bg: '#1b5e20', text: '#81c784' }
+    dark: { bg: '#1b5e20', text: '#81c784' },
   },
   kimi: {
     light: { bg: '#fff4e5', text: '#ad6800' },
-    dark: { bg: '#7c4a03', text: '#ffd591' }
+    dark: { bg: '#7c4a03', text: '#ffd591' },
   },
   gemini: {
     light: { bg: '#e3f2fd', text: '#1565c0' },
-    dark: { bg: '#0d47a1', text: '#64b5f6' }
+    dark: { bg: '#0d47a1', text: '#64b5f6' },
   },
   'gemini-cli': {
     light: { bg: '#e7efff', text: '#1e4fa3' },
-    dark: { bg: '#1c3f73', text: '#a8c7ff' }
+    dark: { bg: '#1c3f73', text: '#a8c7ff' },
   },
   aistudio: {
     light: { bg: '#f0f2f5', text: '#2f343c' },
-    dark: { bg: '#373c42', text: '#cfd3db' }
+    dark: { bg: '#373c42', text: '#cfd3db' },
   },
   claude: {
     light: { bg: '#fce4ec', text: '#c2185b' },
-    dark: { bg: '#880e4f', text: '#f48fb1' }
+    dark: { bg: '#880e4f', text: '#f48fb1' },
   },
   codex: {
     light: { bg: '#fff3e0', text: '#ef6c00' },
-    dark: { bg: '#e65100', text: '#ffb74d' }
+    dark: { bg: '#e65100', text: '#ffb74d' },
   },
   antigravity: {
     light: { bg: '#e0f7fa', text: '#006064' },
-    dark: { bg: '#004d40', text: '#80deea' }
+    dark: { bg: '#004d40', text: '#80deea' },
   },
   // xAI / Grok: graphite brand treatment, distinct from blue and purple providers
   xai: {
     light: { bg: '#f3f4f6', text: '#111827', border: '1px solid #d1d5db' },
-    dark: { bg: '#111827', text: '#f9fafb', border: '1px solid #374151' }
+    dark: { bg: '#111827', text: '#f9fafb', border: '1px solid #374151' },
   },
   iflow: {
     light: { bg: '#f3e5f5', text: '#7b1fa2' },
-    dark: { bg: '#4a148c', text: '#ce93d8' }
+    dark: { bg: '#4a148c', text: '#ce93d8' },
   },
   empty: {
     light: { bg: '#f5f5f5', text: '#616161' },
-    dark: { bg: '#424242', text: '#bdbdbd' }
+    dark: { bg: '#424242', text: '#bdbdbd' },
   },
   unknown: {
     light: { bg: '#f0f0f0', text: '#666666', border: '1px dashed #999999' },
-    dark: { bg: '#3a3a3a', text: '#aaaaaa', border: '1px dashed #666666' }
-  }
+    dark: { bg: '#3a3a3a', text: '#aaaaaa', border: '1px dashed #666666' },
+  },
 };
 
 export const clampCardPageSize = (value: number) =>
@@ -92,11 +98,44 @@ export const resolveQuotaErrorMessage = (
 
 export const normalizeProviderKey = (value: string) => value.trim().toLowerCase();
 
+// 支持手动触发 OAuth 凭证刷新的提供商（与后端 executor 的 expired 元数据判定保持一致）
+export const AUTH_FILE_MANUAL_REFRESH_PROVIDERS = new Set([
+  'antigravity',
+  'claude',
+  'codex',
+  'kimi',
+  'xai',
+]);
+
+export const supportsAuthFileManualRefresh = (provider: unknown): boolean =>
+  AUTH_FILE_MANUAL_REFRESH_PROVIDERS.has(normalizeProviderKey(String(provider ?? '')));
+
+/** 支持 websockets 字段的 provider（目前仅 codex） */
+const AUTH_FILE_WEBSOCKETS_PROVIDERS = new Set(['codex']);
+export const supportsAuthFileWebsockets = (provider: unknown): boolean =>
+  AUTH_FILE_WEBSOCKETS_PROVIDERS.has(normalizeProviderKey(String(provider ?? '')));
+
+/** 支持 using_api 字段的 provider（目前仅 xai） */
+const AUTH_FILE_USING_API_PROVIDERS = new Set(['xai']);
+export const supportsAuthFileUsingApi = (provider: unknown): boolean =>
+  AUTH_FILE_USING_API_PROVIDERS.has(normalizeProviderKey(String(provider ?? '')));
+
 export const getAuthFileStatusMessage = (file: AuthFileItem): string => {
   const raw = file['status_message'] ?? file.statusMessage;
   if (typeof raw === 'string') return raw.trim();
   if (raw == null) return '';
   return String(raw).trim();
+};
+
+export const getAuthFileErrorMessage = (file: AuthFileItem): string => {
+  const raw = file.last_request_error;
+  if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
+    const message = (raw as Record<string, unknown>).message;
+    if (typeof message === 'string' && message.trim()) {
+      return message.trim();
+    }
+  }
+  return getAuthFileStatusMessage(file);
 };
 
 export const hasAuthFileStatusMessage = (file: AuthFileItem): boolean =>

@@ -1147,6 +1147,7 @@
 
 .cardActions {
   display: flex;
+  flex-wrap: wrap;
   gap: $spacing-xs;
   justify-content: flex-end;
   align-items: center;
@@ -1158,13 +1159,13 @@
   display: flex;
   align-items: center;
   flex-shrink: 0;
-  margin-left: $spacing-sm;
+  margin-left: $spacing-xs;
 }
 
 .iconButton:global(.btn.btn-sm) {
-  width: 34px;
-  height: 34px;
-  min-width: 34px;
+  width: 30px;
+  height: 30px;
+  min-width: 30px;
   padding: 0;
   box-sizing: border-box;
   border-radius: 6px;
@@ -1489,6 +1490,59 @@
   &::placeholder {
     color: var(--text-tertiary);
   }
+}
+
+.testModalContent {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-md;
+}
+
+.testAccountSummary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: $spacing-md;
+  padding: $spacing-sm $spacing-md;
+  border: 1px solid var(--border-color);
+  border-radius: $radius-md;
+  background-color: var(--bg-secondary);
+  color: var(--text-secondary);
+  font-size: 13px;
+
+  strong {
+    color: var(--text-primary);
+    font-weight: 600;
+    min-width: 0;
+    overflow-wrap: anywhere;
+    text-align: right;
+  }
+}
+
+.testResult {
+  min-height: 132px;
+  max-height: 300px;
+  overflow: auto;
+  padding: $spacing-md;
+  border: 1px solid var(--border-color);
+  border-radius: $radius-md;
+  background-color: #090c12;
+  color: var(--text-secondary);
+  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+  font-size: 12px;
+  line-height: 1.65;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.testResultSuccess {
+  border-color: var(--success-color);
+  color: var(--success-color);
+}
+
+.testResultError {
+  border-color: var(--danger-color);
+  color: var(--danger-color);
 }
 
 .fieldHint {

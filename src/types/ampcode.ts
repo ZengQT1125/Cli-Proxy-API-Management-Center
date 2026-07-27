@@ -1,5 +1,5 @@
 /**
- * Amp CLI Integration (ampcode) 配置
+ * Ampcode 配置相关类型定义
  */
 
 export interface AmpcodeModelMapping {
@@ -16,6 +16,6 @@ export interface AmpcodeConfig {
   upstreamUrl?: string;
   upstreamApiKey?: string;
   upstreamApiKeys?: AmpcodeUpstreamApiKeyMapping[];
-  modelMappings?: AmpcodeModelMapping[];
   forceModelMappings?: boolean;
+  modelMappings?: AmpcodeModelMapping[];
 }

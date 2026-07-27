@@ -19,6 +19,7 @@ import styles from '@/pages/MonitorPage.module.scss';
 interface FailureAnalysisProps {
   refreshKey: number;
   loading: boolean;
+  enabled?: boolean;
   providerMap: Record<string, string>;
   providerModels: Record<string, Set<string>>;
 }
@@ -47,7 +48,13 @@ interface ChannelFilterOption {
   label: string;
 }
 
-export function FailureAnalysis({ refreshKey, loading, providerMap, providerModels }: FailureAnalysisProps) {
+export function FailureAnalysis({
+  refreshKey,
+  loading,
+  enabled = true,
+  providerMap,
+  providerModels,
+}: FailureAnalysisProps) {
   const { t } = useTranslation();
   const [expandedChannel, setExpandedChannel] = useState<string | null>(null);
   const [filterChannel, setFilterChannel] = useState('');
@@ -57,7 +64,10 @@ export function FailureAnalysis({ refreshKey, loading, providerMap, providerMode
   const [customRange, setCustomRange] = useState<DateRange | undefined>();
 
   const [failureStats, setFailureStats] = useState<FailureStat[]>([]);
-  const [filters, setFilters] = useState<{ channels: ChannelFilterOption[]; models: string[] }>({ channels: [], models: [] });
+  const [filters, setFilters] = useState<{ channels: ChannelFilterOption[]; models: string[] }>({
+    channels: [],
+    models: [],
+  });
   const [analysisLoading, setAnalysisLoading] = useState(false);
 
   const {
@@ -74,42 +84,48 @@ export function FailureAnalysis({ refreshKey, loading, providerMap, providerMode
     setCustomRange(custom);
   }, []);
 
-  const formatChannelLabel = useCallback((source: string): string => {
-    const normalizedSource = source || 'unknown';
-    const { provider, masked } = getProviderDisplayParts(normalizedSource, providerMap, undefined, providerModels);
-    return provider ? `${provider} (${masked})` : masked;
-  }, [providerMap, providerModels]);
+  const formatChannelLabel = useCallback(
+    (source: string): string => {
+      const normalizedSource = source || 'unknown';
+      const { provider, masked } = getProviderDisplayParts(normalizedSource, providerMap);
+      return provider ? `${provider} (${masked})` : masked;
+    },
+    [providerMap]
+  );
 
-  const mapFailureStat = useCallback((item: MonitorFailureStatsItem): FailureStat => {
-    const source = item.source || 'unknown';
-    const { provider, masked } = getProviderDisplayParts(source, providerMap, undefined, providerModels);
-    const displayName = provider ? `${provider} (${masked})` : masked;
+  const mapFailureStat = useCallback(
+    (item: MonitorFailureStatsItem): FailureStat => {
+      const source = item.source || 'unknown';
+      const { provider, masked } = getProviderDisplayParts(source, providerMap);
+      const displayName = provider ? `${provider} (${masked})` : masked;
 
-    const models: Record<string, ModelFailureStat> = {};
-    (item.models || []).forEach((model) => {
-      models[model.model] = {
-        success: model.success || 0,
-        failure: model.failed || 0,
-        total: model.requests || 0,
-        successRate: model.success_rate || 0,
-        recentRequests: (model.recent_requests || []).map((req) => ({
-          failed: !!req.failed,
-          timestamp: req.timestamp ? new Date(req.timestamp).getTime() : 0,
-        })),
-        lastTimestamp: model.last_request_at ? new Date(model.last_request_at).getTime() : 0,
+      const models: Record<string, ModelFailureStat> = {};
+      (item.models || []).forEach((model) => {
+        models[model.model] = {
+          success: model.success || 0,
+          failure: model.failed || 0,
+          total: model.requests || 0,
+          successRate: model.success_rate || 0,
+          recentRequests: (model.recent_requests || []).map((req) => ({
+            failed: !!req.failed,
+            timestamp: req.timestamp ? new Date(req.timestamp).getTime() : 0,
+          })),
+          lastTimestamp: model.last_request_at ? new Date(model.last_request_at).getTime() : 0,
+        };
+      });
+
+      return {
+        source,
+        displayName,
+        providerName: provider,
+        maskedKey: masked,
+        failedCount: item.failed_count || 0,
+        lastFailTime: item.last_failed_at ? new Date(item.last_failed_at).getTime() : 0,
+        models,
       };
-    });
-
-    return {
-      source,
-      displayName,
-      providerName: provider,
-      maskedKey: masked,
-      failedCount: item.failed_count || 0,
-      lastFailTime: item.last_failed_at ? new Date(item.last_failed_at).getTime() : 0,
-      models,
-    };
-  }, [providerMap, providerModels]);
+    },
+    [providerMap]
+  );
 
   const loadFailureAnalysis = useCallback(async () => {
     setAnalysisLoading(true);
@@ -122,29 +138,30 @@ export function FailureAnalysis({ refreshKey, loading, providerMap, providerMode
       });
 
       const rawItems = response.items || [];
-      const mapped = applyMonitorFailureAnalysisModelFilter(rawItems, filterModel).map(mapFailureStat);
+      const mapped = applyMonitorFailureAnalysisModelFilter(rawItems, filterModel).map(
+        mapFailureStat
+      );
       setFailureStats(mapped);
 
-      const sourceSet = new Set<string>(
-        (response.filters?.sources && response.filters.sources.length > 0)
-          ? response.filters.sources
-          : mapped.map((stat) => stat.source)
-      );
+      const sourceSet = new Set<string>(mapped.map((stat) => stat.source));
+      if (filterChannel) sourceSet.add(filterChannel);
       const channels = Array.from(sourceSet)
         .filter((source) => !!source)
         .map((source) => ({ source, label: formatChannelLabel(source) }))
         .sort((a, b) => a.label.localeCompare(b.label, 'zh-Hans-CN'));
 
       const modelSet = new Set<string>(
-        (response.filters?.models && response.filters.models.length > 0)
+        response.filters?.models && response.filters.models.length > 0
           ? response.filters.models
           : rawItems.flatMap((stat) => (stat.models || []).map((model) => model.model))
       );
       const nextFilters = { channels, models: Array.from(modelSet).sort() };
-      setFilters((prev) => mergeMonitorFilterOptions(prev, nextFilters, {
-        channel: filterChannel,
-        model: filterModel,
-      }));
+      setFilters((prev) =>
+        mergeMonitorFilterOptions(prev, nextFilters, {
+          channel: filterChannel,
+          model: filterModel,
+        })
+      );
     } catch (err) {
       console.error('失败分析加载失败：', err);
       setFailureStats([]);
@@ -156,9 +173,9 @@ export function FailureAnalysis({ refreshKey, loading, providerMap, providerMode
 
   useEffect(() => {
     // 与 ChannelStats 一致：等 MonitorPage 完成 provider 加载（refreshKey>=1）再请求。
-    if (refreshKey === 0) return;
+    if (!enabled || refreshKey === 0) return;
     loadFailureAnalysis();
-  }, [loadFailureAnalysis, refreshKey]);
+  }, [enabled, loadFailureAnalysis, refreshKey]);
 
   const filteredStats = useMemo(() => {
     return failureStats.filter((stat) => {
@@ -217,7 +234,9 @@ export function FailureAnalysis({ refreshKey, loading, providerMap, providerMode
           >
             <option value="">{t('monitor.channel.all_channels')}</option>
             {filters.channels.map((channel) => (
-              <option key={channel.source} value={channel.source}>{channel.label}</option>
+              <option key={channel.source} value={channel.source}>
+                {channel.label}
+              </option>
             ))}
           </select>
           <select
@@ -227,13 +246,15 @@ export function FailureAnalysis({ refreshKey, loading, providerMap, providerMode
           >
             <option value="">{t('monitor.channel.all_models')}</option>
             {filters.models.map((model) => (
-              <option key={model} value={model}>{model}</option>
+              <option key={model} value={model}>
+                {model}
+              </option>
             ))}
           </select>
         </div>
 
         <div className={styles.tableWrapper}>
-          {(analysisLoading || loading) ? (
+          {analysisLoading || loading ? (
             <div className={styles.emptyState}>{t('common.loading')}</div>
           ) : filteredStats.length === 0 ? (
             <div className={styles.emptyState}>{t('monitor.failure.no_failures')}</div>
@@ -250,15 +271,14 @@ export function FailureAnalysis({ refreshKey, loading, providerMap, providerMode
               <tbody>
                 {filteredStats.map((stat) => {
                   const topModels = getTopFailedModels(stat.source, stat.models);
-                  const totalFailedModels = Object.values(stat.models).filter((m) => m.failure > 0).length;
+                  const totalFailedModels = Object.values(stat.models).filter(
+                    (m) => m.failure > 0
+                  ).length;
 
                   return (
                     <Fragment key={stat.source}>
-                      <tr
-                        className={styles.expandable}
-                        onClick={() => toggleExpand(stat.source)}
-                      >
-                        <td>
+                      <tr className={styles.expandable} onClick={() => toggleExpand(stat.source)}>
+                        <td title={stat.displayName || stat.source}>
                           {stat.providerName ? (
                             <>
                               <span className={styles.channelName}>{stat.providerName}</span>
@@ -272,8 +292,12 @@ export function FailureAnalysis({ refreshKey, loading, providerMap, providerMode
                         <td>{formatTimestamp(stat.lastFailTime)}</td>
                         <td>
                           {topModels.map(([model, modelStat]) => {
-                            const percent = stat.failedCount > 0 ? ((modelStat.failure / stat.failedCount) * 100).toFixed(0) : '0';
-                            const shortModel = model.length > 16 ? `${model.slice(0, 13)}...` : model;
+                            const percent =
+                              stat.failedCount > 0
+                                ? ((modelStat.failure / stat.failedCount) * 100).toFixed(0)
+                                : '0';
+                            const shortModel =
+                              model.length > 16 ? `${model.slice(0, 13)}...` : model;
                             const disabled = isModelDisabled(stat.source, model);
                             return (
                               <span
@@ -300,7 +324,9 @@ export function FailureAnalysis({ refreshKey, loading, providerMap, providerMode
                                     <th>{t('monitor.channel.model')}</th>
                                     <th>{t('monitor.channel.header_count')}</th>
                                     <th>{t('monitor.channel.header_rate')}</th>
-                                    <th>{t('monitor.channel.success')}/{t('monitor.channel.failed')}</th>
+                                    <th>
+                                      {t('monitor.channel.success')}/{t('monitor.channel.failed')}
+                                    </th>
                                     <th>{t('monitor.channel.header_recent')}</th>
                                     <th>{t('monitor.channel.header_time')}</th>
                                     <th>{t('monitor.logs.header_actions')}</th>
@@ -320,16 +346,28 @@ export function FailureAnalysis({ refreshKey, loading, providerMap, providerMode
                                     .map(([modelName, modelStat]) => {
                                       const disabled = isModelDisabled(stat.source, modelName);
                                       return (
-                                        <tr key={modelName} className={disabled ? styles.modelDisabled : ''}>
+                                        <tr
+                                          key={modelName}
+                                          className={disabled ? styles.modelDisabled : ''}
+                                        >
                                           <td>{modelName}</td>
                                           <td>{modelStat.total.toLocaleString()}</td>
-                                          <td className={getRateClassName(modelStat.successRate, styles)}>
+                                          <td
+                                            className={getRateClassName(
+                                              modelStat.successRate,
+                                              styles
+                                            )}
+                                          >
                                             {modelStat.successRate.toFixed(1)}%
                                           </td>
                                           <td>
-                                            <span className={styles.kpiSuccess}>{modelStat.success}</span>
+                                            <span className={styles.kpiSuccess}>
+                                              {modelStat.success}
+                                            </span>
                                             {' / '}
-                                            <span className={styles.kpiFailure}>{modelStat.failure}</span>
+                                            <span className={styles.kpiFailure}>
+                                              {modelStat.failure}
+                                            </span>
                                           </td>
                                           <td>
                                             <div className={styles.statusBars}>
@@ -344,15 +382,23 @@ export function FailureAnalysis({ refreshKey, loading, providerMap, providerMode
                                           <td>{formatTimestamp(modelStat.lastTimestamp)}</td>
                                           <td>
                                             {disabled ? (
-                                              <span className={styles.disabledLabel}>{t('monitor.logs.removed')}</span>
-                                            ) : stat.source && stat.source !== '-' && stat.source !== 'unknown' ? (
+                                              <span className={styles.disabledLabel}>
+                                                {t('monitor.logs.removed')}
+                                              </span>
+                                            ) : stat.source &&
+                                              stat.source !== '-' &&
+                                              stat.source !== 'unknown' ? (
                                               <button
                                                 className={styles.disableBtn}
-                                                onClick={(e) => handleDisableClick(stat.source, modelName, e)}
+                                                onClick={(e) =>
+                                                  handleDisableClick(stat.source, modelName, e)
+                                                }
                                               >
                                                 {t('monitor.logs.disable')}
                                               </button>
-                                            ) : '-'}
+                                            ) : (
+                                              '-'
+                                            )}
                                           </td>
                                         </tr>
                                       );

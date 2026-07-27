@@ -219,11 +219,11 @@ const getRawSectionList = (rawConfig: unknown, section: string) => {
 const mergeModelPayloads = (raw: unknown, models: unknown) =>
   Array.isArray(models)
     ? mergeKnownRecordList(
-        isRecord(raw) ? raw.models : undefined,
-        models.filter(isRecord),
-        MODEL_ALIAS_FIELDS,
-        modelIdentity
-      )
+      isRecord(raw) ? raw.models : undefined,
+      models.filter(isRecord),
+      MODEL_ALIAS_FIELDS,
+      modelIdentity
+    )
     : undefined;
 
 const mergeProviderKeyPayload = (
@@ -303,21 +303,21 @@ const buildProviderDeleteQuery = (apiKey: string, baseUrl?: string) => {
 const serializeModelAliases = (models?: ModelAlias[]) =>
   Array.isArray(models)
     ? models
-        .map((model) => {
-          if (!model?.name) return null;
-          const payload: Record<string, unknown> = { name: model.name };
-          if (model.alias && model.alias !== model.name) {
-            payload.alias = model.alias;
-          }
-          if (model.priority !== undefined) {
-            payload.priority = model.priority;
-          }
-          if (model.testModel) {
-            payload['test-model'] = model.testModel;
-          }
-          return payload;
-        })
-        .filter(Boolean)
+      .map((model) => {
+        if (!model?.name) return null;
+        const payload: Record<string, unknown> = { name: model.name };
+        if (model.alias && model.alias !== model.name) {
+          payload.alias = model.alias;
+        }
+        if (model.priority !== undefined) {
+          payload.priority = model.priority;
+        }
+        if (model.testModel) {
+          payload['test-model'] = model.testModel;
+        }
+        return payload;
+      })
+      .filter(Boolean)
     : undefined;
 
 const serializeApiKeyEntry = (entry: ApiKeyEntry) => {
@@ -361,13 +361,13 @@ const serializeProviderKey = (config: ProviderKeyConfig) => {
 const serializeVertexModelAliases = (models?: ModelAlias[]) =>
   Array.isArray(models)
     ? models
-        .map((model) => {
-          const name = typeof model?.name === 'string' ? model.name.trim() : '';
-          const alias = typeof model?.alias === 'string' ? model.alias.trim() : '';
-          if (!name || !alias) return null;
-          return { name, alias };
-        })
-        .filter(Boolean)
+      .map((model) => {
+        const name = typeof model?.name === 'string' ? model.name.trim() : '';
+        const alias = typeof model?.alias === 'string' ? model.alias.trim() : '';
+        if (!name || !alias) return null;
+        return { name, alias };
+      })
+      .filter(Boolean)
     : undefined;
 
 const serializeVertexKey = (config: ProviderKeyConfig) => {
@@ -541,5 +541,5 @@ export const providersApi = {
       payload.models = serializeModelAliases(value.models);
     }
     return apiClient.patch('/openai-compatibility', { name, value: payload });
-  }
+  },
 };

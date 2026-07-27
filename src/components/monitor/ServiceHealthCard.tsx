@@ -10,9 +10,9 @@ const BLOCK_COUNT = ROWS * COLS;
 const BLOCK_DURATION_MS = 15 * 60 * 1000;
 
 const COLOR_STOPS = [
-  { r: 239, g: 68, b: 68 },   // #ef4444
-  { r: 250, g: 204, b: 21 },  // #facc15
-  { r: 34, g: 197, b: 94 },   // #22c55e
+  { r: 239, g: 68, b: 68 }, // #ef4444
+  { r: 250, g: 204, b: 21 }, // #facc15
+  { r: 34, g: 197, b: 94 }, // #22c55e
 ] as const;
 
 const TOOLTIP_OFFSET = 8;
@@ -80,39 +80,42 @@ function buildBlockDetails(data: MonitorServiceHealthData): BlockDetail[] {
 
 interface ServiceHealthCardProps {
   preloaded?: MonitorServiceHealthData | null;
-  preloadedReady?: boolean;
+  preloadedOwned?: boolean;
 }
 
-export function ServiceHealthCard({ preloaded, preloadedReady = false }: ServiceHealthCardProps = {}) {
+export function ServiceHealthCard({
+  preloaded,
+  preloadedOwned = false,
+}: ServiceHealthCardProps = {}) {
   const { t } = useTranslation();
-  const [data, setData] = useState<MonitorServiceHealthData | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(false);
+  const [fetchedData, setFetchedData] = useState<MonitorServiceHealthData | null>(null);
+  const [fetchLoading, setFetchLoading] = useState(true);
+  const [fetchError, setFetchError] = useState(false);
   const [activeTooltip, setActiveTooltip] = useState<ActiveTooltipState | null>(null);
   const gridRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (preloadedReady) {
-      setData(preloaded ?? null);
-      setError(!preloaded);
-      setLoading(false);
-      return;
-    }
+    if (preloadedOwned) return;
     let cancelled = false;
-    setLoading(true);
     monitorApi
       .getServiceHealth()
       .then((res) => {
-        if (!cancelled) setData(res);
+        if (!cancelled) setFetchedData(res);
       })
       .catch(() => {
-        if (!cancelled) setError(true);
+        if (!cancelled) setFetchError(true);
       })
       .finally(() => {
-        if (!cancelled) setLoading(false);
+        if (!cancelled) setFetchLoading(false);
       });
-    return () => { cancelled = true; };
-  }, [preloaded, preloadedReady]);
+    return () => {
+      cancelled = true;
+    };
+  }, [preloadedOwned]);
+
+  const data = preloadedOwned ? (preloaded ?? null) : fetchedData;
+  const loading = preloadedOwned ? preloaded === undefined : fetchLoading;
+  const error = preloadedOwned ? preloaded === null : fetchError;
 
   useEffect(() => {
     if (activeTooltip === null) return;
@@ -236,8 +239,12 @@ export function ServiceHealthCard({ preloaded, preloadedReady = false }: Service
         <span className={styles.healthTooltipTime}>{timeRange}</span>
         {total > 0 ? (
           <span className={styles.healthTooltipStats}>
-            <span className={styles.healthTooltipSuccess}>{t('status_bar.success_short')} {detail.success}</span>
-            <span className={styles.healthTooltipFailure}>{t('status_bar.failure_short')} {detail.failure}</span>
+            <span className={styles.healthTooltipSuccess}>
+              {t('status_bar.success_short')} {detail.success}
+            </span>
+            <span className={styles.healthTooltipFailure}>
+              {t('status_bar.failure_short')} {detail.failure}
+            </span>
             <span className={styles.healthTooltipRate}>({(detail.rate * 100).toFixed(1)}%)</span>
           </span>
         ) : (
@@ -267,7 +274,9 @@ export function ServiceHealthCard({ preloaded, preloadedReady = false }: Service
         <div className={styles.healthHeader}>
           <h3 className={styles.healthTitle}>{t('service_health.title')}</h3>
         </div>
-        <div className={styles.healthEmpty}>{t('common.load_failed', { defaultValue: t('common.unknown_error') })}</div>
+        <div className={styles.healthEmpty}>
+          {t('common.load_failed', { defaultValue: t('common.unknown_error') })}
+        </div>
       </div>
     );
   }
@@ -291,7 +300,9 @@ export function ServiceHealthCard({ preloaded, preloadedReady = false }: Service
             <div className={styles.healthGrid} ref={gridRef}>
               {blockDetails.map((detail, idx) => {
                 const isIdle = detail.rate === -1;
-                const blockStyle = isIdle ? undefined : { backgroundColor: rateToColor(detail.rate) };
+                const blockStyle = isIdle
+                  ? undefined
+                  : { backgroundColor: rateToColor(detail.rate) };
                 const isActive = activeTooltip?.idx === idx;
 
                 return (

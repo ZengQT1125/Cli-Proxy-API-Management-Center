@@ -7,6 +7,8 @@ import { ToggleSwitch } from '@/components/ui/ToggleSwitch';
 import {
   IconBot,
   IconDownload,
+  IconKey,
+  IconPlay,
   IconRefreshCw,
   IconSettings,
   IconTrash2,
@@ -17,12 +19,13 @@ import type { AuthFileItem } from '@/types';
 import { EMPTY_STATUS_BAR, normalizeAuthIndex, type KeyStats } from '@/utils/usage';
 import {
   formatModified,
-  getAuthFileStatusMessage,
+  getAuthFileErrorMessage,
   getTypeColor,
   getTypeLabel,
   isRuntimeOnlyAuthFile,
   parsePriorityValue,
   resolveAuthFileStats,
+  supportsAuthFileManualRefresh,
   type QuotaProviderType,
   type ResolvedTheme,
 } from '@/features/authFiles/constants';
@@ -45,11 +48,14 @@ export type AuthFileCardProps = {
   disableControls: boolean;
   deleting: string | null;
   statusUpdating: Record<string, boolean>;
+  manualRefreshing: Record<string, boolean>;
   quotaFilterType: QuotaProviderType | null;
   keyStats: KeyStats;
   statusBarCache: Map<string, AuthFileStatusBarData>;
   onShowModels: (file: AuthFileItem) => void;
+  onTest: (file: AuthFileItem) => void;
   onDownload: (name: string) => void;
+  onManualRefresh: (file: AuthFileItem) => void;
   onOpenPrefixProxyEditor: (file: AuthFileItem) => void;
   onDelete: (name: string) => void;
   onToggleStatus: (file: AuthFileItem, enabled: boolean) => void;
@@ -66,11 +72,14 @@ export function AuthFileCard(props: AuthFileCardProps) {
     disableControls,
     deleting,
     statusUpdating,
+    manualRefreshing,
     quotaFilterType,
     keyStats,
     statusBarCache,
     onShowModels,
+    onTest,
     onDownload,
+    onManualRefresh,
     onOpenPrefixProxyEditor,
     onDelete,
     onToggleStatus,
@@ -82,6 +91,9 @@ export function AuthFileCard(props: AuthFileCardProps) {
   const isRuntimeOnly = isRuntimeOnlyAuthFile(file);
   const isAistudio = (file.type || '').toLowerCase() === 'aistudio';
   const showModelsButton = !isRuntimeOnly || isAistudio;
+  const showManualRefreshButton =
+    !isRuntimeOnly && supportsAuthFileManualRefresh(file.type ?? file.provider);
+  const isManualRefreshing = manualRefreshing[file.name] === true;
   const typeColor = getTypeColor(file.type || 'unknown', resolvedTheme);
   const rawAuthIndex = file['auth_index'] ?? file.authIndex;
   const authIndexKey = normalizeAuthIndex(rawAuthIndex);
@@ -129,11 +141,11 @@ export function AuthFileCard(props: AuthFileCardProps) {
                 : '';
 
   const statusData = (authIndexKey && statusBarCache.get(authIndexKey)) || EMPTY_STATUS_BAR;
-  const rawStatusMessage = getAuthFileStatusMessage(file);
+  const rawStatusMessage = getAuthFileErrorMessage(file);
   const hasStatusWarning =
     Boolean(rawStatusMessage) && !HEALTHY_STATUS_MESSAGES.has(rawStatusMessage.toLowerCase());
 
-  const priorityValue = parsePriorityValue(file.priority ?? file['priority']);
+  const priorityValue = parsePriorityValue(file.priority ?? file['priority']) ?? 0;
   const noteValue = typeof file.note === 'string' ? file.note.trim() : '';
 
   return (
@@ -171,12 +183,10 @@ export function AuthFileCard(props: AuthFileCardProps) {
               <span className={styles.modifiedTime}>
                 {t('auth_files.file_modified')}: {formatModified(file)}
               </span>
-              {priorityValue !== undefined && (
-                <span className={styles.priorityBadge}>
-                  {t('auth_files.priority_display')}:{' '}
-                  <span className={styles.priorityValue}>{priorityValue}</span>
-                </span>
-              )}
+              <span className={styles.priorityBadge}>
+                {t('auth_files.priority_display')}:{' '}
+                <span className={styles.priorityValue}>{priorityValue}</span>
+              </span>
             </div>
           </div>
 
@@ -230,6 +240,17 @@ export function AuthFileCard(props: AuthFileCardProps) {
                 )}
               </Button>
             )}
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => onTest(file)}
+              className={styles.iconButton}
+              title={t('auth_files.test_button')}
+              aria-label={t('auth_files.test_button')}
+              disabled={disableControls}
+            >
+              <IconPlay className={styles.actionIcon} size={16} />
+            </Button>
             {showModelsButton && (
               <Button
                 variant="secondary"
@@ -244,6 +265,28 @@ export function AuthFileCard(props: AuthFileCardProps) {
             )}
             {!isRuntimeOnly && (
               <>
+                {showManualRefreshButton && (
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => onManualRefresh(file)}
+                    className={styles.iconButton}
+                    title={t('auth_files.manual_refresh_button')}
+                    aria-label={t('auth_files.manual_refresh_button')}
+                    disabled={
+                      disableControls ||
+                      file.disabled ||
+                      statusUpdating[file.name] === true ||
+                      isManualRefreshing
+                    }
+                  >
+                    {isManualRefreshing ? (
+                      <LoadingSpinner size={14} />
+                    ) : (
+                      <IconKey className={styles.actionIcon} size={16} />
+                    )}
+                  </Button>
+                )}
                 <Button
                   variant="secondary"
                   size="sm"
@@ -260,7 +303,7 @@ export function AuthFileCard(props: AuthFileCardProps) {
                   onClick={() => onOpenPrefixProxyEditor(file)}
                   className={styles.iconButton}
                   title={t('auth_files.prefix_proxy_button')}
-                  disabled={disableControls}
+                  disabled={disableControls || isManualRefreshing}
                 >
                   <IconSettings className={styles.actionIcon} size={16} />
                 </Button>
@@ -270,7 +313,7 @@ export function AuthFileCard(props: AuthFileCardProps) {
                   onClick={() => onDelete(file.name)}
                   className={styles.iconButton}
                   title={t('auth_files.delete_button')}
-                  disabled={disableControls || deleting === file.name}
+                  disabled={disableControls || deleting === file.name || isManualRefreshing}
                 >
                   {deleting === file.name ? (
                     <LoadingSpinner size={14} />
@@ -285,7 +328,9 @@ export function AuthFileCard(props: AuthFileCardProps) {
                 <ToggleSwitch
                   ariaLabel={t('auth_files.status_toggle_label')}
                   checked={!file.disabled}
-                  disabled={disableControls || statusUpdating[file.name] === true}
+                  disabled={
+                    disableControls || statusUpdating[file.name] === true || isManualRefreshing
+                  }
                   onChange={(value) => onToggleStatus(file, value)}
                 />
               </div>
