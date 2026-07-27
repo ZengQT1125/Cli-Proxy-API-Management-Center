@@ -19,6 +19,7 @@ import {
   buildMonitorTimeRangeParams,
   formatCacheTokenRatio,
   computeUncachedInputTokens,
+  normalizeMonitorInputTokens,
   formatOutputTokensPerSecond,
   calculateMonitorRequestCost,
   formatMonitorCost,
@@ -107,9 +108,13 @@ export function RequestLogs({
       const source = item.source || 'unknown';
       const { provider, masked } = getProviderDisplayParts(source, providerMap);
       const timestampMs = item.timestamp ? new Date(item.timestamp).getTime() : 0;
-      const totalInputTokens = item.input_tokens || 0;
       const cachedTokens = item.cached_tokens || 0;
       const cacheWriteTokens = item.cache_write_tokens || 0;
+      const totalInputTokens = normalizeMonitorInputTokens(
+        item.input_tokens || 0,
+        cachedTokens,
+        cacheWriteTokens
+      );
       const outputTokens = item.output_tokens || 0;
       return {
         id: `${item.timestamp}-${item.api_key}-${item.model}-${index}`,

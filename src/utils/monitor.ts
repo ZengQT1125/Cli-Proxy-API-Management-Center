@@ -168,10 +168,22 @@ function calculateMonitorModelStatsCost(model: {
 }): number {
   return calculateMonitorAggregateCost(
     model.model,
-    toSafeMonitorNumber(model.input_tokens),
+    normalizeMonitorInputTokens(model.input_tokens, model.cached_tokens, model.cache_write_tokens),
     toSafeMonitorNumber(model.output_tokens),
     toSafeMonitorNumber(model.cached_tokens),
     toSafeMonitorNumber(model.cache_write_tokens)
+  );
+}
+
+function sumMonitorTotalTokens(item: {
+  input_tokens: number;
+  output_tokens: number;
+  cached_tokens: number;
+  cache_write_tokens: number;
+}): number {
+  return (
+    normalizeMonitorInputTokens(item.input_tokens, item.cached_tokens, item.cache_write_tokens) +
+    toSafeMonitorNumber(item.output_tokens)
   );
 }
 
@@ -188,7 +200,7 @@ export function buildMonitorChannelDistributionItems(
 
     return {
       label: provider ? `${provider} (${masked})` : masked,
-      tokens: toSafeMonitorNumber(item.input_tokens) + toSafeMonitorNumber(item.output_tokens),
+      tokens: sumMonitorTotalTokens(item),
       cost: (item.models || []).reduce(
         (sum, model) => sum + calculateMonitorModelStatsCost(model),
         0
@@ -211,8 +223,7 @@ export function buildMonitorModelDistributionItems(
     (item.models || []).forEach((model) => {
       const label = model.model || 'unknown';
       const previous = models.get(label) ?? { label, tokens: 0, cost: 0 };
-      previous.tokens +=
-        toSafeMonitorNumber(model.input_tokens) + toSafeMonitorNumber(model.output_tokens);
+      previous.tokens += sumMonitorTotalTokens(model);
       previous.cost += calculateMonitorModelStatsCost(model);
       models.set(label, previous);
     });
@@ -673,6 +684,28 @@ export function formatCompactTokenNumber(value: number): string {
   }
 
   return Math.round(num).toLocaleString('zh-CN');
+}
+
+/**
+ * 归一化上游 input_tokens 到「总输入」口径。
+ *
+ * 上游 input_tokens 是双口径的，后端 usage_helpers.go 未做统一：
+ * - Gemini/OpenAI 系：promptTokenCount 已包含 cachedContentTokenCount，本身就是总输入。
+ * - Claude 系：input_tokens 只是非缓存部分，cache_read/cache_creation 与之并列
+ *   （后端 TotalTokens = Input + Output + CacheRead + CacheCreation 即为证据）。
+ *
+ * 后端 TokenBreakdown 契约要求 Input.Total = uncached + cacheRead + cacheWrite，
+ * 但该 breakdown 没有持久化也没有通过监控 API 透出，只能在此按数据自证口径：
+ * input < 缓存合计时必然是非缓存口径，补回缓存部分还原总输入。
+ */
+export function normalizeMonitorInputTokens(
+  inputTokens: number,
+  cachedTokens: number,
+  cacheWriteTokens = 0
+): number {
+  const input = toSafeMonitorNumber(inputTokens);
+  const cacheTotal = toSafeMonitorNumber(cachedTokens) + toSafeMonitorNumber(cacheWriteTokens);
+  return input < cacheTotal ? input + cacheTotal : input;
 }
 
 export function computeUncachedInputTokens(

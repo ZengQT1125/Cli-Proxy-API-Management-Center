@@ -13,6 +13,7 @@ import {
   getProviderDisplayParts,
   buildMonitorTimeRangeParams,
   computeUncachedInputTokens,
+  normalizeMonitorInputTokens,
   calculateMonitorAggregateCost,
   formatMonitorCost,
   applyMonitorChannelStatsModelFilter,
@@ -123,9 +124,13 @@ export function ChannelStats({
 
       const models: Record<string, ModelStat> = {};
       (item.models || []).forEach((model) => {
-        const totalInputTokens = model.input_tokens || 0;
         const cachedTokens = model.cached_tokens || 0;
         const cacheWriteTokens = model.cache_write_tokens || 0;
+        const totalInputTokens = normalizeMonitorInputTokens(
+          model.input_tokens || 0,
+          cachedTokens,
+          cacheWriteTokens
+        );
         const outputTokens = model.output_tokens || 0;
         models[model.model] = {
           requests: model.requests || 0,
@@ -151,9 +156,13 @@ export function ChannelStats({
           lastTimestamp: model.last_request_at ? new Date(model.last_request_at).getTime() : 0,
         };
       });
-      const totalInputTokens = item.input_tokens || 0;
       const cachedTokens = item.cached_tokens || 0;
       const cacheWriteTokens = item.cache_write_tokens || 0;
+      const totalInputTokens = normalizeMonitorInputTokens(
+        item.input_tokens || 0,
+        cachedTokens,
+        cacheWriteTokens
+      );
 
       return {
         source,
