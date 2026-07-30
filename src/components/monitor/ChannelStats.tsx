@@ -8,10 +8,10 @@ import { DisableModelModal } from './DisableModelModal';
 import {
   formatTimestamp,
   formatCompactTokenNumber,
+  formatRequestKeyDisplay,
   formatCacheTokenRatio,
   getRateClassName,
   getProviderDisplayParts,
-  maskSecret,
   buildMonitorTimeRangeParams,
   computeUncachedInputTokens,
   normalizeMonitorInputTokens,
@@ -345,7 +345,7 @@ export function ChannelStats({
       >
         <div className={styles.logFilters}>
           <select
-            className={styles.logSelect}
+            className={`${styles.logSelect} ${styles.requestKeySelect}`}
             aria-label={t('monitor.logs.header_request_key')}
             value={filterRequestKey}
             onChange={(e) => setFilterRequestKey(e.target.value)}
@@ -353,12 +353,12 @@ export function ChannelStats({
             <option value="">{t('monitor.channel.all_request_keys')}</option>
             {filters.requestKeys.map((requestKey) => (
               <option key={requestKey} value={requestKey}>
-                {maskSecret(requestKey)}
+                {formatRequestKeyDisplay(requestKey)}
               </option>
             ))}
           </select>
           <select
-            className={styles.logSelect}
+            className={`${styles.logSelect} ${styles.channelSelect}`}
             aria-label={t('monitor.channel.header_name')}
             value={filterChannel}
             onChange={(e) => setFilterChannel(e.target.value)}
@@ -384,7 +384,7 @@ export function ChannelStats({
             ))}
           </select>
           <select
-            className={styles.logSelect}
+            className={`${styles.logSelect} ${styles.statusSelect}`}
             aria-label={t('monitor.logs.header_status')}
             value={filterStatus}
             onChange={(e) => setFilterStatus(e.target.value as '' | 'success' | 'failed')}

@@ -450,6 +450,12 @@ export function maskSecret(key: string): string {
   return `${key.slice(0, 4)}***${key.slice(-4)}`;
 }
 
+export function formatRequestKeyDisplay(key: string): string {
+  if (!key) return '-';
+  if (key.length <= 9) return key;
+  return `${key.slice(0, 3)}...${key.slice(-3)}`;
+}
+
 /**
  * 解析渠道名称（返回 provider 名称）
  * @param source 来源标识

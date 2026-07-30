@@ -14,9 +14,9 @@ import {
 } from './requestLogColumns';
 import {
   formatProviderDisplay,
+  formatRequestKeyDisplay,
   formatTimestamp,
   getProviderDisplayParts,
-  maskSecret,
   buildMonitorTimeRangeParams,
   formatCacheTokenRatio,
   computeUncachedInputTokens,
@@ -288,8 +288,8 @@ export function RequestLogs({
       case 'model':
         return <td title={entry.model}>{entry.model}</td>;
       case 'requestKey': {
-        const maskedRequestKey = maskSecret(entry.requestKey);
-        return <td title={maskedRequestKey}>{maskedRequestKey}</td>;
+        const requestKey = entry.requestKey || '-';
+        return <td title={requestKey}>{formatRequestKeyDisplay(requestKey)}</td>;
       }
       case 'source': {
         const sourceLabel = entry.providerName
@@ -457,7 +457,7 @@ export function RequestLogs({
         return (
           <select
             key={filterKey}
-            className={styles.logSelect}
+            className={`${styles.logSelect} ${styles.requestKeySelect}`}
             aria-label={t('monitor.logs.header_request_key')}
             value={filterRequestKey}
             onChange={(e) => {
@@ -468,7 +468,7 @@ export function RequestLogs({
             <option value="">{t('monitor.logs.all_request_keys')}</option>
             {filterOptions.requestKeys.map((requestKey) => (
               <option key={requestKey} value={requestKey}>
-                {maskSecret(requestKey)}
+                {formatRequestKeyDisplay(requestKey)}
               </option>
             ))}
           </select>
@@ -477,7 +477,7 @@ export function RequestLogs({
         return (
           <select
             key={filterKey}
-            className={styles.logSelect}
+            className={`${styles.logSelect} ${styles.channelSelect}`}
             aria-label={t('monitor.logs.header_source')}
             value={filterSource}
             onChange={(e) => {
@@ -497,7 +497,7 @@ export function RequestLogs({
         return (
           <select
             key={filterKey}
-            className={styles.logSelect}
+            className={`${styles.logSelect} ${styles.statusSelect}`}
             aria-label={t('monitor.logs.header_status')}
             value={filterStatus}
             onChange={(e) => {
@@ -556,18 +556,6 @@ export function RequestLogs({
             <option value="60">{t('monitor.logs.refresh_60s')}</option>
           </select>
 
-          <select
-            className={styles.logSelect}
-            value={pageSize}
-            onChange={(e) => {
-              setPageSize(Number(e.target.value));
-              setPage(1);
-            }}
-          >
-            <option value="20">{t('monitor.logs.page_size_20')}</option>
-            <option value="50">{t('monitor.logs.page_size_50')}</option>
-            <option value="100">{t('monitor.logs.page_size_100')}</option>
-          </select>
         </div>
 
         <div className={styles.logTableWrapper}>
@@ -623,6 +611,18 @@ export function RequestLogs({
             <span className={styles.pageBtn}>
               {t('monitor.logs.page_info', { current: page, total: totalPages })}
             </span>
+            <select
+              className={`${styles.logSelect} ${styles.pageSizeSelect}`}
+              value={pageSize}
+              onChange={(e) => {
+                setPageSize(Number(e.target.value));
+                setPage(1);
+              }}
+            >
+              <option value="20">{t('monitor.logs.page_size_20')}</option>
+              <option value="50">{t('monitor.logs.page_size_50')}</option>
+              <option value="100">{t('monitor.logs.page_size_100')}</option>
+            </select>
             <button
               className={styles.pageBtn}
               onClick={() => goToPage(page + 1)}

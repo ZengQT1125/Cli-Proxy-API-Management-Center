@@ -974,6 +974,31 @@
   }
 }
 
+.requestKeySelect {
+  inline-size: clamp(160px, 18vw, 240px);
+  max-inline-size: 100%;
+}
+
+.channelSelect {
+  inline-size: clamp(180px, 22vw, 320px);
+  max-inline-size: 100%;
+}
+
+.statusSelect {
+  inline-size: clamp(130px, 10vw, 180px);
+  max-inline-size: 100%;
+}
+
+.pageSizeSelect {
+  inline-size: auto;
+  min-inline-size: 120px;
+
+  @include mobile {
+    flex: 0 1 auto;
+    min-inline-size: 100px;
+  }
+}
+
 .logLastUpdate {
   margin-left: auto;
   font-size: 12px;
