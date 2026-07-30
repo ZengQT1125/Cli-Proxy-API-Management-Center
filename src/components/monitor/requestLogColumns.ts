@@ -1,5 +1,6 @@
 export const REQUEST_LOG_TABLE_COLUMN_KEYS = [
   'model',
+  'requestKey',
   'source',
   'status',
   'recent',
@@ -13,13 +14,14 @@ export const REQUEST_LOG_TABLE_COLUMN_KEYS = [
   'time',
 ] as const;
 
-export const REQUEST_LOG_FILTER_KEYS = ['model', 'source', 'status'] as const;
+export const REQUEST_LOG_FILTER_KEYS = ['model', 'requestKey', 'source', 'status'] as const;
 
 export type RequestLogTableColumnKey = (typeof REQUEST_LOG_TABLE_COLUMN_KEYS)[number];
 export type RequestLogFilterKey = (typeof REQUEST_LOG_FILTER_KEYS)[number];
 
 export const REQUEST_LOG_TABLE_COLUMN_WIDTHS: Record<RequestLogTableColumnKey, number> = {
   model: 140,
+  requestKey: 140,
   source: 160,
   status: 84,
   recent: 110,
@@ -40,6 +42,7 @@ export const REQUEST_LOG_TABLE_MIN_WIDTH = Object.values(REQUEST_LOG_TABLE_COLUM
 
 export const REQUEST_LOG_TABLE_HEADER_KEYS: Record<RequestLogTableColumnKey, string> = {
   model: 'monitor.logs.header_model',
+  requestKey: 'monitor.logs.header_request_key',
   source: 'monitor.logs.header_source',
   status: 'monitor.logs.header_status',
   recent: 'monitor.logs.header_recent',

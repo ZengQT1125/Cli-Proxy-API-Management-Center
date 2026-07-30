@@ -94,16 +94,11 @@ const toSafeMonitorNumberArrayRecord = (value: unknown): Record<string, number[]
   );
 };
 
-export interface MonitorFilterOptionsState<TChannel = string, TModel = string> {
-  channels: TChannel[];
-  models: TModel[];
-}
-
-export function mergeMonitorFilterOptions<TChannel, TModel>(
-  previous: MonitorFilterOptionsState<TChannel, TModel>,
-  incoming: MonitorFilterOptionsState<TChannel, TModel>,
+export function mergeMonitorFilterOptions<TOptions>(
+  previous: TOptions,
+  incoming: TOptions,
   activeFilters: Record<string, unknown>
-): MonitorFilterOptionsState<TChannel, TModel> {
+): TOptions {
   const hasActiveFilter = Object.values(activeFilters).some(
     (value) => String(value ?? '').trim() !== ''
   );
@@ -447,7 +442,7 @@ export interface DisableState {
  * @param key API Key 字符串
  * @returns 脱敏后的字符串
  */
-function maskSecret(key: string): string {
+export function maskSecret(key: string): string {
   if (!key || key === '-' || key === 'unknown') return key || '-';
   if (key.length <= 8) {
     return `${key.slice(0, 4)}***`;

@@ -11,6 +11,7 @@ import {
   formatCacheTokenRatio,
   getRateClassName,
   getProviderDisplayParts,
+  maskSecret,
   buildMonitorTimeRangeParams,
   computeUncachedInputTokens,
   normalizeMonitorInputTokens,
@@ -79,6 +80,7 @@ export function ChannelStats({
 }: ChannelStatsProps) {
   const { t } = useTranslation();
   const [expandedChannel, setExpandedChannel] = useState<string | null>(null);
+  const [filterRequestKey, setFilterRequestKey] = useState('');
   const [filterChannel, setFilterChannel] = useState('');
   const [filterModel, setFilterModel] = useState('');
   const [filterStatus, setFilterStatus] = useState<'' | 'success' | 'failed'>('');
@@ -87,10 +89,11 @@ export function ChannelStats({
   const [customRange, setCustomRange] = useState<DateRange | undefined>();
 
   const [channelStats, setChannelStats] = useState<ChannelStat[]>([]);
-  const [filters, setFilters] = useState<{ channels: ChannelFilterOption[]; models: string[] }>({
-    channels: [],
-    models: [],
-  });
+  const [filters, setFilters] = useState<{
+    requestKeys: string[];
+    channels: ChannelFilterOption[];
+    models: string[];
+  }>({ requestKeys: [], channels: [], models: [] });
   const [statsLoading, setStatsLoading] = useState(false);
 
   const {
@@ -207,6 +210,7 @@ export function ChannelStats({
     try {
       const response = await monitorApi.getChannelStats({
         limit: 10,
+        api_key: filterRequestKey || undefined,
         source: filterChannel || undefined,
         status: filterStatus || undefined,
         model: filterModel || undefined,
@@ -231,9 +235,13 @@ export function ChannelStats({
           : rawItems.flatMap((stat) => (stat.models || []).map((model) => model.model))
       );
 
-      const nextFilters = { channels, models: Array.from(modelSet).sort() };
+      const requestKeys = Array.from(
+        new Set((response.filters?.apis || []).filter(Boolean))
+      ).sort();
+      const nextFilters = { requestKeys, channels, models: Array.from(modelSet).sort() };
       setFilters((prev) =>
         mergeMonitorFilterOptions(prev, nextFilters, {
+          requestKey: filterRequestKey,
           channel: filterChannel,
           model: filterModel,
           status: filterStatus,
@@ -242,11 +250,12 @@ export function ChannelStats({
     } catch (err) {
       console.error('渠道统计加载失败：', err);
       setChannelStats([]);
-      setFilters({ channels: [], models: [] });
+      setFilters({ requestKeys: [], channels: [], models: [] });
     } finally {
       setStatsLoading(false);
     }
   }, [
+    filterRequestKey,
     filterChannel,
     filterStatus,
     filterModel,
@@ -337,6 +346,20 @@ export function ChannelStats({
         <div className={styles.logFilters}>
           <select
             className={styles.logSelect}
+            aria-label={t('monitor.logs.header_request_key')}
+            value={filterRequestKey}
+            onChange={(e) => setFilterRequestKey(e.target.value)}
+          >
+            <option value="">{t('monitor.channel.all_request_keys')}</option>
+            {filters.requestKeys.map((requestKey) => (
+              <option key={requestKey} value={requestKey}>
+                {maskSecret(requestKey)}
+              </option>
+            ))}
+          </select>
+          <select
+            className={styles.logSelect}
+            aria-label={t('monitor.channel.header_name')}
             value={filterChannel}
             onChange={(e) => setFilterChannel(e.target.value)}
           >
@@ -349,6 +372,7 @@ export function ChannelStats({
           </select>
           <select
             className={styles.logSelect}
+            aria-label={t('monitor.channel.model')}
             value={filterModel}
             onChange={(e) => setFilterModel(e.target.value)}
           >
@@ -361,6 +385,7 @@ export function ChannelStats({
           </select>
           <select
             className={styles.logSelect}
+            aria-label={t('monitor.logs.header_status')}
             value={filterStatus}
             onChange={(e) => setFilterStatus(e.target.value as '' | 'success' | 'failed')}
           >

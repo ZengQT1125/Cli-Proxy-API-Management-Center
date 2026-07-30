@@ -509,12 +509,14 @@ test('失败来源分析按选中模型过滤展开行并重算失败汇总', ()
   assert.equal(raw[0].models.length, 2);
 });
 
-test('监控筛选项在任一渠道或模型筛选激活时保留原始可选集合', () => {
+test('监控筛选项在任一请求 Key、渠道或模型筛选激活时保留原始可选集合', () => {
   const previous = {
+    requestKeys: ['request-key-a', 'request-key-b'],
     channels: ['alpha-key', 'beta-key', 'gamma-key'],
     models: ['gpt-5.5', 'gpt-5.4-mini'],
   };
   const narrowed = {
+    requestKeys: ['request-key-a'],
     channels: ['alpha-key'],
     models: ['gpt-5.5'],
   };
@@ -528,6 +530,11 @@ test('监控筛选项在任一渠道或模型筛选激活时保留原始可选�
 
   assert.deepEqual(
     mergeMonitorFilterOptions(previous, narrowed, { channel: 'alpha-key', model: 'gpt-5.5' }),
+    previous
+  );
+
+  assert.deepEqual(
+    mergeMonitorFilterOptions(previous, narrowed, { requestKey: 'request-key-a' }),
     previous
   );
 

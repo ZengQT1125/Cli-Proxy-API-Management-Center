@@ -16,6 +16,7 @@ import {
   formatProviderDisplay,
   formatTimestamp,
   getProviderDisplayParts,
+  maskSecret,
   buildMonitorTimeRangeParams,
   formatCacheTokenRatio,
   computeUncachedInputTokens,
@@ -39,6 +40,7 @@ interface LogEntry {
   id: string;
   timestamp: string;
   timestampMs: number;
+  requestKey: string;
   model: string;
   source: string;
   providerName: string | null;
@@ -75,6 +77,7 @@ export function RequestLogs({
 }: RequestLogsProps) {
   const { t } = useTranslation();
   const [filterModel, setFilterModel] = useState('');
+  const [filterRequestKey, setFilterRequestKey] = useState('');
   const [filterSource, setFilterSource] = useState('');
   const [filterStatus, setFilterStatus] = useState<'' | 'success' | 'failed'>('');
   const [autoRefresh, setAutoRefresh] = useState(10);
@@ -92,9 +95,11 @@ export function RequestLogs({
   const [total, setTotal] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
   const [filterOptions, setFilterOptions] = useState<{
+    requestKeys: string[];
     models: string[];
     sources: string[];
   }>({
+    requestKeys: [],
     models: [],
     sources: [],
   });
@@ -124,6 +129,7 @@ export function RequestLogs({
         id: `${item.timestamp}-${item.api_key}-${item.model}-${index}`,
         timestamp: item.timestamp,
         timestampMs,
+        requestKey: item.api_key || '',
         model: item.model,
         source,
         providerName: provider,
@@ -165,6 +171,7 @@ export function RequestLogs({
         page,
         page_size: pageSize,
         api_filter: apiFilter || undefined,
+        api_key: filterRequestKey || undefined,
         model: filterModel || undefined,
         source: filterSource || undefined,
         status: filterStatus || undefined,
@@ -180,6 +187,7 @@ export function RequestLogs({
       setTotal(response.total || 0);
       setTotalPages(response.total_pages || 0);
       setFilterOptions((prev) => ({
+        requestKeys: filterRequestKey ? prev.requestKeys : response.filters?.apis || [],
         models: filterModel ? prev.models : response.filters?.models || [],
         // source 候选可能有数万条；只渲染当前页实际出现的渠道，避免巨量 option 卡死页面。
         sources: filterSource ? prev.sources : visibleSources,
@@ -202,6 +210,7 @@ export function RequestLogs({
     pageSize,
     enabled,
     apiFilter,
+    filterRequestKey,
     filterModel,
     filterSource,
     filterStatus,
@@ -278,6 +287,10 @@ export function RequestLogs({
     switch (column) {
       case 'model':
         return <td title={entry.model}>{entry.model}</td>;
+      case 'requestKey': {
+        const maskedRequestKey = maskSecret(entry.requestKey);
+        return <td title={maskedRequestKey}>{maskedRequestKey}</td>;
+      }
       case 'source': {
         const sourceLabel = entry.providerName
           ? `${entry.providerName} (${entry.maskedKey})`
@@ -425,6 +438,7 @@ export function RequestLogs({
           <select
             key={filterKey}
             className={styles.logSelect}
+            aria-label={t('monitor.logs.header_model')}
             value={filterModel}
             onChange={(e) => {
               setFilterModel(e.target.value);
@@ -439,11 +453,32 @@ export function RequestLogs({
             ))}
           </select>
         );
+      case 'requestKey':
+        return (
+          <select
+            key={filterKey}
+            className={styles.logSelect}
+            aria-label={t('monitor.logs.header_request_key')}
+            value={filterRequestKey}
+            onChange={(e) => {
+              setFilterRequestKey(e.target.value);
+              setPage(1);
+            }}
+          >
+            <option value="">{t('monitor.logs.all_request_keys')}</option>
+            {filterOptions.requestKeys.map((requestKey) => (
+              <option key={requestKey} value={requestKey}>
+                {maskSecret(requestKey)}
+              </option>
+            ))}
+          </select>
+        );
       case 'source':
         return (
           <select
             key={filterKey}
             className={styles.logSelect}
+            aria-label={t('monitor.logs.header_source')}
             value={filterSource}
             onChange={(e) => {
               setFilterSource(e.target.value);
@@ -463,6 +498,7 @@ export function RequestLogs({
           <select
             key={filterKey}
             className={styles.logSelect}
+            aria-label={t('monitor.logs.header_status')}
             value={filterStatus}
             onChange={(e) => {
               setFilterStatus(e.target.value as '' | 'success' | 'failed');
