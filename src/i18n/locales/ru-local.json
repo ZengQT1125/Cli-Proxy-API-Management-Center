@@ -24,6 +24,9 @@
     "time": {
       "yesterday": "Вчера",
       "dayBeforeYesterday": "Позавчера"
+    },
+    "logs": {
+      "fast_badge": "FAST"
     }
   }
 }

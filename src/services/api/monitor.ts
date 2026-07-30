@@ -65,6 +65,8 @@ export interface MonitorRequestLogItem {
   total_tokens: number;
   latency_ms: number;
   ttft_ms: number;
+  stream?: boolean;
+  fast?: boolean;
   request_count: number;
   success_rate: number;
   recent_requests: MonitorRecentRequest[];
@@ -106,6 +108,10 @@ export interface MonitorModelStatsItem {
   output_tokens: number;
   cached_tokens: number;
   cache_write_tokens: number;
+  fast_input_tokens?: number;
+  fast_output_tokens?: number;
+  fast_cached_tokens?: number;
+  fast_cache_write_tokens?: number;
   success_rate: number;
   last_request_at?: string;
   recent_requests: MonitorRecentRequest[];

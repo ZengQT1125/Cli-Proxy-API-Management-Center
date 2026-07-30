@@ -158,6 +158,7 @@
       "header_cost": "Cost",
       "header_time": "Time",
       "header_actions": "Actions",
+      "fast_badge": "FAST",
       "showing": "Showing {{start}}-{{end}} of {{total}}",
       "page_info": "Page {{current}}/{{total}}",
       "first_page": "First",

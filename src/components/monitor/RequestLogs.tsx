@@ -52,6 +52,8 @@ interface LogEntry {
   cost: number;
   latencyMs: number;
   ttftMs: number;
+  stream: boolean | null;
+  fast: boolean | null;
   recentRequests: { failed: boolean; timestamp: number }[];
 }
 
@@ -116,6 +118,8 @@ export function RequestLogs({
         cacheWriteTokens
       );
       const outputTokens = item.output_tokens || 0;
+      const fast = typeof item.fast === 'boolean' ? item.fast : null;
+      const stream = typeof item.stream === 'boolean' ? item.stream : null;
       return {
         id: `${item.timestamp}-${item.api_key}-${item.model}-${index}`,
         timestamp: item.timestamp,
@@ -135,10 +139,13 @@ export function RequestLogs({
           totalInputTokens,
           outputTokens,
           cachedTokens,
-          cacheWriteTokens
+          cacheWriteTokens,
+          fast === true
         ),
         latencyMs: item.latency_ms || 0,
         ttftMs: item.ttft_ms || 0,
+        stream,
+        fast,
         recentRequests: (item.recent_requests || []).map((req) => ({
           failed: !!req.failed,
           timestamp: req.timestamp ? new Date(req.timestamp).getTime() : 0,
@@ -291,10 +298,15 @@ export function RequestLogs({
       case 'status':
         return (
           <td>
-            <span
-              className={`${styles.statusPill} ${entry.failed ? styles.failed : styles.success}`}
-            >
-              {entry.failed ? t('monitor.logs.failed') : t('monitor.logs.success')}
+            <span className={styles.statusWithBadge}>
+              <span
+                className={`${styles.statusPill} ${entry.failed ? styles.failed : styles.success}`}
+              >
+                {entry.failed ? t('monitor.logs.failed') : t('monitor.logs.success')}
+              </span>
+              {entry.fast === true && (
+                <span className={styles.fastStatusBadge}>{t('monitor.logs.fast_badge')}</span>
+              )}
             </span>
           </td>
         );
@@ -315,11 +327,15 @@ export function RequestLogs({
         const ttft = entry.ttftMs > 0 ? (entry.ttftMs / 1000).toFixed(2) : '-';
         const latency = entry.latencyMs > 0 ? (entry.latencyMs / 1000).toFixed(2) : '-';
         const titleParts: string[] = [];
-        if (entry.ttftMs > 0) titleParts.push(`TTFT: ${formatNumber(entry.ttftMs)}ms`);
+        if (entry.stream && entry.ttftMs > 0) {
+          titleParts.push(`TTFT: ${formatNumber(entry.ttftMs)}ms`);
+        }
         if (entry.latencyMs > 0) titleParts.push(`Latency: ${formatNumber(entry.latencyMs)}ms`);
         return (
           <td className={styles.tokenCell} title={titleParts.join(' / ') || '-'}>
-            {ttft === '-' && latency === '-' ? (
+            {entry.stream !== true ? (
+              latency
+            ) : ttft === '-' && latency === '-' ? (
               '-'
             ) : (
               <>
@@ -332,7 +348,12 @@ export function RequestLogs({
         );
       }
       case 'toks': {
-        const toks = formatOutputTokensPerSecond(entry.outputTokens, entry.latencyMs, entry.ttftMs);
+        const toks = formatOutputTokensPerSecond(
+          entry.outputTokens,
+          entry.latencyMs,
+          entry.ttftMs,
+          entry.stream === true
+        );
         return <td className={`${styles.tokenCell} ${styles.numberCell}`}>{toks}</td>;
       }
       case 'input':

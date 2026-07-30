@@ -158,6 +158,7 @@
       "header_cost": "费用",
       "header_time": "时间",
       "header_actions": "操作",
+      "fast_badge": "FAST",
       "showing": "显示 {{start}}-{{end}} 条，共 {{total}} 条",
       "page_info": "第 {{current}}/{{total}} 页",
       "first_page": "首页",

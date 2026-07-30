@@ -126,6 +126,8 @@ export function ChannelStats({
       (item.models || []).forEach((model) => {
         const cachedTokens = model.cached_tokens || 0;
         const cacheWriteTokens = model.cache_write_tokens || 0;
+        const fastCachedTokens = model.fast_cached_tokens || 0;
+        const fastCacheWriteTokens = model.fast_cache_write_tokens || 0;
         const totalInputTokens = normalizeMonitorInputTokens(
           model.input_tokens || 0,
           cachedTokens,
@@ -146,7 +148,17 @@ export function ChannelStats({
             totalInputTokens,
             outputTokens,
             cachedTokens,
-            cacheWriteTokens
+            cacheWriteTokens,
+            {
+              inputTokens: normalizeMonitorInputTokens(
+                model.fast_input_tokens || 0,
+                fastCachedTokens,
+                fastCacheWriteTokens
+              ),
+              outputTokens: model.fast_output_tokens || 0,
+              cachedTokens: fastCachedTokens,
+              cacheWriteTokens: fastCacheWriteTokens,
+            }
           ),
           successRate: model.success_rate || 0,
           recentRequests: (model.recent_requests || []).map((req) => ({

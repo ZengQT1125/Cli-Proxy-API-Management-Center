@@ -165,13 +165,30 @@ function calculateMonitorModelStatsCost(model: {
   output_tokens: number;
   cached_tokens: number;
   cache_write_tokens: number;
+  fast_input_tokens?: number;
+  fast_output_tokens?: number;
+  fast_cached_tokens?: number;
+  fast_cache_write_tokens?: number;
 }): number {
+  const fastCachedTokens = toSafeMonitorNumber(model.fast_cached_tokens);
+  const fastCacheWriteTokens = toSafeMonitorNumber(model.fast_cache_write_tokens);
+
   return calculateMonitorAggregateCost(
     model.model,
     normalizeMonitorInputTokens(model.input_tokens, model.cached_tokens, model.cache_write_tokens),
     toSafeMonitorNumber(model.output_tokens),
     toSafeMonitorNumber(model.cached_tokens),
-    toSafeMonitorNumber(model.cache_write_tokens)
+    toSafeMonitorNumber(model.cache_write_tokens),
+    {
+      inputTokens: normalizeMonitorInputTokens(
+        toSafeMonitorNumber(model.fast_input_tokens),
+        fastCachedTokens,
+        fastCacheWriteTokens
+      ),
+      outputTokens: toSafeMonitorNumber(model.fast_output_tokens),
+      cachedTokens: fastCachedTokens,
+      cacheWriteTokens: fastCacheWriteTokens,
+    }
   );
 }
 
@@ -724,9 +741,10 @@ export function calculateMonitorRequestCost(
   inputTokens: number,
   outputTokens: number,
   cachedTokens: number,
-  cacheWriteTokens = 0
+  cacheWriteTokens = 0,
+  fast = false
 ): number {
-  return calculateModelCost(
+  const standardCost = calculateModelCost(
     model,
     toSafeMonitorNumber(inputTokens),
     toSafeMonitorNumber(outputTokens),
@@ -734,6 +752,29 @@ export function calculateMonitorRequestCost(
     toSafeMonitorNumber(cacheWriteTokens),
     { applyLongContextTier: true }
   );
+
+  return standardCost * (fast ? getMonitorFastCostMultiplier(model) : 1);
+}
+
+export interface MonitorCostTokenUsage {
+  inputTokens: number;
+  outputTokens: number;
+  cachedTokens: number;
+  cacheWriteTokens: number;
+}
+
+function getMonitorFastCostMultiplier(model: string): number {
+  const normalizedModel = String(model ?? '')
+    .trim()
+    .toLowerCase();
+
+  if (/^gpt-5\.(?:5|6)(?:-|$)/.test(normalizedModel)) {
+    return 2.5;
+  }
+  if (/^gpt-5\.4(?:-|$)/.test(normalizedModel)) {
+    return 2;
+  }
+  return 1;
 }
 
 export function calculateMonitorAggregateCost(
@@ -741,9 +782,10 @@ export function calculateMonitorAggregateCost(
   inputTokens: number,
   outputTokens: number,
   cachedTokens: number,
-  cacheWriteTokens = 0
+  cacheWriteTokens = 0,
+  fastTokens?: MonitorCostTokenUsage
 ): number {
-  return calculateModelCost(
+  const standardCost = calculateModelCost(
     model,
     toSafeMonitorNumber(inputTokens),
     toSafeMonitorNumber(outputTokens),
@@ -751,6 +793,22 @@ export function calculateMonitorAggregateCost(
     toSafeMonitorNumber(cacheWriteTokens),
     { applyLongContextTier: false }
   );
+  const multiplier = getMonitorFastCostMultiplier(model);
+
+  if (!fastTokens || multiplier === 1) {
+    return standardCost;
+  }
+
+  const fastStandardCost = calculateModelCost(
+    model,
+    toSafeMonitorNumber(fastTokens.inputTokens),
+    toSafeMonitorNumber(fastTokens.outputTokens),
+    toSafeMonitorNumber(fastTokens.cachedTokens),
+    toSafeMonitorNumber(fastTokens.cacheWriteTokens),
+    { applyLongContextTier: false }
+  );
+
+  return standardCost + fastStandardCost * (multiplier - 1);
 }
 
 export function formatMonitorCost(cost: number): string {
@@ -760,7 +818,11 @@ export function formatMonitorCost(cost: number): string {
 
 const MIN_STREAM_OUTPUT_DURATION_MS = 1000;
 
-export function computeEffectiveOutputDurationMs(latencyMs: number, ttftMs: number): number {
+export function computeEffectiveOutputDurationMs(
+  latencyMs: number,
+  ttftMs: number,
+  stream: boolean
+): number {
   const latency = toSafeMonitorNumber(latencyMs);
   const ttft = toSafeMonitorNumber(ttftMs);
   const streamOutputDuration = latency - ttft;
@@ -769,7 +831,7 @@ export function computeEffectiveOutputDurationMs(latencyMs: number, ttftMs: numb
     return 0;
   }
 
-  return ttft > 0 && streamOutputDuration >= MIN_STREAM_OUTPUT_DURATION_MS
+  return stream && ttft > 0 && streamOutputDuration >= MIN_STREAM_OUTPUT_DURATION_MS
     ? streamOutputDuration
     : latency;
 }
@@ -777,10 +839,11 @@ export function computeEffectiveOutputDurationMs(latencyMs: number, ttftMs: numb
 export function formatOutputTokensPerSecond(
   outputTokens: number,
   latencyMs: number,
-  ttftMs: number
+  ttftMs: number,
+  stream: boolean
 ): string {
   const output = toSafeMonitorNumber(outputTokens);
-  const durationMs = computeEffectiveOutputDurationMs(latencyMs, ttftMs);
+  const durationMs = computeEffectiveOutputDurationMs(latencyMs, ttftMs, stream);
 
   if (output <= 0 || durationMs <= 0) {
     return '-';
