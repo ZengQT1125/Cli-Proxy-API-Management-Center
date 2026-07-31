@@ -984,6 +984,13 @@
   max-inline-size: 100%;
 }
 
+.searchableLogSelect {
+  @include mobile {
+    min-inline-size: 0;
+    flex: 1 1 calc(50% - 4px);
+  }
+}
+
 .statusSelect {
   inline-size: clamp(130px, 10vw, 180px);
   max-inline-size: 100%;
@@ -1035,7 +1042,8 @@
   border-radius: $radius-md;
   cursor: pointer;
   font-size: 13px;
-  transition: all 0.2s;
+  transition-property: background-color, border-color, color, opacity;
+  transition-duration: 0.2s;
 
   @include mobile {
     padding: 5px 10px;
@@ -1058,6 +1066,13 @@
     opacity: 0.4;
     cursor: not-allowed;
   }
+}
+
+.paginationTotal {
+  margin-top: 8px;
+  color: var(--text-tertiary);
+  font-size: 12px;
+  text-align: center;
 }
 
 // 空状态

@@ -21,6 +21,12 @@ interface SelectProps {
   ariaDescribedBy?: string;
   fullWidth?: boolean;
   id?: string;
+  searchable?: boolean;
+  searchPlaceholder?: string;
+  emptyMessage?: string;
+  moreResultsMessage?: string;
+  maxVisibleOptions?: number;
+  triggerClassName?: string;
 }
 
 export function Select({
@@ -35,62 +41,108 @@ export function Select({
   ariaDescribedBy,
   fullWidth = true,
   id,
+  searchable = false,
+  searchPlaceholder,
+  emptyMessage,
+  moreResultsMessage,
+  maxVisibleOptions = 100,
+  triggerClassName,
 }: SelectProps) {
   const generatedId = useId();
   const selectId = id ?? generatedId;
   const listboxId = `${selectId}-listbox`;
   const [open, setOpen] = useState(false);
   const [highlightedIndex, setHighlightedIndex] = useState(-1);
+  const [searchQuery, setSearchQuery] = useState('');
   const wrapRef = useRef<HTMLDivElement | null>(null);
   const dropdownRef = useRef<HTMLDivElement | null>(null);
+  const triggerRef = useRef<HTMLButtonElement | null>(null);
+  const searchInputRef = useRef<HTMLInputElement | null>(null);
   const isOpen = open && !disabled;
   const dropdownStyle = useAnchoredDropdown(wrapRef, isOpen);
+
+  const closeDropdown = useCallback(() => {
+    setOpen(false);
+    setSearchQuery('');
+  }, []);
+
+  const openDropdown = useCallback(() => {
+    setSearchQuery('');
+    setHighlightedIndex(-1);
+    setOpen(true);
+  }, []);
 
   useEffect(() => {
     if (!open || disabled) return;
     const handleClickOutside = (event: MouseEvent) => {
       const target = event.target as Node;
       if (wrapRef.current?.contains(target) || dropdownRef.current?.contains(target)) return;
-      setOpen(false);
+      closeDropdown();
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [disabled, open]);
+  }, [closeDropdown, disabled, open]);
+
+  useEffect(() => {
+    if (!isOpen || !searchable) return;
+    searchInputRef.current?.focus();
+  }, [isOpen, searchable]);
+
+  const matchingOptions = useMemo(() => {
+    if (!searchable) return options;
+    const query = searchQuery.trim().toLocaleLowerCase();
+    if (!query) return options;
+    return options.filter(
+      (option) =>
+        option.label.toLocaleLowerCase().includes(query) ||
+        option.value.toLocaleLowerCase().includes(query)
+    );
+  }, [options, searchQuery, searchable]);
+
+  const visibleOptions = useMemo(() => {
+    if (!searchable) return matchingOptions;
+    return matchingOptions.slice(0, Math.max(1, maxVisibleOptions));
+  }, [matchingOptions, maxVisibleOptions, searchable]);
 
   const selectedIndex = useMemo(
-    () => options.findIndex((option) => option.value === value),
-    [options, value]
+    () => visibleOptions.findIndex((option) => option.value === value),
+    [value, visibleOptions]
   );
   const resolvedHighlightedIndex =
     highlightedIndex >= 0
       ? highlightedIndex
       : selectedIndex >= 0
         ? selectedIndex
-        : options.length > 0
+        : visibleOptions.length > 0
           ? 0
           : -1;
-  const selected = selectedIndex >= 0 ? options[selectedIndex] : undefined;
+  const selected = useMemo(
+    () => options.find((option) => option.value === value),
+    [options, value]
+  );
   const displayText = selected?.label ?? placeholder ?? '';
   const isPlaceholder = !selected && placeholder;
 
   const commitSelection = useCallback(
     (nextIndex: number) => {
-      const nextOption = options[nextIndex];
+      const nextOption = visibleOptions[nextIndex];
       if (!nextOption) return;
       onChange(nextOption.value);
-      setOpen(false);
+      closeDropdown();
       setHighlightedIndex(nextIndex);
+      triggerRef.current?.focus();
     },
-    [onChange, options]
+    [closeDropdown, onChange, visibleOptions]
   );
 
   const moveHighlight = useCallback(
     (direction: 1 | -1) => {
-      if (options.length === 0) return;
-      const nextIndex = (resolvedHighlightedIndex + direction + options.length) % options.length;
+      if (visibleOptions.length === 0) return;
+      const nextIndex =
+        (resolvedHighlightedIndex + direction + visibleOptions.length) % visibleOptions.length;
       setHighlightedIndex(nextIndex);
     },
-    [options.length, resolvedHighlightedIndex]
+    [resolvedHighlightedIndex, visibleOptions.length]
   );
 
   const handleKeyDown = useCallback(
@@ -101,7 +153,7 @@ export function Select({
         case 'ArrowDown':
           event.preventDefault();
           if (!isOpen) {
-            setOpen(true);
+            openDropdown();
             return;
           }
           moveHighlight(1);
@@ -109,26 +161,26 @@ export function Select({
         case 'ArrowUp':
           event.preventDefault();
           if (!isOpen) {
-            setOpen(true);
+            openDropdown();
             return;
           }
           moveHighlight(-1);
           return;
         case 'Home':
-          if (!isOpen || options.length === 0) return;
+          if (!isOpen || visibleOptions.length === 0) return;
           event.preventDefault();
           setHighlightedIndex(0);
           return;
         case 'End':
-          if (!isOpen || options.length === 0) return;
+          if (!isOpen || visibleOptions.length === 0) return;
           event.preventDefault();
-          setHighlightedIndex(options.length - 1);
+          setHighlightedIndex(visibleOptions.length - 1);
           return;
         case 'Enter':
         case ' ': {
           event.preventDefault();
           if (!isOpen) {
-            setOpen(true);
+            openDropdown();
             return;
           }
           if (resolvedHighlightedIndex >= 0) {
@@ -139,16 +191,66 @@ export function Select({
         case 'Escape':
           if (!isOpen) return;
           event.preventDefault();
-          setOpen(false);
+          closeDropdown();
           return;
         case 'Tab':
-          if (isOpen) setOpen(false);
+          if (isOpen) closeDropdown();
           return;
         default:
           return;
       }
     },
-    [commitSelection, disabled, isOpen, moveHighlight, options.length, resolvedHighlightedIndex]
+    [
+      closeDropdown,
+      commitSelection,
+      disabled,
+      isOpen,
+      moveHighlight,
+      openDropdown,
+      resolvedHighlightedIndex,
+      visibleOptions.length,
+    ]
+  );
+
+  const handleSearchKeyDown = useCallback(
+    (event: React.KeyboardEvent<HTMLInputElement>) => {
+      switch (event.key) {
+        case 'ArrowDown':
+          event.preventDefault();
+          moveHighlight(1);
+          return;
+        case 'ArrowUp':
+          event.preventDefault();
+          moveHighlight(-1);
+          return;
+        case 'Home':
+          if (visibleOptions.length === 0) return;
+          event.preventDefault();
+          setHighlightedIndex(0);
+          return;
+        case 'End':
+          if (visibleOptions.length === 0) return;
+          event.preventDefault();
+          setHighlightedIndex(visibleOptions.length - 1);
+          return;
+        case 'Enter':
+          if (resolvedHighlightedIndex < 0) return;
+          event.preventDefault();
+          commitSelection(resolvedHighlightedIndex);
+          return;
+        case 'Escape':
+          event.preventDefault();
+          closeDropdown();
+          triggerRef.current?.focus();
+          return;
+        case 'Tab':
+          closeDropdown();
+          return;
+        default:
+          return;
+      }
+    },
+    [closeDropdown, commitSelection, moveHighlight, resolvedHighlightedIndex, visibleOptions.length]
   );
 
   useEffect(() => {
@@ -161,33 +263,64 @@ export function Select({
 
   const dropdown =
     isOpen && dropdownStyle ? (
-      <div
-        ref={dropdownRef}
-        className={styles.dropdown}
-        id={listboxId}
-        role="listbox"
-        aria-label={ariaLabel}
-        style={dropdownStyle}
-      >
-        {options.map((opt, index) => {
-          const active = opt.value === value;
-          const highlighted = index === resolvedHighlightedIndex;
-          return (
-            <button
-              key={opt.value}
-              id={`${selectId}-option-${index}`}
-              type="button"
-              role="option"
-              aria-selected={active}
-              className={`${styles.option} ${active ? styles.optionActive : ''} ${highlighted ? styles.optionHighlighted : ''}`.trim()}
-              onMouseEnter={() => setHighlightedIndex(index)}
-              onKeyDown={handleKeyDown}
-              onClick={() => commitSelection(index)}
-            >
-              {opt.label}
-            </button>
-          );
-        })}
+      <div ref={dropdownRef} className={styles.dropdown} style={dropdownStyle}>
+        {searchable && (
+          <div className={styles.searchWrap}>
+            <input
+              ref={searchInputRef}
+              type="search"
+              className={styles.searchInput}
+              value={searchQuery}
+              onChange={(event) => {
+                setSearchQuery(event.target.value);
+                setHighlightedIndex(-1);
+              }}
+              onKeyDown={handleSearchKeyDown}
+              placeholder={searchPlaceholder}
+              aria-label={searchPlaceholder ?? ariaLabel}
+              role="combobox"
+              aria-autocomplete="list"
+              aria-expanded={isOpen}
+              aria-controls={listboxId}
+              aria-activedescendant={
+                resolvedHighlightedIndex >= 0
+                  ? `${selectId}-option-${resolvedHighlightedIndex}`
+                  : undefined
+              }
+            />
+          </div>
+        )}
+        <div className={styles.optionsList} id={listboxId} role="listbox" aria-label={ariaLabel}>
+          {visibleOptions.map((opt, index) => {
+            const active = opt.value === value;
+            const highlighted = index === resolvedHighlightedIndex;
+            return (
+              <button
+                key={opt.value}
+                id={`${selectId}-option-${index}`}
+                type="button"
+                role="option"
+                aria-selected={active}
+                className={`${styles.option} ${active ? styles.optionActive : ''} ${highlighted ? styles.optionHighlighted : ''}`.trim()}
+                onMouseEnter={() => setHighlightedIndex(index)}
+                onKeyDown={handleKeyDown}
+                onClick={() => commitSelection(index)}
+              >
+                {opt.label}
+              </button>
+            );
+          })}
+        </div>
+        {visibleOptions.length === 0 && emptyMessage && (
+          <div className={styles.dropdownMessage} role="status">
+            {emptyMessage}
+          </div>
+        )}
+        {matchingOptions.length > visibleOptions.length && moreResultsMessage && (
+          <div className={styles.dropdownMessage} role="status">
+            {moreResultsMessage}
+          </div>
+        )}
       </div>
     ) : null;
 
@@ -198,16 +331,17 @@ export function Select({
         ref={wrapRef}
       >
         <button
+          ref={triggerRef}
           id={selectId}
           type="button"
-          className={styles.trigger}
-          onClick={disabled ? undefined : () => setOpen((prev) => !prev)}
+          className={`${styles.trigger} ${triggerClassName ?? ''}`.trim()}
+          onClick={disabled ? undefined : () => (isOpen ? closeDropdown() : openDropdown())}
           onKeyDown={handleKeyDown}
           aria-haspopup="listbox"
           aria-expanded={isOpen}
           aria-controls={isOpen ? listboxId : undefined}
           aria-activedescendant={
-            isOpen && resolvedHighlightedIndex >= 0
+            !searchable && isOpen && resolvedHighlightedIndex >= 0
               ? `${selectId}-option-${resolvedHighlightedIndex}`
               : undefined
           }

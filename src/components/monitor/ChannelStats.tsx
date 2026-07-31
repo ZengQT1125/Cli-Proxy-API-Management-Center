@@ -87,6 +87,10 @@ export function ChannelStats({
 
   const [timeRange, setTimeRange] = useState<TimeRange>(1);
   const [customRange, setCustomRange] = useState<DateRange | undefined>();
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(100);
+  const [total, setTotal] = useState(0);
+  const [totalPages, setTotalPages] = useState(0);
 
   const [channelStats, setChannelStats] = useState<ChannelStat[]>([]);
   const [filters, setFilters] = useState<{
@@ -108,6 +112,7 @@ export function ChannelStats({
   const handleTimeRangeChange = useCallback((range: TimeRange, custom?: DateRange) => {
     setTimeRange(range);
     setCustomRange(custom);
+    setPage(1);
   }, []);
 
   const formatChannelLabel = useCallback(
@@ -209,7 +214,8 @@ export function ChannelStats({
     setStatsLoading(true);
     try {
       const response = await monitorApi.getChannelStats({
-        limit: 10,
+        page,
+        page_size: pageSize,
         api_key: filterRequestKey || undefined,
         source: filterChannel || undefined,
         status: filterStatus || undefined,
@@ -219,9 +225,12 @@ export function ChannelStats({
       const rawItems = response.items || [];
       const mapped = applyMonitorChannelStatsModelFilter(rawItems, filterModel).map(mapChannelStat);
       setChannelStats(mapped);
+      setTotal(response.total);
+      setTotalPages(response.total_pages);
+      if (response.page !== page) setPage(response.page);
 
       // 后端可能返回数万条 source 候选。原生 select 渲染这些 option 会长时间阻塞主线程；
-      // 渠道统计只展示当前 Top 列表，因此筛选项也只保留当前可见渠道和已选渠道。
+      // 筛选项只保留当前页可见渠道和已选渠道。
       const sourceSet = new Set<string>(mapped.map((stat) => stat.source));
       if (filterChannel) sourceSet.add(filterChannel);
       const channels = Array.from(sourceSet)
@@ -250,11 +259,15 @@ export function ChannelStats({
     } catch (err) {
       console.error('渠道统计加载失败：', err);
       setChannelStats([]);
+      setTotal(0);
+      setTotalPages(0);
       setFilters({ requestKeys: [], channels: [], models: [] });
     } finally {
       setStatsLoading(false);
     }
   }, [
+    page,
+    pageSize,
     filterRequestKey,
     filterChannel,
     filterStatus,
@@ -286,6 +299,10 @@ export function ChannelStats({
 
   const toggleExpand = (source: string) => {
     setExpandedChannel(expandedChannel === source ? null : source);
+  };
+
+  const goToPage = (nextPage: number) => {
+    setPage(Math.max(1, Math.min(nextPage, totalPages)));
   };
 
   const handleDisableClick = (source: string, model: string, e: React.MouseEvent) => {
@@ -348,7 +365,10 @@ export function ChannelStats({
             className={`${styles.logSelect} ${styles.requestKeySelect}`}
             aria-label={t('monitor.logs.header_request_key')}
             value={filterRequestKey}
-            onChange={(e) => setFilterRequestKey(e.target.value)}
+            onChange={(e) => {
+              setFilterRequestKey(e.target.value);
+              setPage(1);
+            }}
           >
             <option value="">{t('monitor.channel.all_request_keys')}</option>
             {filters.requestKeys.map((requestKey) => (
@@ -361,7 +381,10 @@ export function ChannelStats({
             className={`${styles.logSelect} ${styles.channelSelect}`}
             aria-label={t('monitor.channel.header_name')}
             value={filterChannel}
-            onChange={(e) => setFilterChannel(e.target.value)}
+            onChange={(e) => {
+              setFilterChannel(e.target.value);
+              setPage(1);
+            }}
           >
             <option value="">{t('monitor.channel.all_channels')}</option>
             {filters.channels.map((channel) => (
@@ -374,7 +397,10 @@ export function ChannelStats({
             className={styles.logSelect}
             aria-label={t('monitor.channel.model')}
             value={filterModel}
-            onChange={(e) => setFilterModel(e.target.value)}
+            onChange={(e) => {
+              setFilterModel(e.target.value);
+              setPage(1);
+            }}
           >
             <option value="">{t('monitor.channel.all_models')}</option>
             {filters.models.map((model) => (
@@ -387,7 +413,10 @@ export function ChannelStats({
             className={`${styles.logSelect} ${styles.statusSelect}`}
             aria-label={t('monitor.logs.header_status')}
             value={filterStatus}
-            onChange={(e) => setFilterStatus(e.target.value as '' | 'success' | 'failed')}
+            onChange={(e) => {
+              setFilterStatus(e.target.value as '' | 'success' | 'failed');
+              setPage(1);
+            }}
           >
             <option value="">{t('monitor.channel.all_status')}</option>
             <option value="success">{t('monitor.channel.only_success')}</option>
@@ -579,6 +608,57 @@ export function ChannelStats({
             </table>
           )}
         </div>
+
+        {totalPages > 0 && (
+          <div className={styles.pagination}>
+            <button className={styles.pageBtn} onClick={() => goToPage(1)} disabled={page <= 1}>
+              {t('monitor.logs.first_page')}
+            </button>
+            <button
+              className={styles.pageBtn}
+              onClick={() => goToPage(page - 1)}
+              disabled={page <= 1}
+            >
+              {t('monitor.logs.prev_page')}
+            </button>
+            <span className={styles.pageBtn}>
+              {t('monitor.logs.page_info', { current: page, total: totalPages })}
+            </span>
+            <select
+              className={`${styles.logSelect} ${styles.pageSizeSelect}`}
+              aria-label={t('monitor.logs.page_size_label')}
+              value={pageSize}
+              onChange={(e) => {
+                setPageSize(Number(e.target.value));
+                setPage(1);
+              }}
+            >
+              <option value="20">{t('monitor.logs.page_size_20')}</option>
+              <option value="50">{t('monitor.logs.page_size_50')}</option>
+              <option value="100">{t('monitor.logs.page_size_100')}</option>
+            </select>
+            <button
+              className={styles.pageBtn}
+              onClick={() => goToPage(page + 1)}
+              disabled={page >= totalPages}
+            >
+              {t('monitor.logs.next_page')}
+            </button>
+            <button
+              className={styles.pageBtn}
+              onClick={() => goToPage(totalPages)}
+              disabled={page >= totalPages}
+            >
+              {t('monitor.logs.last_page')}
+            </button>
+          </div>
+        )}
+
+        {channelStats.length > 0 && (
+          <div className={styles.paginationTotal} role="status" aria-live="polite">
+            {t('monitor.logs.total_count', { count: total })}
+          </div>
+        )}
       </Card>
 
       <DisableModelModal

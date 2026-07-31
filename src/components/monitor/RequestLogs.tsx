@@ -1,6 +1,7 @@
-import { Fragment, useState, useEffect, useRef, useCallback } from 'react';
+import { Fragment, useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Card } from '@/components/ui/Card';
+import { Select } from '@/components/ui/Select';
 import { monitorApi, type MonitorRequestLogItem } from '@/services/api';
 import { TimeRangeSelector, formatTimeRangeCaption, type TimeRange } from './TimeRangeSelector';
 import {
@@ -180,17 +181,13 @@ export function RequestLogs({
 
       const response = await monitorApi.getRequestLogs(params);
       const items = (response.items || []).map(toLogEntry);
-      const visibleSources = Array.from(
-        new Set(items.map((item) => item.source).filter(Boolean))
-      ).sort();
       setLogEntries(items);
       setTotal(response.total || 0);
       setTotalPages(response.total_pages || 0);
       setFilterOptions((prev) => ({
         requestKeys: filterRequestKey ? prev.requestKeys : response.filters?.apis || [],
         models: filterModel ? prev.models : response.filters?.models || [],
-        // source 候选可能有数万条；只渲染当前页实际出现的渠道，避免巨量 option 卡死页面。
-        sources: filterSource ? prev.sources : visibleSources,
+        sources: filterSource ? prev.sources : response.filters?.sources || [],
       }));
 
       const safePage = response.page || page;
@@ -261,6 +258,17 @@ export function RequestLogs({
   }, [enabled, fetchLogData, refreshKey]);
 
   const showLoading = (logLoading || loading) && logEntries.length === 0;
+
+  const sourceFilterOptions = useMemo(
+    () => [
+      { value: '', label: t('monitor.logs.all_sources') },
+      ...filterOptions.sources.map((source) => ({
+        value: source,
+        label: formatProviderDisplay(source, providerMap),
+      })),
+    ],
+    [filterOptions.sources, providerMap, t]
+  );
 
   const getCountdownText = () => {
     if (logLoading) {
@@ -475,23 +483,24 @@ export function RequestLogs({
         );
       case 'source':
         return (
-          <select
+          <Select
             key={filterKey}
-            className={`${styles.logSelect} ${styles.channelSelect}`}
-            aria-label={t('monitor.logs.header_source')}
+            className={`${styles.channelSelect} ${styles.searchableLogSelect}`}
+            triggerClassName={styles.logSelect}
+            fullWidth={false}
+            ariaLabel={t('monitor.logs.header_source')}
             value={filterSource}
-            onChange={(e) => {
-              setFilterSource(e.target.value);
+            options={sourceFilterOptions}
+            onChange={(value) => {
+              setFilterSource(value);
               setPage(1);
             }}
-          >
-            <option value="">{t('monitor.logs.all_sources')}</option>
-            {filterOptions.sources.map((source) => (
-              <option key={source} value={source}>
-                {formatProviderDisplay(source, providerMap)}
-              </option>
-            ))}
-          </select>
+            searchable
+            searchPlaceholder={t('monitor.logs.search_sources')}
+            emptyMessage={t('monitor.logs.no_sources_found')}
+            moreResultsMessage={t('monitor.logs.source_results_limited')}
+            maxVisibleOptions={100}
+          />
         );
       case 'status':
         return (
@@ -555,7 +564,6 @@ export function RequestLogs({
             <option value="30">{t('monitor.logs.refresh_30s')}</option>
             <option value="60">{t('monitor.logs.refresh_60s')}</option>
           </select>
-
         </div>
 
         <div className={styles.logTableWrapper}>
@@ -613,6 +621,7 @@ export function RequestLogs({
             </span>
             <select
               className={`${styles.logSelect} ${styles.pageSizeSelect}`}
+              aria-label={t('monitor.logs.page_size_label')}
               value={pageSize}
               onChange={(e) => {
                 setPageSize(Number(e.target.value));
@@ -641,14 +650,7 @@ export function RequestLogs({
         )}
 
         {logEntries.length > 0 && (
-          <div
-            style={{
-              textAlign: 'center',
-              fontSize: 12,
-              color: 'var(--text-tertiary)',
-              marginTop: 8,
-            }}
-          >
+          <div className={styles.paginationTotal} role="status" aria-live="polite">
             {t('monitor.logs.total_count', { count: total })}
           </div>
         )}

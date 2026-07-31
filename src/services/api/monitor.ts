@@ -88,6 +88,8 @@ export interface MonitorRequestLogsResponse {
 }
 
 export interface MonitorStatsQuery extends MonitorTimeRangeQuery {
+  page?: number;
+  page_size?: number;
   limit?: number;
   summary?: boolean;
   api?: string;
@@ -135,7 +137,11 @@ export interface MonitorChannelStatsItem {
 export interface MonitorChannelStatsResponse {
   items: MonitorChannelStatsItem[];
   total: number;
-  limit: number;
+  page: number;
+  page_size: number;
+  total_pages: number;
+  has_prev: boolean;
+  has_next: boolean;
   filters?: MonitorFilterOptions;
   time_range?: {
     start_time?: string;
