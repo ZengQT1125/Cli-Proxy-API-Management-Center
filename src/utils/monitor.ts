@@ -439,6 +439,18 @@ export function maskSecret(key: string): string {
 }
 
 /**
+ * 格式化请求 Key（API Key）展示：过长时保留首尾各 3 字符，中间用省略号。
+ * @param key 原始 API Key
+ * @returns 脱敏后的展示文本
+ */
+export function formatRequestKeyDisplay(key: string): string {
+  if (!key) return '-';
+  if (key.length <= 9) return key;
+  return `${key.slice(0, 3)}...${key.slice(-3)}`;
+}
+
+
+/**
  * 检查模型名称是否匹配配置的模型（支持大小写不敏感、通配符以及前缀匹配）
  * @param requestedModel 请求的模型名称
  * @param configuredModel 配置的模型名称
@@ -816,9 +828,10 @@ export function calculateMonitorRequestCost(
   inputTokens: number,
   outputTokens: number,
   cachedTokens: number,
-  cacheWriteTokens = 0
+  cacheWriteTokens = 0,
+  fast = false
 ): number {
-  return calculateModelCost(
+  const standardCost = calculateModelCost(
     model,
     toSafeMonitorNumber(inputTokens),
     toSafeMonitorNumber(outputTokens),
@@ -826,6 +839,14 @@ export function calculateMonitorRequestCost(
     toSafeMonitorNumber(cacheWriteTokens),
     { applyLongContextTier: true }
   );
+  return standardCost * (fast ? getMonitorFastCostMultiplier(model) : 1);
+}
+
+function getMonitorFastCostMultiplier(model: string): number {
+  const normalizedModel = String(model ?? '').trim().toLowerCase();
+  if (!normalizedModel) return 1;
+  if (normalizedModel.includes('fast')) return 1.5;
+  return 1;
 }
 
 export function calculateMonitorAggregateCost(
@@ -852,7 +873,11 @@ export function formatMonitorCost(cost: number): string {
 
 const MIN_STREAM_OUTPUT_DURATION_MS = 1000;
 
-export function computeEffectiveOutputDurationMs(latencyMs: number, ttftMs: number): number {
+export function computeEffectiveOutputDurationMs(
+  latencyMs: number,
+  ttftMs: number,
+  stream = false
+): number {
   const latency = toSafeMonitorNumber(latencyMs);
   const ttft = toSafeMonitorNumber(ttftMs);
   const streamOutputDuration = latency - ttft;
@@ -861,7 +886,7 @@ export function computeEffectiveOutputDurationMs(latencyMs: number, ttftMs: numb
     return 0;
   }
 
-  return ttft > 0 && streamOutputDuration >= MIN_STREAM_OUTPUT_DURATION_MS
+  return stream && ttft > 0 && streamOutputDuration >= MIN_STREAM_OUTPUT_DURATION_MS
     ? streamOutputDuration
     : latency;
 }
@@ -869,10 +894,11 @@ export function computeEffectiveOutputDurationMs(latencyMs: number, ttftMs: numb
 export function formatOutputTokensPerSecond(
   outputTokens: number,
   latencyMs: number,
-  ttftMs: number
+  ttftMs: number,
+  stream = false
 ): string {
   const output = toSafeMonitorNumber(outputTokens);
-  const durationMs = computeEffectiveOutputDurationMs(latencyMs, ttftMs);
+  const durationMs = computeEffectiveOutputDurationMs(latencyMs, ttftMs, stream);
 
   if (output <= 0 || durationMs <= 0) {
     return '-';

@@ -93,6 +93,8 @@ export interface MonitorRequestLogItem {
   total_tokens: number;
   latency_ms: number;
   ttft_ms: number;
+  stream?: boolean;
+  fast?: boolean;
   request_count: number;
   success_rate: number;
   recent_requests: MonitorRecentRequest[];
