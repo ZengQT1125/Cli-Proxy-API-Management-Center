@@ -38,7 +38,7 @@ export function Modal({
   const titleId = useId();
   const [isVisible, setIsVisible] = useState(false);
   const [isClosing, setIsClosing] = useState(false);
-  const closeTimerRef = useRef<number | null>(null);
+  const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const modalRef = useRef<HTMLDivElement | null>(null);
   const closeButtonRef = useRef<HTMLButtonElement | null>(null);
   const previouslyFocusedRef = useRef<HTMLElement | null>(null);
@@ -54,7 +54,7 @@ export function Modal({
     (notifyParent: boolean) => {
       if (closeTimerRef.current !== null) return;
       setIsClosing(true);
-      closeTimerRef.current = window.setTimeout(() => {
+      closeTimerRef.current = setTimeout(() => {
         setIsVisible(false);
         setIsClosing(false);
         closeTimerRef.current = null;

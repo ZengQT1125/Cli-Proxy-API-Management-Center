@@ -676,9 +676,12 @@
   }
 }
 
-// 请求日志专用容器：完全跟随外层主滚动，不创建独立滚动上下文
+// 请求日志专用容器：表格 minWidth 超过视口宽度时启用横向滚动，避免右侧列被裁剪
 .logTableWrapper {
   width: 100%;
+  overflow-x: auto;
+  max-width: 100%;
+  -webkit-overflow-scrolling: touch;
 }
 
 // 请求日志表格列宽由 requestLogColumns.ts 的 colgroup 统一维护。
@@ -851,6 +854,29 @@
   }
 }
 
+.statusWithBadge {
+  display: inline-flex;
+  position: relative;
+  align-items: center;
+  padding-right: 12px;
+}
+
+.fastStatusBadge {
+  position: absolute;
+  top: -6px;
+  right: 0;
+  padding: 1px 4px;
+  border: 1px solid var(--warning-border);
+  border-radius: $radius-full;
+  background: var(--warning-bg);
+  color: var(--warning-text);
+  font-size: 8px;
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
 // 成功率颜色
 .rateHigh {
   color: var(--success-color, #22c55e) !important;
@@ -942,8 +968,44 @@
   }
 
   &:focus {
-    outline: none;
     border-color: var(--primary-color);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--primary-color);
+    outline-offset: 1px;
+  }
+}
+
+.requestKeySelect {
+  inline-size: clamp(160px, 18vw, 240px);
+  max-inline-size: 100%;
+}
+
+.channelSelect {
+  inline-size: clamp(180px, 22vw, 320px);
+  max-inline-size: 100%;
+}
+
+.searchableLogSelect {
+  @include mobile {
+    min-inline-size: 0;
+    flex: 1 1 calc(50% - 4px);
+  }
+}
+
+.statusSelect {
+  inline-size: clamp(130px, 10vw, 180px);
+  max-inline-size: 100%;
+}
+
+.pageSizeSelect {
+  inline-size: auto;
+  min-inline-size: 120px;
+
+  @include mobile {
+    flex: 0 1 auto;
+    min-inline-size: 100px;
   }
 }
 
@@ -983,7 +1045,8 @@
   border-radius: $radius-md;
   cursor: pointer;
   font-size: 13px;
-  transition: all 0.2s;
+  transition-property: background-color, border-color, color, opacity;
+  transition-duration: 0.2s;
 
   @include mobile {
     padding: 5px 10px;
@@ -1006,6 +1069,13 @@
     opacity: 0.4;
     cursor: not-allowed;
   }
+}
+
+.paginationTotal {
+  margin-top: 8px;
+  color: var(--text-tertiary);
+  font-size: 12px;
+  text-align: center;
 }
 
 // 空状态

@@ -1,6 +1,7 @@
-import { Fragment, useState, useEffect, useRef, useCallback } from 'react';
+import { Fragment, useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Card } from '@/components/ui/Card';
+import { Select } from '@/components/ui/Select';
 import { monitorApi, type MonitorRequestLogItem } from '@/services/api';
 import { TimeRangeSelector, formatTimeRangeCaption, type TimeRange } from './TimeRangeSelector';
 import {
@@ -14,6 +15,7 @@ import {
 } from './requestLogColumns';
 import {
   formatProviderDisplay,
+  formatRequestKeyDisplay,
   formatTimestamp,
   getProviderDisplayParts,
   buildMonitorTimeRangeParams,
@@ -25,6 +27,7 @@ import {
   formatMonitorCost,
   type DateRange,
 } from '@/utils/monitor';
+import { resolveRequestLogChannel } from './requestLogFilters';
 import styles from '@/pages/MonitorPage.module.scss';
 
 interface RequestLogsProps {
@@ -33,15 +36,20 @@ interface RequestLogsProps {
   enabled?: boolean;
   providerMap: Record<string, string>;
   apiFilter: string;
+  authIndexProviderMap: Record<string, string>;
+  authIndexMap: Record<string, string>;
 }
 
 interface LogEntry {
   id: string;
   timestamp: string;
   timestampMs: number;
+  requestKey: string;
   model: string;
   source: string;
   providerName: string | null;
+  actionSource: string;
+  authIndex: string;
   maskedKey: string;
   failed: boolean;
   inputTokens: number;
@@ -52,6 +60,8 @@ interface LogEntry {
   cost: number;
   latencyMs: number;
   ttftMs: number;
+  stream: boolean | null;
+  fast: boolean | null;
   recentRequests: { failed: boolean; timestamp: number }[];
 }
 
@@ -70,9 +80,12 @@ export function RequestLogs({
   enabled = true,
   providerMap,
   apiFilter,
+  authIndexProviderMap,
+  authIndexMap,
 }: RequestLogsProps) {
   const { t } = useTranslation();
   const [filterModel, setFilterModel] = useState('');
+  const [filterRequestKey, setFilterRequestKey] = useState('');
   const [filterSource, setFilterSource] = useState('');
   const [filterStatus, setFilterStatus] = useState<'' | 'success' | 'failed'>('');
   const [autoRefresh, setAutoRefresh] = useState(10);
@@ -90,9 +103,11 @@ export function RequestLogs({
   const [total, setTotal] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
   const [filterOptions, setFilterOptions] = useState<{
+    requestKeys: string[];
     models: string[];
     sources: string[];
   }>({
+    requestKeys: [],
     models: [],
     sources: [],
   });
@@ -106,6 +121,12 @@ export function RequestLogs({
   const toLogEntry = useCallback(
     (item: MonitorRequestLogItem, index: number): LogEntry => {
       const source = item.source || 'unknown';
+      const channel = resolveRequestLogChannel(
+        item as unknown as Record<string, unknown>,
+        source,
+        providerMap,
+        authIndexProviderMap
+      );
       const { provider, masked } = getProviderDisplayParts(source, providerMap);
       const timestampMs = item.timestamp ? new Date(item.timestamp).getTime() : 0;
       const cachedTokens = item.cached_tokens || 0;
@@ -116,13 +137,18 @@ export function RequestLogs({
         cacheWriteTokens
       );
       const outputTokens = item.output_tokens || 0;
+      const fast = typeof item.fast === 'boolean' ? item.fast : null;
+      const stream = typeof item.stream === 'boolean' ? item.stream : null;
       return {
-        id: `${item.timestamp}-${item.api_key}-${item.model}-${index}`,
+        id: `${item.timestamp}-${item.api_key}-${channel || source}-${item.model}-${index}`,
         timestamp: item.timestamp,
         timestampMs,
+        requestKey: item.api_key || '',
         model: item.model,
         source,
-        providerName: provider,
+        actionSource: channel || source,
+        providerName: channel || provider,
+        authIndex: item.auth_index || '',
         maskedKey: masked,
         failed: item.failed,
         inputTokens: computeUncachedInputTokens(totalInputTokens, cachedTokens, cacheWriteTokens),
@@ -135,19 +161,21 @@ export function RequestLogs({
           totalInputTokens,
           outputTokens,
           cachedTokens,
-          cacheWriteTokens
+          cacheWriteTokens,
+          fast === true
         ),
         latencyMs: item.latency_ms || 0,
         ttftMs: item.ttft_ms || 0,
+        stream,
+        fast,
         recentRequests: (item.recent_requests || []).map((req) => ({
           failed: !!req.failed,
           timestamp: req.timestamp ? new Date(req.timestamp).getTime() : 0,
         })),
       };
     },
-    [providerMap]
+    [authIndexProviderMap, providerMap]
   );
-
   // 独立获取日志数据
   const fetchLogData = useCallback(async () => {
     if (!enabled) return;
@@ -158,6 +186,7 @@ export function RequestLogs({
         page,
         page_size: pageSize,
         api_filter: apiFilter || undefined,
+        api_key: filterRequestKey || undefined,
         model: filterModel || undefined,
         source: filterSource || undefined,
         status: filterStatus || undefined,
@@ -166,16 +195,13 @@ export function RequestLogs({
 
       const response = await monitorApi.getRequestLogs(params);
       const items = (response.items || []).map(toLogEntry);
-      const visibleSources = Array.from(
-        new Set(items.map((item) => item.source).filter(Boolean))
-      ).sort();
       setLogEntries(items);
       setTotal(response.total || 0);
       setTotalPages(response.total_pages || 0);
       setFilterOptions((prev) => ({
+        requestKeys: filterRequestKey ? prev.requestKeys : response.filters?.apis || [],
         models: filterModel ? prev.models : response.filters?.models || [],
-        // source 候选可能有数万条；只渲染当前页实际出现的渠道，避免巨量 option 卡死页面。
-        sources: filterSource ? prev.sources : visibleSources,
+        sources: filterSource ? prev.sources : response.filters?.sources || [],
       }));
 
       const safePage = response.page || page;
@@ -195,6 +221,7 @@ export function RequestLogs({
     pageSize,
     enabled,
     apiFilter,
+    filterRequestKey,
     filterModel,
     filterSource,
     filterStatus,
@@ -246,6 +273,17 @@ export function RequestLogs({
 
   const showLoading = (logLoading || loading) && logEntries.length === 0;
 
+  const sourceFilterOptions = useMemo(
+    () => [
+      { value: '', label: t('monitor.logs.all_sources') },
+      ...filterOptions.sources.map((source) => ({
+        value: source,
+        label: formatProviderDisplay(source, providerMap),
+      })),
+    ],
+    [filterOptions.sources, providerMap, t]
+  );
+
   const getCountdownText = () => {
     if (logLoading) {
       return t('monitor.logs.refreshing');
@@ -269,8 +307,18 @@ export function RequestLogs({
 
   const renderCell = (entry: LogEntry, column: RequestLogTableColumnKey) => {
     switch (column) {
+      case 'auth': {
+        const authDisplay = entry.authIndex
+          ? authIndexMap[entry.authIndex] || entry.authIndex
+          : '-';
+        return <td title={authDisplay}>{authDisplay}</td>;
+      }
       case 'model':
         return <td title={entry.model}>{entry.model}</td>;
+      case 'requestKey': {
+        const requestKey = entry.requestKey || '-';
+        return <td title={requestKey}>{formatRequestKeyDisplay(requestKey)}</td>;
+      }
       case 'source': {
         const sourceLabel = entry.providerName
           ? `${entry.providerName} (${entry.maskedKey})`
@@ -291,10 +339,15 @@ export function RequestLogs({
       case 'status':
         return (
           <td>
-            <span
-              className={`${styles.statusPill} ${entry.failed ? styles.failed : styles.success}`}
-            >
-              {entry.failed ? t('monitor.logs.failed') : t('monitor.logs.success')}
+            <span className={styles.statusWithBadge}>
+              <span
+                className={`${styles.statusPill} ${entry.failed ? styles.failed : styles.success}`}
+              >
+                {entry.failed ? t('monitor.logs.failed') : t('monitor.logs.success')}
+              </span>
+              {entry.fast === true && (
+                <span className={styles.fastStatusBadge}>{t('monitor.logs.fast_badge')}</span>
+              )}
             </span>
           </td>
         );
@@ -315,11 +368,15 @@ export function RequestLogs({
         const ttft = entry.ttftMs > 0 ? (entry.ttftMs / 1000).toFixed(2) : '-';
         const latency = entry.latencyMs > 0 ? (entry.latencyMs / 1000).toFixed(2) : '-';
         const titleParts: string[] = [];
-        if (entry.ttftMs > 0) titleParts.push(`TTFT: ${formatNumber(entry.ttftMs)}ms`);
+        if (entry.stream && entry.ttftMs > 0) {
+          titleParts.push(`TTFT: ${formatNumber(entry.ttftMs)}ms`);
+        }
         if (entry.latencyMs > 0) titleParts.push(`Latency: ${formatNumber(entry.latencyMs)}ms`);
         return (
           <td className={styles.tokenCell} title={titleParts.join(' / ') || '-'}>
-            {ttft === '-' && latency === '-' ? (
+            {entry.stream !== true ? (
+              latency
+            ) : ttft === '-' && latency === '-' ? (
               '-'
             ) : (
               <>
@@ -332,7 +389,12 @@ export function RequestLogs({
         );
       }
       case 'toks': {
-        const toks = formatOutputTokensPerSecond(entry.outputTokens, entry.latencyMs, entry.ttftMs);
+        const toks = formatOutputTokensPerSecond(
+          entry.outputTokens,
+          entry.latencyMs,
+          entry.ttftMs,
+          entry.stream === true
+        );
         return <td className={`${styles.tokenCell} ${styles.numberCell}`}>{toks}</td>;
       }
       case 'input':
@@ -404,6 +466,7 @@ export function RequestLogs({
           <select
             key={filterKey}
             className={styles.logSelect}
+            aria-label={t('monitor.logs.header_model')}
             value={filterModel}
             onChange={(e) => {
               setFilterModel(e.target.value);
@@ -418,30 +481,53 @@ export function RequestLogs({
             ))}
           </select>
         );
-      case 'source':
+      case 'requestKey':
         return (
           <select
             key={filterKey}
-            className={styles.logSelect}
-            value={filterSource}
+            className={`${styles.logSelect} ${styles.requestKeySelect}`}
+            aria-label={t('monitor.logs.header_request_key')}
+            value={filterRequestKey}
             onChange={(e) => {
-              setFilterSource(e.target.value);
+              setFilterRequestKey(e.target.value);
               setPage(1);
             }}
           >
-            <option value="">{t('monitor.logs.all_sources')}</option>
-            {filterOptions.sources.map((source) => (
-              <option key={source} value={source}>
-                {formatProviderDisplay(source, providerMap)}
+            <option value="">{t('monitor.logs.all_request_keys')}</option>
+            {filterOptions.requestKeys.map((requestKey) => (
+              <option key={requestKey} value={requestKey}>
+                {formatRequestKeyDisplay(requestKey)}
               </option>
             ))}
           </select>
+        );
+      case 'source':
+        return (
+          <Select
+            key={filterKey}
+            className={`${styles.channelSelect} ${styles.searchableLogSelect}`}
+            triggerClassName={styles.logSelect}
+            fullWidth={false}
+            ariaLabel={t('monitor.logs.header_source')}
+            value={filterSource}
+            options={sourceFilterOptions}
+            onChange={(value) => {
+              setFilterSource(value);
+              setPage(1);
+            }}
+            searchable
+            searchPlaceholder={t('monitor.logs.search_sources')}
+            emptyMessage={t('monitor.logs.no_sources_found')}
+            moreResultsMessage={t('monitor.logs.source_results_limited')}
+            maxVisibleOptions={100}
+          />
         );
       case 'status':
         return (
           <select
             key={filterKey}
-            className={styles.logSelect}
+            className={`${styles.logSelect} ${styles.statusSelect}`}
+            aria-label={t('monitor.logs.header_status')}
             value={filterStatus}
             onChange={(e) => {
               setFilterStatus(e.target.value as '' | 'success' | 'failed');
@@ -498,19 +584,6 @@ export function RequestLogs({
             <option value="30">{t('monitor.logs.refresh_30s')}</option>
             <option value="60">{t('monitor.logs.refresh_60s')}</option>
           </select>
-
-          <select
-            className={styles.logSelect}
-            value={pageSize}
-            onChange={(e) => {
-              setPageSize(Number(e.target.value));
-              setPage(1);
-            }}
-          >
-            <option value="20">{t('monitor.logs.page_size_20')}</option>
-            <option value="50">{t('monitor.logs.page_size_50')}</option>
-            <option value="100">{t('monitor.logs.page_size_100')}</option>
-          </select>
         </div>
 
         <div className={styles.logTableWrapper}>
@@ -566,6 +639,19 @@ export function RequestLogs({
             <span className={styles.pageBtn}>
               {t('monitor.logs.page_info', { current: page, total: totalPages })}
             </span>
+            <select
+              className={`${styles.logSelect} ${styles.pageSizeSelect}`}
+              aria-label={t('monitor.logs.page_size_label')}
+              value={pageSize}
+              onChange={(e) => {
+                setPageSize(Number(e.target.value));
+                setPage(1);
+              }}
+            >
+              <option value="20">{t('monitor.logs.page_size_20')}</option>
+              <option value="50">{t('monitor.logs.page_size_50')}</option>
+              <option value="100">{t('monitor.logs.page_size_100')}</option>
+            </select>
             <button
               className={styles.pageBtn}
               onClick={() => goToPage(page + 1)}
@@ -584,14 +670,7 @@ export function RequestLogs({
         )}
 
         {logEntries.length > 0 && (
-          <div
-            style={{
-              textAlign: 'center',
-              fontSize: 12,
-              color: 'var(--text-tertiary)',
-              marginTop: 8,
-            }}
-          >
+          <div className={styles.paginationTotal} role="status" aria-live="polite">
             {t('monitor.logs.total_count', { count: total })}
           </div>
         )}
