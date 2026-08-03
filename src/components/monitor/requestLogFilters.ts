@@ -108,7 +108,9 @@ function resolveChannelFromAuthIndex(
   const provider = normalizeChannelName(authIndexProviderMap[authIndex]);
   if (!provider) return '';
 
-  return candidateByLower.get(provider.toLowerCase()) || '';
+  // auth_index 是配置精确声明的归属，优先在候选渠道里匹配；
+  // 即便后端 provider-map 命名/大小写不一致，也直接返回该渠道名，避免误判回退。
+  return candidateByLower.get(provider.toLowerCase()) || provider;
 }
 
 export function resolveRequestLogChannel(

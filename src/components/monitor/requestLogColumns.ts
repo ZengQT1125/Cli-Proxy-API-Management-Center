@@ -1,5 +1,4 @@
 export const REQUEST_LOG_TABLE_COLUMN_KEYS = [
-  'auth',
   'model',
   'requestKey',
   'source',
@@ -21,7 +20,6 @@ export type RequestLogTableColumnKey = (typeof REQUEST_LOG_TABLE_COLUMN_KEYS)[nu
 export type RequestLogFilterKey = (typeof REQUEST_LOG_FILTER_KEYS)[number];
 
 export const REQUEST_LOG_TABLE_COLUMN_WIDTHS: Record<RequestLogTableColumnKey, number> = {
-  auth: 120,
   model: 140,
   requestKey: 140,
   source: 160,
@@ -43,7 +41,6 @@ export const REQUEST_LOG_TABLE_MIN_WIDTH = Object.values(REQUEST_LOG_TABLE_COLUM
 );
 
 export const REQUEST_LOG_TABLE_HEADER_KEYS: Record<RequestLogTableColumnKey, string> = {
-  auth: 'monitor.logs.header_auth',
   model: 'monitor.logs.header_model',
   requestKey: 'monitor.logs.header_request_key',
   source: 'monitor.logs.header_source',

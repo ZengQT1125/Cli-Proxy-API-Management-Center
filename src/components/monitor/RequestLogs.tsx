@@ -37,7 +37,6 @@ interface RequestLogsProps {
   providerMap: Record<string, string>;
   apiFilter: string;
   authIndexProviderMap: Record<string, string>;
-  authIndexMap: Record<string, string>;
 }
 
 interface LogEntry {
@@ -81,7 +80,6 @@ export function RequestLogs({
   providerMap,
   apiFilter,
   authIndexProviderMap,
-  authIndexMap,
 }: RequestLogsProps) {
   const { t } = useTranslation();
   const [filterModel, setFilterModel] = useState('');
@@ -307,12 +305,6 @@ export function RequestLogs({
 
   const renderCell = (entry: LogEntry, column: RequestLogTableColumnKey) => {
     switch (column) {
-      case 'auth': {
-        const authDisplay = entry.authIndex
-          ? authIndexMap[entry.authIndex] || entry.authIndex
-          : '-';
-        return <td title={authDisplay}>{authDisplay}</td>;
-      }
       case 'model':
         return <td title={entry.model}>{entry.model}</td>;
       case 'requestKey': {

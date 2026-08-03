@@ -19,9 +19,8 @@ import { Button } from '@/components/ui/Button';
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner';
 import { useHeaderRefresh } from '@/hooks/useHeaderRefresh';
 import { useThemeStore } from '@/stores';
-import { monitorApi, providersApi, authFilesApi } from '@/services/api';
+import { monitorApi, providersApi } from '@/services/api';
 import type { GeminiKeyConfig, OpenAIProviderConfig, ProviderKeyConfig } from '@/types';
-import type { AuthFilesResponse } from '@/types/authFile';
 import type {
   MonitorChannelStatsItem,
   MonitorDailyTrendItem,
@@ -134,7 +133,6 @@ export function MonitorPage() {
   const [providerModels, setProviderModels] = useState<Record<string, Set<string>>>({});
   // 认证索引(auth-index) -> 渠道展示名 / 凭证文件名映射，供请求日志按 auth_index 精确判定渠道
   const [authIndexProviderMap, setAuthIndexProviderMap] = useState<Record<string, string>>({});
-  const [authIndexMap, setAuthIndexMap] = useState<Record<string, string>>({});
   const [overview, setOverview] = useState<MonitorOverviewState | null>(null);
 
   const overviewKey = `${timeRange}\0${apiFilter}`;
@@ -154,7 +152,7 @@ export function MonitorPage() {
       }),
       buildAuthIndexMaps().catch((err) => {
         console.warn('Monitor: Failed to load auth index maps:', err);
-        return { authIndexProviderMap: {}, authIndexMap: {} };
+        return { authIndexProviderMap: {} };
       }),
     ]);
 
@@ -165,35 +163,30 @@ export function MonitorPage() {
     setProviderMap(providerMapData?.providers || {});
     setProviderModels(modelsMap);
     setAuthIndexProviderMap(authIndexMaps.authIndexProviderMap);
-    setAuthIndexMap(authIndexMaps.authIndexMap);
   }, []);
 
   // 从各 provider 配置 + 凭证文件构建 auth_index 映射：
   //  - authIndexProviderMap: auth_index -> 渠道展示名（用于按索引判定渠道）
-  //  - authIndexMap:         auth_index -> 凭证文件名（认证索引列展示）
   async function buildAuthIndexMaps(): Promise<{
     authIndexProviderMap: Record<string, string>;
-    authIndexMap: Record<string, string>;
   }> {
     const authIndexProviderMap: Record<string, string> = {};
-    const authIndexMap: Record<string, string> = {};
     const register = (authIndex: unknown, providerName: string) => {
       const key = typeof authIndex === 'string' ? authIndex.trim() : '';
       if (key) authIndexProviderMap[key] = providerName;
     };
 
-    const [openaiProviders, geminiKeys, claudeConfigs, codexConfigs, vertexConfigs, authFilesRes] =
+    const [openaiProviders, geminiKeys, claudeConfigs, codexConfigs, vertexConfigs] =
       await Promise.all([
         providersApi.getOpenAIProviders().catch(() => [] as OpenAIProviderConfig[]),
         providersApi.getGeminiKeys().catch(() => [] as GeminiKeyConfig[]),
         providersApi.getClaudeConfigs().catch(() => [] as ProviderKeyConfig[]),
         providersApi.getCodexConfigs().catch(() => [] as ProviderKeyConfig[]),
         providersApi.getVertexConfigs().catch(() => [] as ProviderKeyConfig[]),
-        authFilesApi.list().catch(() => ({ files: [] }) as AuthFilesResponse),
       ]);
 
     openaiProviders.forEach((provider) => {
-      const providerName = provider.name || 'unknown';
+      const providerName = provider.headers?.['X-Provider'] || provider.name || 'unknown';
       (provider.apiKeyEntries || []).forEach((entry) => {
         register(entry.authIndex, providerName);
       });
@@ -203,15 +196,7 @@ export function MonitorPage() {
     codexConfigs.forEach((config) => register(config.authIndex, config.prefix?.trim() || 'Codex'));
     vertexConfigs.forEach((config) => register(config.authIndex, config.prefix?.trim() || 'Vertex'));
 
-    (authFilesRes?.files || []).forEach((file) => {
-      const name = file.name;
-      if (!name) return;
-      const rawAuthIndex = file.authIndex;
-      const key = typeof rawAuthIndex === 'string' ? rawAuthIndex.trim() : '';
-      if (key) authIndexMap[key] = name;
-    });
-
-    return { authIndexProviderMap, authIndexMap };
+    return { authIndexProviderMap };
   }
 
   // 加载数据：provider map + 触发底表 refreshKey；overview 由独立 effect 拉取
@@ -514,7 +499,6 @@ export function MonitorPage() {
             providerMap={providerMap}
             apiFilter={apiFilter}
             authIndexProviderMap={authIndexProviderMap}
-            authIndexMap={authIndexMap}
           />
         )}
       </div>

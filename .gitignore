@@ -42,3 +42,6 @@ example
 docs/superpowers/
 superpowers/
 .superpowers/
+
+# Backend reference checkout (do not track)
+CLIProxyAPI-main/
