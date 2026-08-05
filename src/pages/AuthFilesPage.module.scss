@@ -689,6 +689,7 @@
 
 // 单个认证文件卡片
 .fileCard {
+  position: relative;
   background-color: var(--bg-primary);
   border: 1px solid var(--border-color);
   border-radius: $radius-lg;
@@ -777,6 +778,26 @@
   color: var(--text-primary);
   word-break: break-all;
   line-height: 1.4;
+}
+
+.websocketsBadge {
+  position: absolute;
+  top: 0;
+  right: $spacing-md;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transform: translateY(-50%);
+  padding: 3px 6px;
+  border: 1px solid color-mix(in srgb, var(--primary-color) 30%, transparent);
+  border-radius: 6px;
+  background-color: color-mix(in srgb, var(--primary-color) 12%, var(--bg-primary));
+  color: var(--primary-color);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: 0.04em;
 }
 
 .cardMeta {
