@@ -258,6 +258,20 @@ export type MonitorKeyStatsResponse = Omit<MonitorKeyStatsWireResponse, 'filter'
 
 export type MonitorKeyStatsQuery = { auth_index?: string } | string[];
 
+export interface MonitorKeyStatsOptions {
+  forceRefresh?: boolean;
+}
+
+export const KEY_STATS_STALE_TIME_MS = 240_000;
+
+let fullKeyStatsCache:
+  | {
+      configRevision: number;
+      refreshedAt: number;
+      response: MonitorKeyStatsResponse;
+    }
+  | undefined;
+
 export interface MonitorRequestDetailItem {
   timestamp: string;
   method: string;
@@ -333,9 +347,25 @@ export const monitorApi = {
 
   getServiceHealth: () => gatedGet<MonitorServiceHealthData>('/custom/monitor/service-health'),
 
-  getKeyStats: async (query: MonitorKeyStatsQuery = []): Promise<MonitorKeyStatsResponse> => {
+  getKeyStats: async (
+    query: MonitorKeyStatsQuery = [],
+    options: MonitorKeyStatsOptions = {}
+  ): Promise<MonitorKeyStatsResponse> => {
     const authIndexes = Array.isArray(query) ? query : query.auth_index ? [query.auth_index] : [];
-    const key = buildMonitorRequestKey('/custom/monitor/key-stats', { auth_index: authIndexes });
+    const isFullQuery = authIndexes.length === 0;
+    const configRevision = apiClient.getConfigRevision();
+    if (
+      isFullQuery &&
+      !options.forceRefresh &&
+      fullKeyStatsCache?.configRevision === configRevision &&
+      Date.now() - fullKeyStatsCache.refreshedAt < KEY_STATS_STALE_TIME_MS
+    ) {
+      return fullKeyStatsCache.response;
+    }
+
+    const key = `${configRevision}:${buildMonitorRequestKey('/custom/monitor/key-stats', {
+      auth_index: authIndexes,
+    })}`;
     const response = await monitorRequestGate.run(key, () =>
       apiClient.get<MonitorKeyStatsWireResponse>('/custom/monitor/key-stats', {
         params: { auth_index: authIndexes },
@@ -343,6 +373,14 @@ export const monitorApi = {
         timeout: MONITOR_TIMEOUT_MS,
       })
     );
+
+    if (isFullQuery && apiClient.getConfigRevision() === configRevision) {
+      fullKeyStatsCache = {
+        configRevision,
+        refreshedAt: Date.now(),
+        response,
+      };
+    }
 
     if (!Array.isArray(query) && response.filter?.auth_indexes?.length === 1) {
       return {
