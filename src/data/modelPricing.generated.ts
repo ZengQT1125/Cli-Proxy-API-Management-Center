@@ -102,8 +102,6 @@ export const claudeModelPricing = {
   "claude-fable-5": {"inputPrice":10,"outputPrice":50,"cacheReadPrice":1,"cacheWritePrice":12.5},
   "claude-haiku-4-5": {"inputPrice":1,"outputPrice":5,"cacheReadPrice":0.1,"cacheWritePrice":1.25},
   "claude-haiku-4-5-20251001": {"inputPrice":1,"outputPrice":5,"cacheReadPrice":0.1,"cacheWritePrice":1.25},
-  "claude-opus-4-1": {"inputPrice":15,"outputPrice":75,"cacheReadPrice":1.5,"cacheWritePrice":18.75},
-  "claude-opus-4-1-20250805": {"inputPrice":15,"outputPrice":75,"cacheReadPrice":1.5,"cacheWritePrice":18.75},
   "claude-opus-4-5": {"inputPrice":5,"outputPrice":25,"cacheReadPrice":0.5,"cacheWritePrice":6.25},
   "claude-opus-4-5-20251101": {"inputPrice":5,"outputPrice":25,"cacheReadPrice":0.5,"cacheWritePrice":6.25},
   "claude-opus-4-6": {"inputPrice":5,"outputPrice":25,"cacheReadPrice":0.5,"cacheWritePrice":6.25},
