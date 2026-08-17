@@ -16,8 +16,6 @@ export interface ModelPricing {
 export const geminiModelPricing = {
   "deep-research-max-preview-04-2026": {"inputPrice":2,"outputPrice":12,"cacheReadPrice":0.2,"tierThreshold":200000,"inputPriceHigh":4,"outputPriceHigh":18,"cacheReadPriceHigh":0.4},
   "deep-research-preview-04-2026": {"inputPrice":2,"outputPrice":12,"cacheReadPrice":0.2,"tierThreshold":200000,"inputPriceHigh":4,"outputPriceHigh":18,"cacheReadPriceHigh":0.4},
-  "gemini-2.0-flash": {"inputPrice":0.1,"outputPrice":0.4,"cacheReadPrice":0.025},
-  "gemini-2.0-flash-lite": {"inputPrice":0.075,"outputPrice":0.3},
   "gemini-2.5-computer-use-preview-10-2025": {"inputPrice":1.25,"outputPrice":10,"tierThreshold":200000,"inputPriceHigh":2.5,"outputPriceHigh":15},
   "gemini-2.5-flash": {"inputPrice":0.3,"outputPrice":2.5,"cacheReadPrice":0.03},
   "gemini-2.5-flash-image": {"inputPrice":0.3,"outputPrice":30,"cacheReadPrice":0.075},
@@ -28,7 +26,6 @@ export const geminiModelPricing = {
   "gemini-3-flash-preview": {"inputPrice":0.5,"outputPrice":3,"cacheReadPrice":0.05},
   "gemini-3-pro-image": {"inputPrice":2,"outputPrice":120},
   "gemini-3-pro-image-preview": {"inputPrice":2,"outputPrice":120},
-  "gemini-3-pro-preview": {"inputPrice":2,"outputPrice":12,"cacheReadPrice":0.2,"tierThreshold":200000,"inputPriceHigh":4,"outputPriceHigh":18,"cacheReadPriceHigh":0.4},
   "gemini-3.1-flash-image": {"inputPrice":0.5,"outputPrice":60},
   "gemini-3.1-flash-image-preview": {"inputPrice":0.5,"outputPrice":60},
   "gemini-3.1-flash-lite": {"inputPrice":0.25,"outputPrice":1.5,"cacheReadPrice":0.025},
@@ -42,6 +39,7 @@ export const geminiModelPricing = {
   "gemini-3.5-flash-lite": {"inputPrice":0.3,"outputPrice":2.5,"cacheReadPrice":0.03},
   "gemini-3.5-live-translate-preview": {"inputPrice":3.5,"outputPrice":21},
   "gemini-3.6-flash": {"inputPrice":1.5,"outputPrice":7.5,"cacheReadPrice":0.15},
+  "gemini-3.7-flash": {"inputPrice":0.75,"outputPrice":3.75,"cacheReadPrice":0.075},
   "gemini-embedding-001": {"inputPrice":0.15,"outputPrice":0},
   "gemini-embedding-2": {"inputPrice":0.2,"outputPrice":0},
   "gemini-flash-latest": {"inputPrice":1.5,"outputPrice":9,"cacheReadPrice":0.15},
@@ -120,5 +118,6 @@ export const xAIModelPricing = {
   "grok-4.20-multi-agent-0309": {"inputPrice":1.25,"outputPrice":2.5,"cacheReadPrice":0.2,"tierThreshold":200000,"inputPriceHigh":2.5,"outputPriceHigh":5,"cacheReadPriceHigh":0.4},
   "grok-4.3": {"inputPrice":1.25,"outputPrice":2.5,"cacheReadPrice":0.2,"tierThreshold":200000,"inputPriceHigh":2.5,"outputPriceHigh":5,"cacheReadPriceHigh":0.4},
   "grok-4.5": {"inputPrice":2,"outputPrice":6,"cacheReadPrice":0.3,"tierThreshold":200000,"inputPriceHigh":4,"outputPriceHigh":12,"cacheReadPriceHigh":0.6},
+  "grok-4.6": {"inputPrice":2,"outputPrice":6,"cacheReadPrice":0.5,"tierThreshold":200000,"inputPriceHigh":4,"outputPriceHigh":12,"cacheReadPriceHigh":1},
   "grok-build-0.1": {"inputPrice":1,"outputPrice":2,"cacheReadPrice":0.2,"tierThreshold":200000,"inputPriceHigh":2,"outputPriceHigh":4,"cacheReadPriceHigh":0.4},
 } satisfies Record<string, ModelPricing>;
