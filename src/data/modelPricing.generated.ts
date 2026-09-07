@@ -40,12 +40,12 @@ export const geminiModelPricing = {
   "gemini-3.5-live-translate-preview": {"inputPrice":3.5,"outputPrice":21},
   "gemini-3.6-flash": {"inputPrice":0.75,"outputPrice":3.75,"cacheReadPrice":0.075},
   "gemini-3.7-flash": {"inputPrice":0.75,"outputPrice":3.75,"cacheReadPrice":0.075},
+  "gemini-3.8-flash": {"inputPrice":0.75,"outputPrice":3.75,"cacheReadPrice":0.075},
   "gemini-embedding-001": {"inputPrice":0.15,"outputPrice":0},
   "gemini-embedding-2": {"inputPrice":0.2,"outputPrice":0},
   "gemini-flash-latest": {"inputPrice":0.75,"outputPrice":3.75,"cacheReadPrice":0.075},
   "gemini-flash-lite-latest": {"inputPrice":0.3,"outputPrice":2.5,"cacheReadPrice":0.03},
   "gemini-omni-flash-preview": {"inputPrice":1.5,"outputPrice":17.5},
-  "gemini-robotics-er-1.6-preview": {"inputPrice":1,"outputPrice":5},
   "lyria-3-clip-preview": {"inputPrice":0,"outputPrice":0},
   "lyria-3-pro-preview": {"inputPrice":0,"outputPrice":0},
 } satisfies Record<string, ModelPricing>;
@@ -83,6 +83,7 @@ export const openAIModelPricing = {
   "gpt-5.6-luna": {"inputPrice":0.2,"outputPrice":1.2,"cacheReadPrice":0.02,"cacheWritePrice":0.25,"tierThreshold":272000,"inputPriceHigh":0.4,"outputPriceHigh":1.8,"cacheReadPriceHigh":0.04,"cacheWritePriceHigh":0.5},
   "gpt-5.6-sol": {"inputPrice":4,"outputPrice":20,"cacheReadPrice":0.4,"cacheWritePrice":5,"tierThreshold":272000,"inputPriceHigh":8,"outputPriceHigh":30,"cacheReadPriceHigh":0.8,"cacheWritePriceHigh":10},
   "gpt-5.6-terra": {"inputPrice":2,"outputPrice":12,"cacheReadPrice":0.2,"cacheWritePrice":2.5,"tierThreshold":272000,"inputPriceHigh":4,"outputPriceHigh":18,"cacheReadPriceHigh":0.4,"cacheWritePriceHigh":5},
+  "gpt-6-astra": {"inputPrice":10,"outputPrice":50,"cacheReadPrice":1,"cacheWritePrice":12.5,"tierThreshold":272000,"inputPriceHigh":20,"outputPriceHigh":75,"cacheReadPriceHigh":2,"cacheWritePriceHigh":25},
   "gpt-image-2": {"inputPrice":5,"outputPrice":30,"cacheReadPrice":1.25},
   "gpt-realtime-2.1": {"inputPrice":4,"outputPrice":24,"cacheReadPrice":0.4},
   "o1": {"inputPrice":15,"outputPrice":60,"cacheReadPrice":7.5},
@@ -98,6 +99,7 @@ export const openAIModelPricing = {
 
 export const claudeModelPricing = {
   "claude-fable-5": {"inputPrice":10,"outputPrice":50,"cacheReadPrice":1,"cacheWritePrice":12.5},
+  "claude-fable-5-1": {"inputPrice":10,"outputPrice":50,"cacheReadPrice":0.25,"cacheWritePrice":12.5},
   "claude-haiku-4-5": {"inputPrice":1,"outputPrice":5,"cacheReadPrice":0.1,"cacheWritePrice":1.25},
   "claude-haiku-4-5-20251001": {"inputPrice":1,"outputPrice":5,"cacheReadPrice":0.1,"cacheWritePrice":1.25},
   "claude-opus-4-5": {"inputPrice":5,"outputPrice":25,"cacheReadPrice":0.5,"cacheWritePrice":6.25},
