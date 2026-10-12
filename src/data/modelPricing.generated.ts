@@ -107,6 +107,7 @@ export const claudeModelPricing = {
   "claude-fable-5-1": {"inputPrice":10,"outputPrice":50,"cacheReadPrice":0.25,"cacheWritePrice":12.5},
   "claude-haiku-4-5": {"inputPrice":1,"outputPrice":5,"cacheReadPrice":0.1,"cacheWritePrice":1.25},
   "claude-haiku-4-5-20251001": {"inputPrice":1,"outputPrice":5,"cacheReadPrice":0.1,"cacheWritePrice":1.25},
+  "claude-haiku-5-5": {"inputPrice":0.1,"outputPrice":0.5,"cacheReadPrice":0.01,"cacheWritePrice":0.125,"tierThreshold":100000,"inputPriceHigh":0.5,"outputPriceHigh":2.5,"cacheReadPriceHigh":0.05,"cacheWritePriceHigh":0.625},
   "claude-opus-4-5": {"inputPrice":5,"outputPrice":25,"cacheReadPrice":0.5,"cacheWritePrice":6.25},
   "claude-opus-4-5-20251101": {"inputPrice":5,"outputPrice":25,"cacheReadPrice":0.5,"cacheWritePrice":6.25},
   "claude-opus-4-6": {"inputPrice":5,"outputPrice":25,"cacheReadPrice":0.5,"cacheWritePrice":6.25},
@@ -118,7 +119,7 @@ export const claudeModelPricing = {
   "claude-sonnet-4-5-20250929": {"inputPrice":3,"outputPrice":15,"cacheReadPrice":0.3,"cacheWritePrice":3.75},
   "claude-sonnet-4-6": {"inputPrice":3,"outputPrice":15,"cacheReadPrice":0.3,"cacheWritePrice":3.75},
   "claude-sonnet-5": {"inputPrice":2,"outputPrice":10,"cacheReadPrice":0.2,"cacheWritePrice":2.5},
-  "claude-sonnet-5-5": {"inputPrice":2,"outputPrice":10,"cacheReadPrice":0.2,"cacheWritePrice":2.5},
+  "claude-sonnet-5-5": {"inputPrice":2,"outputPrice":10,"cacheReadPrice":0.1,"cacheWritePrice":2.5},
 } satisfies Record<string, ModelPricing>;
 
 export const xAIModelPricing = {
