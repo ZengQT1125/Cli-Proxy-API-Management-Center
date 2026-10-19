@@ -41,6 +41,7 @@ export const geminiModelPricing = {
   "gemini-3.6-flash": {"inputPrice":0.75,"outputPrice":3.75,"cacheReadPrice":0.075},
   "gemini-3.7-flash": {"inputPrice":0.75,"outputPrice":3.75,"cacheReadPrice":0.075},
   "gemini-3.8-flash": {"inputPrice":0.75,"outputPrice":3.75,"cacheReadPrice":0.075},
+  "gemini-4-argon": {"inputPrice":2,"outputPrice":10,"cacheReadPrice":0.1},
   "gemini-embedding-001": {"inputPrice":0.15,"outputPrice":0},
   "gemini-embedding-2": {"inputPrice":0.2,"outputPrice":0},
   "gemini-flash-latest": {"inputPrice":0.75,"outputPrice":3.75,"cacheReadPrice":0.075},
